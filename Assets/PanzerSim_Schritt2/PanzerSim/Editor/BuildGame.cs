@@ -18,8 +18,10 @@ namespace PanzerSim.EditorTools
             string root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
             string outDir = Path.Combine(root, "Builds", "BallistikStudios");
             string zip = Path.Combine(root, "Builds", "BallistikStudios.zip");
-            if (Directory.Exists(outDir)) Directory.Delete(outDir, true);
+            // Nur den Inhalt leeren: der Ordner selbst kann gesperrt sein (Explorer, Terminal ...)
             Directory.CreateDirectory(outDir);
+            foreach (var f in Directory.GetFiles(outDir)) File.Delete(f);
+            foreach (var d in Directory.GetDirectories(outDir)) Directory.Delete(d, true);
 
             string scene = "Assets/PanzerSim/Spiel.unity";
             if (!File.Exists(Path.Combine(root, scene)))
