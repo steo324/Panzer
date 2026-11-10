@@ -1,0 +1,100 @@
+// Weizen-Auswahl auf der GPU: welche Pflanzen/Bilder sind im Bild, wie dicht, welche Detailstufe.
+// Ergebnis: Listen mit Indizes, die direkt per Indirect-Draw gezeichnet werden (kein Umweg ueber die CPU).
+#pragma kernel CullPlants
+#pragma kernel CullBillboards
+
+struct Plant
+{
+    float3 pos;
+    float scale;
+    float yaw;       // Bogenmass, sichtbare Drehung
+    float angle;     // Gesamtneigung, Bogenmass
+    float lodRank;
+    float kindState; // Art * 8 + Zustand (Zustand 4 = weg / freier Platz)
+};
+
+StructuredBuffer<Plant> _Plants;
+StructuredBuffer<float4> _Bills;     // xyz Fuss, w = Groesse (negativ = gespiegelt, 0 = frei)
+AppendStructuredBuffer<uint> _Out0;  // Bueschel nah, mit Schatten
+AppendStructuredBuffer<uint> _Out1;  // Bueschel nah, ohne Schatten
+AppendStructuredBuffer<uint> _Out2;  // Bueschel vereinfacht
+AppendStructuredBuffer<uint> _Out3;  // Einzelhalm 1
+AppendStructuredBuffer<uint> _Out4;  // Einzelhalm 2
+AppendStructuredBuffer<uint> _OutB;  // Fernbilder
+AppendStructuredBuffer<uint> _OutG;  // Gras
+
+float4 _Planes[6];
+float3 _CamPos;
+uint _Count;
+float _NearDist, _FarDist, _LodDist, _ShadowDist, _StalkDist;
+float _BillStart, _BillDist, _BillFull, _Density, _GrassDist;
+
+bool InFrustum(float3 c, float r)
+{
+    [unroll] for (int i = 0; i < 6; i++)
+        if (dot(_Planes[i].xyz, c) + _Planes[i].w < -r) return false;
+    return true;
+}
+
+[numthreads(64, 1, 1)]
+void CullPlants(uint3 tid : SV_DispatchThreadID)
+{
+    uint id = tid.x;
+    if (id >= _Count) return;
+    Plant p = _Plants[id];
+    uint ks = (uint)(p.kindState + 0.5);
+    uint kind = ks >> 3, state = ks & 7;
+    if (state >= 4) return;
+
+    float d = length(p.pos.xz - _CamPos.xz);
+    if (d > _FarDist + 6.0) return;
+    bool shadow = d < _ShadowDist;
+    // Schattenwerfer auch knapp ausserhalb des Bildes behalten (ihr Schatten faellt ins Bild)
+    if (!InFrustum(p.pos + float3(0, 0.5 * p.scale, 0), p.scale + (shadow ? 4.0 : 0.3))) return;
+
+    if (kind == 3)
+    {
+        if (d > _GrassDist) return;
+        float g = saturate((_GrassDist - d) / 12.0) * lerp(0.5, 1.0, _Density);
+        if (p.lodRank > g) return;
+        _OutG.Append(id);
+        return;
+    }
+    if (kind == 0)
+    {
+        float dens = d < _NearDist ? 1.0 : lerp(1.0, 0.35, saturate((d - _NearDist) / (_FarDist - _NearDist)));
+        if (d > _FarDist - 12.0) dens *= saturate((_FarDist + 6.0 - d) / 18.0);
+        if (p.lodRank > dens * _Density) return;
+        if (shadow) _Out0.Append(id);
+        else if (d < _LodDist) _Out1.Append(id);
+        else _Out2.Append(id);
+    }
+    else
+    {
+        if (d > _StalkDist) return;
+        if (kind == 1) _Out3.Append(id); else _Out4.Append(id);
+    }
+}
+
+float Hash(uint x)
+{
+    x ^= x >> 16; x *= 0x7feb352dU; x ^= x >> 15; x *= 0x846ca68bU; x ^= x >> 16;
+    return (x & 0xFFFFFF) / 16777216.0;
+}
+
+[numthreads(64, 1, 1)]
+void CullBillboards(uint3 tid : SV_DispatchThreadID)
+{
+    uint id = tid.x;
+    if (id >= _Count) return;
+    float4 b = _Bills[id];
+    if (b.w == 0) return;
+    float d = length(b.xz - _CamPos.xz);
+    if (d < _BillStart - 1.0 || d > _BillDist) return;
+    float s = abs(b.w);
+    if (!InFrustum(b.xyz + float3(0, 0.6 * s, 0), 1.1 * s)) return;
+    float dens = d < _BillFull ? 1.0 : lerp(1.0, 0.3, saturate((d - _BillFull) / (_BillDist - _BillFull)));
+    dens *= saturate((_BillDist - d) / 40.0) * lerp(0.6, 1.0, _Density);
+    if (Hash(id) > dens) return;
+    _OutB.Append(id);
+}

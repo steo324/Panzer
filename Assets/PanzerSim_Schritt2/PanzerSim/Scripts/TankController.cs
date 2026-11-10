@@ -1,0 +1,615 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace PanzerSim
+{
+    /// <summary>
+    /// Fahrphysik (Kettenantrieb mit Federung), Turm und Kanone, Besatzung und Schaden.
+    /// Spieler-Panzer werden mit Tastatur gesteuert, Zielpanzer stehen einfach.
+    /// </summary>
+    public class TankController : MonoBehaviour
+    {
+        public TankSpec spec;
+        public bool isPlayer;
+
+        // Von der Kamera gesetzt
+        [HideInInspector] public Vector3 aimPoint;
+        [HideInInspector] public float sightRange = 500f;
+
+        public bool destroyed { get; private set; }
+        public string destroyedReason { get; private set; }
+        public bool burning { get; private set; }
+        public int ammoIndex;
+        public float reloadLeft;
+        public bool hasExtinguisher = true;
+
+        public Rigidbody rb { get; private set; }
+        public TankBuilder.Parts parts { get; private set; }
+
+        // Besatzung: welcher Mann sitzt auf welchem Platz
+        public readonly Dictionary<ModuleType, TankModule> seats = new Dictionary<ModuleType, TankModule>();
+        TankModule swapCandidate;
+        ModuleType swapRole;
+        float swapTimer;
+
+        readonly List<Vector3> wheelPoints = new List<Vector3>();
+        // Hoehe ueber Grund, ab der ein Punkt den Boden beruehrt: 0 = Laufrolle,
+        // > 0 = schraeges Kettenstueck am Antriebs-/Leitrad (greift erst an Rampen und Kanten)
+        readonly List<float> contactHeights = new List<float>();
+        float throttle, steer;
+        bool brake;
+        float fireTimer;
+        GameObject fireFx;
+        GameObject detachedTurret;
+        float superElevationDeg;
+
+        static readonly ModuleType[] SeatPriority =
+            { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander, ModuleType.RadioOperator };
+
+        public static int ViewMode;          // 0 = normal, 1 = Innenteile (Roentgen), 2 = Panzerplatten
+        public static bool Xray => ViewMode == 1;
+        public string debugInfo = "";
+        string lastDriveInfo = "";             // Roentgenblick fuer alle Panzer
+        public TankVisual visual;
+
+        public ShellData Ammo => AmmoLibrary.All[ammoIndex];
+        public float SpeedKmh => Velocity.magnitude * 3.6f;
+        public Vector3 SightPosition => parts.sight.position;
+        public float SuperElevation => superElevationDeg;
+        public float ForwardSpeed => Vector3.Dot(Velocity, transform.forward);
+        public float YawRate => Vector3.Dot(rb.angularVelocity, transform.up);
+        public float VerticalSpeed => Vector3.Dot(Velocity, transform.up);
+
+        /// <summary>Federpunkte auf die echten Laufrollen des Modells setzen (lokale x/z).</summary>
+        public void SetWheelPoints(List<Vector3> localPoints, List<Vector3> endPoints = null, List<float> endHeights = null)
+        {
+            if (localPoints == null || localPoints.Count < 4) return;
+            wheelPoints.Clear();
+            contactHeights.Clear();
+            foreach (var p in localPoints) { wheelPoints.Add(new Vector3(p.x, 0.9f, p.z)); contactHeights.Add(0f); }
+            if (endPoints != null)
+                for (int i = 0; i < endPoints.Count; i++)
+                {
+                    wheelPoints.Add(new Vector3(endPoints[i].x, 0.9f, endPoints[i].z));
+                    contactHeights.Add(endHeights != null && i < endHeights.Count ? endHeights[i] : 0.25f);
+                }
+        }
+
+        Vector3 Velocity
+        {
+#if UNITY_6000_0_OR_NEWER
+            get => rb.linearVelocity;
+            set => rb.linearVelocity = value;
+#else
+            get => rb.velocity;
+            set => rb.velocity = value;
+#endif
+        }
+
+        public void Init(TankSpec s, Rigidbody body, TankBuilder.Parts p, bool player)
+        {
+            spec = s;
+            rb = body;
+            parts = p;
+            isPlayer = player;
+            ammoIndex = s.ammoIndex;
+            reloadLeft = 0f;
+
+            foreach (var m in p.modules)
+            {
+                m.owner = this;
+                if (m.IsCrew) seats[m.type] = m;
+            }
+
+            // Federpunkte: 6 pro Kette
+            float x = s.hullWidth / 2f + s.trackWidth / 2f - s.trackInset;
+            for (int side = -1; side <= 1; side += 2)
+                for (int i = 0; i < 6; i++)
+                {
+                    float z = Mathf.Lerp(-s.hullLength * 0.42f, s.hullLength * 0.42f, i / 5f);
+                    wheelPoints.Add(new Vector3(side * x, 0.9f, z));
+                    contactHeights.Add(0f);
+                }
+            // Kettenspitzen vorne und hinten (Antriebs- und Leitrad)
+            for (int side = -1; side <= 1; side += 2)
+                for (int e = -1; e <= 1; e += 2)
+                {
+                    wheelPoints.Add(new Vector3(side * x, 0.9f, e * s.hullLength * 0.5f));
+                    contactHeights.Add(0.3f);
+                }
+            SetFrictionless();
+
+            aimPoint = transform.position + transform.forward * 500f;
+        }
+
+        // =============== Eingabe, Turm, Besatzung ===============
+        void Update()
+        {
+            if (spec == null) return;
+            float dt = Time.deltaTime;
+
+            UpdateCrew(dt);
+            UpdateFire(dt);
+            UpdateRecoil(dt);
+            if (reloadLeft > 0f && seats.Count > 0) reloadLeft -= dt / ReloadMultiplier();
+
+            if (destroyed) { throttle = 0f; steer = 0f; brake = true; return; }
+
+            if (isPlayer)
+            {
+                throttle = (Inp.Held(KeyCode.W) ? 1f : 0f) - (Inp.Held(KeyCode.S) ? 1f : 0f);
+                steer = (Inp.Held(KeyCode.D) ? 1f : 0f) - (Inp.Held(KeyCode.A) ? 1f : 0f);
+                brake = Inp.Held(KeyCode.Space);
+
+                for (int i = 0; i < AmmoLibrary.All.Length && i < 9; i++)
+                    if (Inp.Down(KeyCode.Alpha1 + i) && i != ammoIndex)
+                    {
+                        ammoIndex = i;
+                        reloadLeft = spec.reloadS; // Munition wechseln = neu laden
+                    }
+
+                if (Inp.Down(KeyCode.F)) Extinguish();
+                if (Inp.FireDown) TryFire();
+
+                AimTurret(dt);
+            }
+            else
+            {
+                throttle = 0f; steer = 0f; brake = true;
+            }
+        }
+
+        void AimTurret(float dt)
+        {
+            if (parts.turret == null || parts.turret.parent == null) return; // Turm weggeflogen
+
+            // Ueberhoehung: Rohr so weit anheben, dass die Granate auf Visier-Entfernung trifft
+            Ballistics.SimulateFlat(Ammo, Mathf.Max(sightRange, 10f), out _, out float drop, out _);
+            superElevationDeg = Mathf.Atan2(drop, sightRange) * Mathf.Rad2Deg;
+
+            float traverse = spec.traverseDegS * (Working(ModuleType.TurretDrive) ? 1f : 0.2f);
+
+            // Turm drehen (in Wannen-Koordinaten)
+            Transform hull = parts.turret.parent;
+            Vector3 local = hull.InverseTransformPoint(aimPoint) - parts.turret.localPosition;
+            float wantYaw = Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg;
+            float yaw = parts.turret.localEulerAngles.y;
+            yaw = Mathf.MoveTowardsAngle(yaw, wantYaw, traverse * dt);
+            parts.turret.localRotation = Quaternion.Euler(0f, yaw, 0f);
+
+            // Kanone heben/senken (in Turm-Koordinaten)
+            Vector3 g = parts.turret.InverseTransformPoint(aimPoint) - parts.gunPivot.localPosition;
+            float wantElev = Mathf.Atan2(g.y, new Vector2(g.x, g.z).magnitude) * Mathf.Rad2Deg + superElevationDeg;
+            wantElev = Mathf.Clamp(wantElev, spec.minElevation, spec.maxElevation);
+            float elev = -parts.gunPivot.localEulerAngles.x;
+            elev = Mathf.DeltaAngle(0f, elev);
+            elev = Mathf.MoveTowards(elev, wantElev, spec.elevationDegS * dt);
+            parts.gunPivot.localRotation = Quaternion.Euler(-elev, 0f, 0f);
+        }
+
+        void TryFire()
+        {
+            if (reloadLeft > 0f) return;
+            if (!SeatOk(ModuleType.Gunner)) { RangeLog.Add("Kein Richtschuetze!"); return; }
+            if (!Working(ModuleType.Breech)) { RangeLog.Add("Kanonenverschluss zerstoert!"); return; }
+
+            Shell.Fire(Ammo, parts.muzzle.position, parts.gunPivot.forward);
+            // Rueckstoss: Granate + Treibgase (ca. 1,5x Geschossimpuls); die Rohrbremse daempft ihn ueber den Ruecklauf
+            rb.AddForceAtPosition(-parts.gunPivot.forward * Ammo.massKg * Ammo.muzzleVelocity * 0.45f,
+                                  parts.gunPivot.position, ForceMode.Impulse);
+            Effects.Muzzle(parts.muzzle.position, parts.gunPivot.forward, Ammo.caliberMm, spec.muzzleBrake);
+            recoilT = 0f;
+            reloadLeft = spec.reloadS;
+        }
+
+        // =============== Rohrruecklauf ===============
+        float recoilT = 99f;
+        /// <summary>Wie weit das Rohr gerade zurueckgefahren ist (m). Schnell zurueck, langsam wieder vor.</summary>
+        public float RecoilOffset { get; private set; }
+        void UpdateRecoil(float dt)
+        {
+            recoilT += dt;
+            float len = Ammo.caliberMm * 0.0062f;            // 88 mm -> ca. 55 cm Ruecklauf
+            float k = recoilT < 0.04f ? recoilT / 0.04f : 1f - Mathf.SmoothStep(0f, 1f, (recoilT - 0.08f) / 0.75f);
+            RecoilOffset = len * Mathf.Clamp01(k);
+            if (parts.barrel != null)
+                parts.barrel.transform.localPosition = new Vector3(0f, 0f, spec.barrelLength / 2f - RecoilOffset);
+        }
+
+        public float ReloadMultiplier()
+        {
+            // Ohne Ladeschuetze laedt der Richtschuetze selbst
+            return SeatOk(ModuleType.Loader) ? 1f : 2.5f;
+        }
+
+        // =============== Fahrphysik ===============
+        void FixedUpdate()
+        {
+            if (spec == null) return;
+            float dt = Time.fixedDeltaTime;
+            int n = wheelPoints.Count;
+            int roadCount = 0;
+            foreach (float h in contactHeights) if (h <= 0.001f) roadCount++;
+            float massPer = rb.mass / Mathf.Max(roadCount, 1);
+            float k = massPer * 9.81f / 0.12f;                     // Federsteifigkeit: 12 cm Einfederung im Stand
+            float c = 2f * 0.45f * Mathf.Sqrt(k * massPer);       // Daempfung
+            const float rest = 1.02f;                             // Ruhelaenge der Feder
+            const float rayLen = 1.5f;
+
+            bool canDrive = !destroyed && SeatOk(ModuleType.Driver) && Working(ModuleType.Engine) && Working(ModuleType.Transmission);
+            float vMax = spec.maxSpeedKmh / 3.6f;
+            float vRev = spec.reverseKmh / 3.6f;
+            float target = throttle >= 0f ? throttle * vMax : throttle * vRev;
+
+            float speed = Velocity.magnitude;
+            float power = spec.powerPS * 735.5f * 0.7f; // Watt am Kettenrad (70% Wirkungsgrad)
+
+            int grounded = 0;
+            var hits = new RaycastHit[n];
+            var ok = new bool[n];
+            for (int i = 0; i < n; i++)
+            {
+                Vector3 o = transform.TransformPoint(wheelPoints[i]);
+                ok[i] = RaycastGround(o, -transform.up, rayLen, out hits[i]);
+                // nur Punkte zaehlen, die wirklich einfedern (Bodenkontakt)
+                if (ok[i] && rest - contactHeights[i] - hits[i].distance > 0f) grounded++;
+            }
+            // Leistung = Kraft x Geschwindigkeit. Nur die Vorwaertsgeschwindigkeit zaehlt, nicht Wackeln/Federn.
+            float vFwd = Mathf.Abs(Vector3.Dot(Velocity, transform.forward));
+            float maxDrivePer = grounded > 0 ? power / Mathf.Max(vFwd, 1.0f) / grounded : 0f;
+
+            float sumDrive = 0f, sumN = 0f; int contact = 0;
+            for (int i = 0; i < n; i++)
+            {
+                if (!ok[i]) continue;
+                RaycastHit h = hits[i];
+                Vector3 pv = rb.GetPointVelocity(h.point);
+
+                // Federung (Kettenspitzen: beginnen erst hoeher zu greifen, dafuer steifer)
+                float ch = contactHeights[i];
+                float compression = rest - ch - h.distance;
+                if (ch > 0.001f) compression *= 2f;
+                if (compression <= 0f) continue;
+                float vN = Vector3.Dot(pv, h.normal);
+                float fN = Mathf.Max(0f, k * compression - c * vN);
+                rb.AddForceAtPosition(h.normal * fN, h.point);
+
+                // Kette: vorwaerts/seitlich
+                Vector3 fwd = Vector3.ProjectOnPlane(transform.forward, h.normal).normalized;
+                Vector3 right = Vector3.Cross(h.normal, fwd);
+                // Geschwindigkeit der Wannenmitte: so bremst die Seitenreibung nicht die Drehung
+                Vector3 vc = Velocity;
+                float vF = Vector3.Dot(vc, fwd);
+                float vR = Vector3.Dot(vc, right);
+
+                // Hangabtrieb auf diesen Auflagepunkt (Anteil am Gewicht = Anteil an der Federkraft)
+                Vector3 gT = Vector3.ProjectOnPlane(Physics.gravity, h.normal) * (fN / 9.81f);
+                float gF = Vector3.Dot(gT, fwd), gR = Vector3.Dot(gT, right);
+
+                float fF;
+                if (throttle == 0f && (brake || Mathf.Abs(vF) < 1.0f))
+                    fF = -vF * massPer * 6f - gF;                    // Bremse / Stillstand: Ketten halten (Haftreibung)
+                else if (brake && throttle == 0f && steer == 0f || (!canDrive && brake))
+                    fF = -vF * massPer * 4f;                         // Bremse
+                else if (!canDrive)
+                    fF = -vF * massPer * 0.15f;                      // rollt aus
+                else
+                {
+                    float want = target;
+                    fF = (want - vF) * massPer * 2.5f;
+                    if (fF * want > 0f) fF = Mathf.Clamp(fF, -maxDrivePer, maxDrivePer); // Motorleistung begrenzt Beschleunigung
+                }
+                float fR = -vR * massPer * 6f - gR;                  // seitlich rutscht eine Kette nicht (bis zur Haftgrenze)
+
+                // Haftung begrenzt alles (Reibwert 0,9)
+                Vector3 f = fwd * fF + right * fR;
+                float maxF = fN * 0.9f;
+                if (f.magnitude > maxF) f = f.normalized * maxF;
+                rb.AddForceAtPosition(f, h.point);
+                sumDrive += Vector3.Dot(f, fwd); sumN += fN; contact++;
+            }
+            if (throttle != 0f) lastDriveInfo = $"GAS: Antrieb {sumDrive / 1000f:0} kN  maxPro {maxDrivePer / 1000f:0.0} kN  v {speed:0.0}  want {target:0.0}  Kontakt {contact}";
+            debugInfo = lastDriveInfo + "\n" + $"FPS {1f / Mathf.Max(Time.smoothDeltaTime, 0.0001f):0}  dt {Time.fixedDeltaTime:0.000}  ts {Time.timeScale:0.0}\n" +
+                        $"Punkte {n} Strahl {grounded} Kontakt {contact}  Antrieb {sumDrive / 1000f:0} kN  Last {sumN / 1000f:0} kN (Gewicht {rb.mass * 9.81f / 1000f:0})\n" +
+                        $"v {speed:0.0} m/s  canDrive {canDrive}  throttle {throttle}  maxPro {maxDrivePer / 1000f:0.0} kN";
+
+            // Lenken: Ketten laufen unterschiedlich schnell -> Drehmoment um die Hochachse.
+            // Im Stand dreht der Panzer auf der Stelle, bei voller Fahrt nur noch ca. 60% so schnell.
+            if (grounded > 0)
+            {
+                float yawRate = Vector3.Dot(rb.angularVelocity, transform.up);
+                float speedFactor = Mathf.Lerp(1f, 0.6f, Mathf.Clamp01(speed / vMax));
+                float wantRate = canDrive ? steer * spec.turnRateDegS * Mathf.Deg2Rad * speedFactor : 0f;
+                if (throttle < 0f) wantRate = -wantRate; // rueckwaerts lenkt wie ein Auto
+                float inertia = rb.inertiaTensor.y;
+                float torque = (wantRate - yawRate) * inertia * 6f;
+                float maxTorque = rb.mass * 9.81f * 0.6f * (spec.hullLength * 0.25f) * grounded / n; // Haftung begrenzt
+                torque = Mathf.Clamp(torque, -maxTorque, maxTorque);
+                rb.AddTorque(transform.up * torque);
+            }
+        }
+
+#if UNITY_6000_0_OR_NEWER
+        static PhysicsMaterial MakeMaterial(string name, float dyn, float stat, bool max)
+        {
+            return new PhysicsMaterial(name)
+            {
+                dynamicFriction = dyn, staticFriction = stat,
+                frictionCombine = max ? PhysicsMaterialCombine.Maximum : PhysicsMaterialCombine.Minimum,
+                bounceCombine = PhysicsMaterialCombine.Minimum
+            };
+        }
+#else
+        static PhysicMaterial MakeMaterial(string name, float dyn, float stat, bool max)
+        {
+            return new PhysicMaterial(name)
+            {
+                dynamicFriction = dyn, staticFriction = stat,
+                frictionCombine = max ? PhysicMaterialCombine.Maximum : PhysicMaterialCombine.Minimum,
+                bounceCombine = PhysicMaterialCombine.Minimum
+            };
+        }
+#endif
+
+        /// <summary>Panzerteile rutschen reibungsfrei: Bodenkontakt laeuft nur ueber Federn und Ketten.</summary>
+        void SetFrictionless()
+        {
+#if UNITY_6000_0_OR_NEWER
+            var pm = new PhysicsMaterial("Panzer reibungsfrei")
+            {
+                dynamicFriction = 0f, staticFriction = 0f,
+                frictionCombine = PhysicsMaterialCombine.Minimum, bounceCombine = PhysicsMaterialCombine.Minimum
+            };
+#else
+            var pm = new PhysicMaterial("Panzer reibungsfrei")
+            {
+                dynamicFriction = 0f, staticFriction = 0f,
+                frictionCombine = PhysicMaterialCombine.Minimum, bounceCombine = PhysicMaterialCombine.Minimum
+            };
+#endif
+            foreach (var c in GetComponentsInChildren<Collider>())
+                if (!c.isTrigger) c.sharedMaterial = pm;
+        }
+
+        public bool RaycastGround(Vector3 origin, Vector3 dir, float len, out RaycastHit best)
+        {
+            best = default;
+            bool found = false;
+            float bestDist = float.MaxValue;
+            // Mesh-Panzerung (nur fuer Treffer) ist kein Boden
+            foreach (var h in Physics.RaycastAll(origin, dir, len, ~(1 << ArmorPlate.MeshArmorLayer), QueryTriggerInteraction.Ignore))
+            {
+                if (h.collider.attachedRigidbody == rb) continue;
+                if (h.distance < bestDist) { bestDist = h.distance; best = h; found = true; }
+            }
+            return found;
+        }
+
+        /// <summary>Raycast, der den eigenen Panzer ignoriert (fuer Kamera und Zielmarker).</summary>
+        public bool RaycastIgnoringSelf(Vector3 origin, Vector3 dir, float len, out RaycastHit best)
+        {
+            best = default;
+            bool found = false;
+            float bestDist = float.MaxValue;
+            foreach (var h in Physics.RaycastAll(origin, dir, len, ~0, QueryTriggerInteraction.Ignore))
+            {
+                if (h.collider.attachedRigidbody == rb) continue;
+                if (detachedTurret != null && h.collider.transform.IsChildOf(detachedTurret.transform)) continue;
+                var ap = h.collider.GetComponent<ArmorPlate>();
+                if (ap != null && ap.ownerTank == this) continue;
+                if (h.distance < bestDist) { bestDist = h.distance; best = h; found = true; }
+            }
+            return found;
+        }
+
+        // =============== Besatzung und Schaden ===============
+        public bool SeatOk(ModuleType role) => seats.TryGetValue(role, out var m) && m != null && !m.Destroyed;
+
+        public bool Working(ModuleType t)
+        {
+            bool any = false;
+            foreach (var m in parts.modules)
+                if (m.type == t) { any = true; if (!m.Destroyed) return true; }
+            return !any;
+        }
+
+        int Priority(ModuleType role) => System.Array.IndexOf(SeatPriority, role);
+
+        void UpdateCrew(float dt)
+        {
+            if (destroyed) return;
+
+            if (swapCandidate != null)
+            {
+                if (swapCandidate.Destroyed) { swapCandidate = null; return; }
+                swapTimer -= dt;
+                if (swapTimer > 0f) return;
+                var keys = new List<ModuleType>(seats.Keys);
+                foreach (var key in keys) if (seats[key] == swapCandidate) seats[key] = null;
+                seats[swapRole] = swapCandidate;
+                if (isPlayer) RangeLog.Add($"{swapCandidate.label} uebernimmt jetzt: {TankModule.RoleName(swapRole)}");
+                swapCandidate = null;
+                return;
+            }
+
+            // Wichtige Plaetze nachbesetzen: Richtschuetze, Fahrer, Ladeschuetze
+            for (int r = 0; r < 3; r++)
+            {
+                ModuleType role = SeatPriority[r];
+                if (SeatOk(role)) continue;
+                // Spender: jemand auf einem weniger wichtigen Platz
+                for (int d = SeatPriority.Length - 1; d > r; d--)
+                {
+                    ModuleType donor = SeatPriority[d];
+                    if (!SeatOk(donor)) continue;
+                    swapCandidate = seats[donor];
+                    swapRole = role;
+                    swapTimer = 6f;
+                    if (isPlayer) RangeLog.Add($"{swapCandidate.label} wechselt in 6 s auf {TankModule.RoleName(role)}");
+                    return;
+                }
+            }
+        }
+
+        public void OnModuleDamaged(TankModule m)
+        {
+            if (destroyed) return;
+
+            if (m.type == ModuleType.Ammo && Random.value < (m.Destroyed ? 0.7f : 0.25f))
+            {
+                DetonateAmmo();
+                return;
+            }
+            if (m.type == ModuleType.Fuel && !burning && Random.value < (m.Destroyed ? 0.6f : 0.2f))
+                StartFire();
+
+            int alive = 0;
+            foreach (var mod in parts.modules) if (mod.IsCrew && !mod.Destroyed) alive++;
+            if (alive < 2) SetDestroyed("Besatzung ausgeschaltet");
+        }
+
+        void DetonateAmmo()
+        {
+            SetDestroyed("MUNITION EXPLODIERT");
+            foreach (var mod in parts.modules)
+                if (mod.IsCrew) { mod.hp = 0f; mod.UpdateColor(); }
+
+            Effects.AmmoDetonation(transform.TransformPoint(0f, spec.clearance + spec.hullHeight, 0f), transform);
+
+            // Turm fliegt weg
+            if (parts.turret != null)
+            {
+                detachedTurret = parts.turret.gameObject;
+                parts.turret.SetParent(null, true);
+                var trb = detachedTurret.AddComponent<Rigidbody>();
+                trb.mass = spec.massT * 250f;
+                trb.AddForce(Vector3.up * trb.mass * 12f + Random.insideUnitSphere * trb.mass * 3f, ForceMode.Impulse);
+                trb.AddTorque(Random.insideUnitSphere * trb.mass * 2f, ForceMode.Impulse);
+                trb.angularDamping = 0.6f;
+                // Der Turm liegt danach wie Stahl auf Erde: hohe Reibung, und sobald er ruht, bleibt er liegen
+                var grip = MakeMaterial("Turm Stahl auf Boden", 0.6f, 0.8f, true);
+                foreach (var col in detachedTurret.GetComponentsInChildren<Collider>())
+                    if (!col.isTrigger) col.sharedMaterial = grip;
+                detachedTurret.AddComponent<SettleBody>();
+            }
+        }
+
+        void SetDestroyed(string reason)
+        {
+            if (destroyed) return;
+            destroyed = true;
+            destroyedReason = reason;
+            RangeLog.Add($"*** {spec.name} ZERSTOERT: {reason} ***");
+            if (!reason.StartsWith("MUNITION"))
+                Effects.Burn(transform, new Vector3(0f, spec.clearance + spec.hullHeight, -spec.hullLength * 0.3f), 40f, 0.45f);
+            foreach (var p in parts.plates)
+                if (p != null) p.GetComponent<Renderer>().material.color = new Color(0.12f, 0.12f, 0.12f);
+        }
+
+        void StartFire()
+        {
+            burning = true;
+            fireTimer = 0f;
+            RangeLog.Add($"{spec.name}: BRAND im Motorraum!");
+            fireFx = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            fireFx.name = "Feuer";
+            DestroyImmediate(fireFx.GetComponent<Collider>());
+            fireFx.transform.SetParent(transform, false);
+            fireFx.transform.localPosition = new Vector3(0f, spec.clearance + spec.hullHeight + 0.3f, -spec.hullLength * 0.33f);
+            fireFx.GetComponent<Renderer>().enabled = false;           // sichtbar sind nur Flammen und Rauch
+            Effects.Burn(fireFx.transform, Vector3.zero, 99999f, 0.8f);
+        }
+
+        void UpdateFire(float dt)
+        {
+            if (!burning) return;
+            fireTimer += dt;
+
+
+            // Feuer verletzt die Besatzung langsam
+            foreach (var m in parts.modules)
+                if (m.IsCrew && !m.Destroyed) m.ApplyDamage(3f * dt);
+
+            // Computer-Besatzung loescht nach 12 s selbst
+            if (!isPlayer && !destroyed && fireTimer > 12f) Extinguish();
+        }
+
+        public void Extinguish()
+        {
+            if (!burning) return;
+            if (!hasExtinguisher) { if (isPlayer) RangeLog.Add("Kein Feuerloescher mehr!"); return; }
+            hasExtinguisher = false;
+            burning = false;
+            if (fireFx != null) Destroy(fireFx);
+            RangeLog.Add($"{spec.name}: Feuer geloescht");
+        }
+
+        /// <summary>Sichtbarkeit: Mit 3D-Modell sind Platten unsichtbar. Roentgen zeigt Innenteile statt Modell.</summary>
+        static Material glassMat;
+        readonly Dictionary<Renderer, Material> plateMats = new Dictionary<Renderer, Material>();
+
+        /// <summary>Halb durchsichtiges Material fuer die Panzerplatten-Ansicht (URP Lit, transparent).</summary>
+        static Material GlassMaterial()
+        {
+            if (glassMat != null) return glassMat;
+            var sh = Shader.Find("Universal Render Pipeline/Lit");
+            if (sh == null) return null;
+            glassMat = new Material(sh);
+            glassMat.SetFloat("_Surface", 1f);   // transparent
+            glassMat.SetFloat("_Blend", 0f);     // alpha
+            glassMat.SetOverrideTag("RenderType", "Transparent");
+            glassMat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            glassMat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            glassMat.SetInt("_ZWrite", 0);
+            glassMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            glassMat.renderQueue = 3000;
+            glassMat.color = new Color(0.2f, 0.75f, 1f, 0.3f);
+            return glassMat;
+        }
+
+        public void ApplyXray()
+        {
+            bool hasModel = visual != null;
+            bool platesOn = ViewMode == 2 || (ViewMode == 0 && !hasModel);
+            bool modulesOn = ViewMode == 1 || (ViewMode == 0 && !hasModel);
+            bool glass = ViewMode == 2 && hasModel;
+            foreach (var p in parts.plates)
+            {
+                if (p == null) continue;
+                var r = p.GetComponent<Renderer>();
+                if (r == null) continue;
+                r.enabled = platesOn && p.gameObject.layer != ArmorPlate.PhysicsOnlyLayer;
+                if (!plateMats.ContainsKey(r)) plateMats[r] = r.sharedMaterial;
+                var g = glass ? GlassMaterial() : null;
+                r.sharedMaterial = g != null ? g : plateMats[r];
+                r.shadowCastingMode = glass ? UnityEngine.Rendering.ShadowCastingMode.Off : UnityEngine.Rendering.ShadowCastingMode.On;
+            }
+            foreach (var m in parts.modules)
+                if (m != null) { var r = m.GetComponent<Renderer>(); if (r != null) r.enabled = modulesOn; }
+            if (parts.barrel != null) parts.barrel.enabled = !hasModel || ViewMode == 1;
+            if (visual != null) { visual.SetVisible(ViewMode != 1); visual.SetArmorView(ViewMode == 2); }
+        }
+
+        public void Teleport(Vector3 pos, float yaw)
+        {
+            transform.SetPositionAndRotation(pos, Quaternion.Euler(0f, yaw, 0f));
+            rb.position = pos;
+            rb.rotation = Quaternion.Euler(0f, yaw, 0f);
+            Velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+
+        public void ResetUpright()
+        {
+            Vector3 p = transform.position + Vector3.up * 2f;
+            transform.SetPositionAndRotation(p, Quaternion.Euler(0f, transform.eulerAngles.y, 0f));
+            Velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+
+        void OnDestroy()
+        {
+            if (detachedTurret != null) Destroy(detachedTurret);
+        }
+    }
+}

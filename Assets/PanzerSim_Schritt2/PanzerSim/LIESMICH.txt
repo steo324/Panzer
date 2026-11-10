@@ -1,0 +1,49 @@
+PANZER-SIM - Schritt 2: Fahrbarer Panzer + Panzer-Testgelaende
+=================================================================
+
+EINRICHTEN
+1. Unity Hub -> "New project" -> Vorlage "Universal 3D" (Unity 6) -> Create.
+   (Hast du schon ein Projekt von Schritt 1? Dann den alten Ordner "PanzerSim" in Assets loeschen.)
+2. Diesen Ordner "PanzerSim" (mit Scripts und Editor darin) in den Ordner "Assets" ziehen.
+3. Warten, bis Unity fertig ist (unten rechts dreht sich nichts mehr).
+4. Ganz oben in der Menueleiste (File, Edit, Assets, GameObject, Component, PANZER, Window, Help):
+   Panzer -> "Panzer-Testgelaende erstellen"
+5. Play druecken (Dreieck oben in der Mitte).
+
+STEUERUNG
+- W/S: Gas / rueckwaerts     A/D: lenken     Leertaste: bremsen
+- Maus: zielen (der Turm dreht sich mit seiner echten Geschwindigkeit hinterher)
+- Linksklick: feuern
+- Shift: Visier an/aus (Zoom wie ein echtes Panzerzielfernrohr)
+- Mausrad: Visier-Entfernung von Hand einstellen (wie im echten Panzer)
+- R: automatische Entfernung wieder an
+- 1-7: Munition wechseln (zum Testen alle Granaten aus Schritt 1)
+- X: Roentgenblick - Panzerplatten ausblenden, Innenteile und Splitter sehen
+- F: Feuerloescher (einmal)
+- N: neue Zielpanzer      T: Panzer wieder aufrichten
+- Esc: Maus freigeben
+
+DIE ANZEIGE
+- Kleines Kreuz = wohin du schaust. Eckiger Rahmen = wohin die Kanone gerade wirklich zeigt.
+  Erst schiessen, wenn der Rahmen auf dem Ziel liegt!
+- Links: Munition, Durchschlag auf Visier-Entfernung, Nachladen, Besatzung, Technik
+- Unten: Protokoll jedes Treffers mit Platte, Winkel, effektiver Dicke und Schaden
+
+ZIELE
+- Sherman 300 m (frontal), T-34-85 500 m (angewinkelt), Panzer IV 200 m (Seite), Sherman 800 m
+- Im Roentgenblick: gruen = heil, rot = beschaedigt, schwarz = tot/zerstoert
+
+WAS SCHON SIMULIERT WIRD
+- Panzer aus echten Einzelplatten mit Dicke, Winkel, Material (Front, Seiten, Heck, Dach, Boden, Blende, Ketten)
+- Ungefaehre echte Werte: Panzer IV H, M4A2 Sherman, T-34-85
+- Federung, Kettenantrieb, Motorleistung, Haftung
+- Turmdrehung und Hoehenrichtung mit echten Geschwindigkeiten, Rohrsenkung/-erhoehung begrenzt
+- Ueberhoehung: die Kanone hebt sich je nach Entfernung
+- Nach Durchschlag: Splitterkegel (je nach Restenergie), direkter Granatentreffer, Sprengladung explodiert nach Zuenderverzoegerung
+- 5 Mann Besatzung: Ausfall hat Folgen (kein Fahrer = steht, kein Ladeschuetze = 2,5x langsamer laden).
+  Andere springen nach 6 s ein.
+- Munition kann explodieren (Turm fliegt weg), Kraftstoff kann brennen
+- Zerstoert, wenn weniger als 2 Mann leben oder die Munition explodiert
+
+FALLS FEHLER
+- Rote Fehler in der Console (Window -> General -> Console): Text kopieren und Claude schicken.
