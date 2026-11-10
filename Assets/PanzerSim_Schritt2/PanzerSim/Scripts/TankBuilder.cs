@@ -70,6 +70,7 @@ namespace PanzerSim
             barrel.transform.localScale = new Vector3(cal * 2.2f, s.barrelLength / 2f, cal * 2.2f);
             barrel.transform.localPosition = new Vector3(0f, 0f, s.barrelLength / 2f);
             parts.barrel = barrel.GetComponent<Renderer>();
+            parts.barrel.sharedMaterial = GameMap.Mat(new Color(0.42f, 0.45f, 0.38f));
 
             var muzzle = new GameObject("Muendung").transform;
             muzzle.SetParent(gun, false);
@@ -173,7 +174,7 @@ namespace PanzerSim
             go.transform.localPosition = localPos - normal * (t / 2f); // Aussenflaeche liegt auf der Kistenkante
             go.transform.localRotation = localRot;
             go.transform.localScale = new Vector3(width, height, t);
-            go.GetComponent<Renderer>().material.color = new Color(0.42f, 0.45f, 0.38f);
+            go.GetComponent<Renderer>().sharedMaterial = GameMap.Mat(new Color(0.42f, 0.45f, 0.38f));
             var p = go.AddComponent<ArmorPlate>();
             p.thicknessMm = a.mm;
             p.material = a.mat;

@@ -55,6 +55,14 @@ namespace PanzerSim
             mats[c] = m;
             return m;
         }
+
+        /// <summary>Eigenes Material (URP Lit) fuer Teile, deren Farbe sich aendert (z. B. Innenteile bei Schaden).
+        /// Ersetzt das Standardmaterial von CreatePrimitive, das im Build pink waere.</summary>
+        public static Material NewMat(Color c)
+        {
+            var m = new Material(Mat(Color.white)) { color = c };
+            return m;
+        }
     }
 
     // =====================================================================

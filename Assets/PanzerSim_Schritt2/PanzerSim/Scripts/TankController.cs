@@ -509,7 +509,7 @@ namespace PanzerSim
             if (!reason.StartsWith("MUNITION"))
                 Effects.Burn(transform, new Vector3(0f, spec.clearance + spec.hullHeight, -spec.hullLength * 0.3f), 40f, 0.45f);
             foreach (var p in parts.plates)
-                if (p != null) p.GetComponent<Renderer>().material.color = new Color(0.12f, 0.12f, 0.12f);
+                if (p != null) p.GetComponent<Renderer>().sharedMaterial = GameMap.Mat(new Color(0.12f, 0.12f, 0.12f));
         }
 
         void StartFire()

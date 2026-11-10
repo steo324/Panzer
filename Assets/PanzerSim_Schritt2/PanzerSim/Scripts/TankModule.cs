@@ -21,6 +21,9 @@ namespace PanzerSim
         public TankController owner;
 
         Renderer rend;
+        Material ownMat;
+
+        void OnDestroy() { if (ownMat != null) Destroy(ownMat); }
 
         public bool IsCrew => type <= ModuleType.RadioOperator;
         public bool Destroyed => hp <= 0f;
@@ -61,8 +64,10 @@ namespace PanzerSim
         {
             if (rend == null) rend = GetComponent<Renderer>();
             if (rend == null) return;
+            // gruen = heil, ueber gelb nach rot = beschaedigt, schwarz = zerstoert
             Color c = Destroyed ? new Color(0.1f, 0.1f, 0.1f) : Color.Lerp(Color.red, Color.green, hp / maxHp);
-            rend.material.color = c;
+            if (ownMat == null) { ownMat = GameMap.NewMat(c); rend.sharedMaterial = ownMat; }
+            ownMat.color = c;
         }
     }
 }

@@ -59,11 +59,7 @@ namespace PanzerSim
             body.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);   // Kapsel-Achse (Y) nach vorne (Z)
             body.transform.localScale = new Vector3(cal, cal * 1.75f, cal);
             var r = body.GetComponent<Renderer>();
-            if (bodyMat == null)
-            {
-                bodyMat = new Material(r.sharedMaterial) { name = "Granate" };
-                bodyMat.color = new Color(0.25f, 0.22f, 0.15f);
-            }
+            if (bodyMat == null) bodyMat = GameMap.Mat(new Color(0.25f, 0.22f, 0.15f));
             r.sharedMaterial = bodyMat;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
@@ -259,7 +255,7 @@ namespace PanzerSim
             DestroyImmediate(m.GetComponent<Collider>()); // sofort weg, damit keine Granate daran haengen bleibt
             m.transform.position = pos;
             m.transform.localScale = Vector3.one * size;
-            m.GetComponent<Renderer>().material.color = c;
+            m.GetComponent<Renderer>().sharedMaterial = GameMap.Mat(c);
             Destroy(m, 60f);
         }
     }
