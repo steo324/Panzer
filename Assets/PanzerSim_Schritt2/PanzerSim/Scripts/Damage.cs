@@ -6,8 +6,7 @@ namespace PanzerSim
     /// <summary>Splitter und Explosionen im Inneren eines Panzers.</summary>
     public static class Damage
     {
-        public static bool ShowFragments = true;
-        static Material lineMat;
+        public static bool ShowFragments = true;   // Splitter als kleine schwarze Partikel zeigen
 
         /// <summary>
         /// Splitterkegel: count Strahlen in einem Kegel um dir. Splitter treffen Innenteile
@@ -42,7 +41,7 @@ namespace PanzerSim
                         break;
                     }
                 }
-                if (ShowFragments) Line(origin, origin + d * end);
+                if (ShowFragments) Effects.Spall(origin, d, end);
             }
         }
 
@@ -71,25 +70,6 @@ namespace PanzerSim
             // sqrt sorgt fuer gleichmaessigere Verteilung im Kegel
             float a = coneDeg * Mathf.Sqrt(UnityEngine.Random.value);
             return Quaternion.AngleAxis(a, perp) * dir;
-        }
-
-        static void Line(Vector3 a, Vector3 b)
-        {
-            var go = new GameObject("Splitter");
-            var lr = go.AddComponent<LineRenderer>();
-            if (lineMat == null)
-            {
-                var sh = Shader.Find("Sprites/Default");
-                if (sh != null) lineMat = new Material(sh);
-            }
-            if (lineMat != null) lr.sharedMaterial = lineMat;
-            lr.positionCount = 2;
-            lr.SetPosition(0, a);
-            lr.SetPosition(1, b);
-            lr.startWidth = lr.endWidth = 0.015f;
-            lr.startColor = new Color(1f, 0.9f, 0.4f);
-            lr.endColor = new Color(1f, 0.3f, 0f);
-            UnityEngine.Object.Destroy(go, 3f);
         }
     }
 }

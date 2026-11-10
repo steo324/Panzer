@@ -11,7 +11,9 @@ namespace PanzerSim
     /// </summary>
     public static class Effects
     {
-        static ParticleSystem smoke, dust, dirt, fire, sparks, flash, embers;
+        static ParticleSystem smoke, dust, dirt, fire, sparks, flash, embers, spall;
+        static Material craterMat;
+        static readonly Queue<GameObject> craters = new Queue<GameObject>();
         static readonly List<Light> lights = new List<Light>();
         static readonly List<float> lightEnd = new List<float>(), lightPeak = new List<float>(), lightLen = new List<float>();
         static GameObject root;
@@ -67,6 +69,72 @@ namespace PanzerSim
             }
             Blast(pos + dir * 2f, 14f * s, 0.8f);
             CameraShake.Add(pos, 0.5f * s, 30f);
+            Sfx.Cannon(pos, caliberMm);
+        }
+
+        /// <summary>Splitter (Spall): kleine schwarze Teilchen, die von origin in Richtung dir bis zur Entfernung dist fliegen.</summary>
+        public static void Spall(Vector3 origin, Vector3 dir, float dist)
+        {
+            if (!Ensure()) return;
+            float speed = Random.Range(25f, 70f);                    // langsamer als echt, damit man sie sieht
+            float life = Mathf.Clamp(dist / speed, 0.03f, 0.6f);     // verschwinden dort, wo der Splitter stecken bleibt
+            float g = Random.Range(0.02f, 0.05f);
+            EmitOne(spall, origin, dir.normalized * speed, g, life, new Color(0.03f, 0.03f, 0.03f, 1f));
+        }
+
+        /// <summary>Kleine Grube im Boden: dunkle Mulde mit aufgeworfenem Rand (bleibt eine Weile liegen).</summary>
+        public static void Crater(Vector3 pos, Vector3 normal, float radius, Transform parent = null)
+        {
+            if (!Ensure()) return;
+            const int seg = 18;
+            var verts = new List<Vector3>();
+            var cols = new List<Color>();
+            var uvs = new List<Vector2>();
+            var tris = new List<int>();
+            // Ringe: Mitte, Mulde, Rand (erhoeht), Auslauf (verblasst)
+            float[] rr = { 0f, 0.55f, 1f, 1.6f };
+            float[] hh = { 0.01f, 0.015f, 0.12f, 0.01f };
+            Color[] cc =
+            {
+                new Color(0.08f, 0.06f, 0.04f, 0.95f), new Color(0.14f, 0.11f, 0.07f, 0.92f),
+                new Color(0.30f, 0.24f, 0.16f, 0.85f), new Color(0.35f, 0.29f, 0.20f, 0f)
+            };
+            float[] jitter = new float[seg];
+            for (int i = 0; i < seg; i++) jitter[i] = Random.Range(0.85f, 1.15f);
+            verts.Add(new Vector3(0f, hh[0], 0f)); cols.Add(cc[0]); uvs.Add(new Vector2(0.5f, 0.5f));
+            for (int r = 1; r < rr.Length; r++)
+                for (int i = 0; i < seg; i++)
+                {
+                    float a = i / (float)seg * Mathf.PI * 2f;
+                    float rad = rr[r] * radius * jitter[i];
+                    verts.Add(new Vector3(Mathf.Cos(a) * rad, hh[r] * radius, Mathf.Sin(a) * rad));
+                    cols.Add(cc[r]); uvs.Add(new Vector2(0.5f, 0.5f));
+                }
+            for (int i = 0; i < seg; i++) { tris.Add(0); tris.Add(1 + (i + 1) % seg); tris.Add(1 + i); }
+            for (int r = 1; r < rr.Length - 1; r++)
+                for (int i = 0; i < seg; i++)
+                {
+                    int a0 = 1 + (r - 1) * seg + i, a1 = 1 + (r - 1) * seg + (i + 1) % seg;
+                    int b0 = a0 + seg, b1 = a1 + seg;
+                    tris.Add(a0); tris.Add(a1); tris.Add(b0);
+                    tris.Add(a1); tris.Add(b1); tris.Add(b0);
+                }
+            var mesh = new Mesh { name = "Grube" };
+            mesh.SetVertices(verts); mesh.SetColors(cols); mesh.SetUVs(0, uvs); mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+
+            var go = new GameObject("Grube");
+            go.transform.position = pos + normal * 0.02f;
+            go.transform.rotation = Quaternion.FromToRotation(Vector3.up, normal) * Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+            // am Gelaende haengen, damit die Grube mit der Karte verschwindet
+            go.transform.SetParent(parent != null ? parent : root.transform, true);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = craterMat;
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            mr.receiveShadows = false;
+            craters.Enqueue(go);
+            while (craters.Count > 200) { var old = craters.Dequeue(); if (old != null) Object.Destroy(old); }
         }
 
         /// <summary>Einschlag ohne Sprengladung: Erde/Staub oder Funken auf Panzerstahl.</summary>
@@ -87,10 +155,12 @@ namespace PanzerSim
                 for (int i = 0; i < 6; i++)
                     EmitOne(smoke, pos + normal * 0.3f, normal * Random.Range(0.5f, 2f) + Random.insideUnitSphere, Random.Range(0.6f, 1.1f) * s, Random.Range(1.5f, 3f), Gray(0.35f, 0.45f));
                 AddLight(pos + normal * 0.5f, new Color(1f, 0.8f, 0.5f), 4f * s, 12f, 0.06f);
+                Sfx.SteelHit(pos);
             }
             else
             {
                 GroundBurst(pos, normal, 0.6f * s, false);
+                Sfx.GroundHit(pos);
             }
         }
 
@@ -121,6 +191,7 @@ namespace PanzerSim
             AddLight(pos + Vector3.up * 0.5f, new Color(1f, 0.6f, 0.3f), 12f * s, 20f * s + 10f, 0.25f);
             Blast(pos, 10f + 12f * s, 1.2f + 0.3f * s);
             CameraShake.Add(pos, 0.8f * s, 60f + 40f * s);
+            Sfx.Explosion(pos, fillerKg);
         }
 
         /// <summary>Munitionsbrand: riesiger Feuerball, Rauchsaeule; danach brennt das Wrack weiter.</summary>
@@ -235,6 +306,10 @@ namespace PanzerSim
             sparks.GetComponent<ParticleSystemRenderer>().lengthScale = 1f;
             flash = Make("Blitz", add(star), 200, 0f, 0f, Curve(0f, 0.6f, 1f, 1.2f), FadeInOut(0.01f, 0.4f), 0f);
             embers = Make("Glut", add(glow), 2000, -0.12f, 0.6f, Curve(0f, 1f, 1f, 0.3f), FadeInOut(0.1f, 0.5f), 0.8f);
+            spall = Make("Splitter", alpha(chunk, 0.3f), 3000, 0.3f, 0f, Curve(0f, 1f, 1f, 1f), FadeInOut(0.01f, 0.95f), 0f);
+            craterMat = alpha(Texture2D.whiteTexture, 0.85f);
+            craterMat.renderQueue = 2990;   // vor Rauch/Staub zeichnen
+            craters.Clear();
             return true;
         }
 

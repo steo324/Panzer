@@ -56,6 +56,7 @@ namespace PanzerSim
             new ShellData("BR-365",    "85 mm ZiS-S-53 (T-34-85)",        ShellType.APHEBC, 85f,  9.20f, 792f, 0.048f),
             new ShellData("APCBC Mk8", "17-Pfuender (Firefly)",           ShellType.APCBC,  76.2f, 7.65f, 883f, 0.0f),
             new ShellData("M72 AP",    "75 mm M3 (Sherman)",              ShellType.AP,     75f,  6.32f, 619f, 0.0f),
+            new ShellData("BR-365K",   "85 mm ZiS-S-53 (T-34-85)",        ShellType.APHE,   85f,  9.20f, 792f, 0.048f),
         };
     }
 }

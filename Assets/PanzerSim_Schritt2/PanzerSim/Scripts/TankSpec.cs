@@ -45,7 +45,8 @@ namespace PanzerSim
         public float traverseDegS, elevationDegS, minElevation, maxElevation;
 
         // Kanone
-        public int ammoIndex;       // Index in AmmoLibrary.All
+        public int ammoIndex;       // Index in AmmoLibrary.All (Startmunition)
+        public int[] ammo;          // Granaten, die diese Kanone verschiesst (Indizes in AmmoLibrary.All); Taste 1, 2, ...
         public float reloadS;
         public float barrelLength;
         public bool muzzleBrake;             // Muendungsbremse (Gas schiesst seitlich raus)
@@ -107,7 +108,7 @@ namespace PanzerSim
             turretFront = new Armor(100, 0), turretSide = new Armor(80, 0), turretRear = new Armor(80, 0),
             turretRoof = new Armor(25, 0), mantlet = new Armor(110, 0),
             traverseDegS = 7f, elevationDegS = 4f, minElevation = -8f, maxElevation = 15f,
-            ammoIndex = 1, reloadS = 8.5f, barrelLength = 3.5f, muzzleBrake = true,
+            ammoIndex = 1, ammo = new[] { 1 }, reloadS = 8.5f, barrelLength = 3.5f, muzzleBrake = true,
             sightType = SightType.German, sightFov = 25f, sightMag = 2.5f, sightName = "TZF 9c",
             sightZoomFov = new[] { 25f, 14f }, sightZoomMag = new[] { 2.5f, 5f },
             modelResource = "Modelle/Tiger", modelScale = 1.2f,
@@ -129,7 +130,7 @@ namespace PanzerSim
             turretFront = new Armor(50, 10), turretSide = new Armor(30, 25), turretRear = new Armor(30, 15),
             turretRoof = new Armor(10, 0), mantlet = new Armor(50, 0),
             traverseDegS = 14f, elevationDegS = 5f, minElevation = -8f, maxElevation = 20f,
-            ammoIndex = 0, reloadS = 6.5f, barrelLength = 3.6f, muzzleBrake = true,
+            ammoIndex = 0, ammo = new[] { 0 }, reloadS = 6.5f, barrelLength = 3.6f, muzzleBrake = true,
             sightType = SightType.German, sightFov = 25f, sightName = "TZF 5f"
         };
 
@@ -145,7 +146,7 @@ namespace PanzerSim
             turretRear = new Armor(51, 0, ArmorMaterial.Cast), turretRoof = new Armor(25, 0),
             mantlet = new Armor(89, 0, ArmorMaterial.Cast),
             traverseDegS = 24f, elevationDegS = 5f, minElevation = -10f, maxElevation = 25f,
-            ammoIndex = 2, reloadS = 6f, barrelLength = 2.8f,
+            ammoIndex = 2, ammo = new[] { 2, 6 }, reloadS = 6f, barrelLength = 2.8f,
             sightType = SightType.US, sightFov = 12.7f, sightMag = 3f, sightName = "M70F"
         };
 
@@ -165,7 +166,7 @@ namespace PanzerSim
             turretRear = new Armor(52, 10, ArmorMaterial.Cast), turretRoof = new Armor(20, 0),
             mantlet = new Armor(40, 0, ArmorMaterial.Cast),
             traverseDegS = 20f, elevationDegS = 5f, minElevation = -5f, maxElevation = 22f,
-            ammoIndex = 4, reloadS = 8f, barrelLength = 3.2f,
+            ammoIndex = 4, ammo = new[] { 4, 7 }, reloadS = 8f, barrelLength = 3.2f,
             sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-16",
             modelResource = "Modelle/T34_85", modelScale = 1f,
             modelTurretBone = "turret", modelGunBone = "cannon",

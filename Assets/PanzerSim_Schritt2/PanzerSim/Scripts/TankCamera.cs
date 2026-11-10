@@ -174,7 +174,7 @@ namespace PanzerSim
                 ? $"Laedt ... {t.reloadLeft * t.ReloadMultiplier():0.0} s{(t.ReloadMultiplier() > 1f ? " (ohne Ladeschuetze!)" : "")}"
                 : "<color=#7f7>GELADEN</color>";
             string s = $"<b>{t.spec.name}</b>   {t.SpeedKmh:0} km/h\n" +
-                       $"Munition [{t.ammoIndex + 1}]: {a.name} ({a.type}, {a.gun})\n" +
+                       $"Munition [{t.AmmoSlot}/{t.AmmoLoadout.Length}]: {a.name} ({a.type}, {a.gun})\n" +
                        $"Durchschlag auf {t.sightRange:0} m: {Penetration.FlatPenetration(a, vAt):0} mm\n" +
                        $"Visier: {t.sightRange:0} m {(autoRange ? "(automatisch)" : "(von Hand, Q/E)")}\n" +
                        $"{reload}\n\n<b>Besatzung</b>\n";

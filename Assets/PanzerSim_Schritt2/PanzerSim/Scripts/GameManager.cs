@@ -458,6 +458,15 @@ namespace PanzerSim
             return value != old;
         }
 
+        static string AmmoList(TankSpec s)
+        {
+            int[] list = s.ammo != null && s.ammo.Length > 0 ? s.ammo : new[] { s.ammoIndex };
+            var parts = new string[list.Length];
+            for (int i = 0; i < list.Length; i++)
+                parts[i] = $"[{i + 1}] {AmmoLibrary.All[list[i]].name} ({AmmoLibrary.All[list[i]].type})";
+            return string.Join("  ·  ", parts);
+        }
+
         static string TankInfo(TankSpec s)
         {
             var a = AmmoLibrary.All[s.ammoIndex];
@@ -468,7 +477,7 @@ namespace PanzerSim
                 $"<b>{s.massT:0} t</b>  ·  {s.powerPS:0} PS  ·  {s.maxSpeedKmh:0} km/h\n" +
                 $"Turm: {s.traverseDegS:0}°/s  ·  Laden: {s.reloadS:0.0} s\n\n" +
                 $"<b>Kanone:</b> {a.gun}\n" +
-                $"Munition: {a.name} ({a.type})\n" +
+                $"Munition: {AmmoList(s)}\n" +
                 $"Durchschlag: <b>{Penetration.FlatPenetration(a, v100):0} mm</b> (100 m)  ·  {Penetration.FlatPenetration(a, v1000):0} mm (1 km)\n\n" +
                 $"<b>Panzerung Wanne</b>\nFront {Arm(s.hullFront)}  ·  Seite {Arm(s.hullSide)}  ·  Heck {Arm(s.hullRear)}\n" +
                 $"<b>Panzerung Turm</b>\nFront {Arm(s.turretFront)}  ·  Seite {Arm(s.turretSide)}  ·  Blende {Arm(s.mantlet)}";

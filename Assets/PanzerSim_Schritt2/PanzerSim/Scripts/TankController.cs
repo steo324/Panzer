@@ -53,6 +53,10 @@ namespace PanzerSim
         public TankVisual visual;
 
         public ShellData Ammo => AmmoLibrary.All[ammoIndex];
+        /// <summary>Granaten, die dieser Panzer laden kann (ohne Angabe: nur die Startmunition).</summary>
+        public int[] AmmoLoadout => spec.ammo != null && spec.ammo.Length > 0 ? spec.ammo : new[] { spec.ammoIndex };
+        /// <summary>Tastennummer (1, 2, ...) der geladenen Munition.</summary>
+        public int AmmoSlot => System.Array.IndexOf(AmmoLoadout, ammoIndex) + 1;
         public float SpeedKmh => Velocity.magnitude * 3.6f;
         public Vector3 SightPosition => parts.sight.position;
         public float SuperElevation => superElevationDeg;
@@ -141,10 +145,12 @@ namespace PanzerSim
                 steer = (Inp.Held(KeyCode.D) ? 1f : 0f) - (Inp.Held(KeyCode.A) ? 1f : 0f);
                 brake = Inp.Held(KeyCode.Space);
 
-                for (int i = 0; i < AmmoLibrary.All.Length && i < 9; i++)
-                    if (Inp.Down(KeyCode.Alpha1 + i) && i != ammoIndex)
+                // Nur die Granaten dieser Kanone: Taste 1 = erste Sorte, 2 = zweite ...
+                int[] loadout = AmmoLoadout;
+                for (int i = 0; i < loadout.Length && i < 9; i++)
+                    if (Inp.Down(KeyCode.Alpha1 + i) && loadout[i] != ammoIndex)
                     {
-                        ammoIndex = i;
+                        ammoIndex = loadout[i];
                         reloadLeft = spec.reloadS; // Munition wechseln = neu laden
                     }
 

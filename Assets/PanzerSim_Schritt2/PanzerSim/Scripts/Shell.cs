@@ -25,39 +25,47 @@ namespace PanzerSim
         bool insideTank;         // erst nach einem Durchschlag kann die Granate Innenteile treffen
         bool finished;
 
-        LineRenderer line;
-        readonly List<Vector3> path = new List<Vector3>();
+        GameObject body;          // sichtbares Geschoss
+        bool stuck;               // steckt im Boden
         readonly List<string> report = new List<string>();
         readonly Dictionary<TankModule, string> damage = new Dictionary<TankModule, string>();
         readonly HashSet<TankModule> touched = new HashSet<TankModule>();
-        static Material lineMat;
+        static Material bodyMat;
+
+        /// <summary>Wie oft eine Granate im Boden stecken bleibt statt abzuprallen/zu zerspringen (bei steilem Einschlag).</summary>
+        public const float StuckChance = 0.3f;
 
         public static Shell Fire(ShellData d, Vector3 position, Vector3 direction)
         {
             var go = new GameObject("Granate " + d.name);
             go.transform.position = position;
+            go.transform.rotation = Quaternion.LookRotation(direction);
             var sh = go.AddComponent<Shell>();
             sh.data = d;
             sh.origin = position;
             sh.velocity = direction.normalized * d.muzzleVelocity;
-            sh.SetupLine();
+            sh.SetupBody();
             return sh;
         }
 
-        void SetupLine()
+        /// <summary>Geschosskoerper: Kapsel in Kaliber-Groesse, etwa 3,5 Kaliber lang.</summary>
+        void SetupBody()
         {
-            line = gameObject.AddComponent<LineRenderer>();
-            if (lineMat == null)
+            body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            body.name = "Geschoss";
+            DestroyImmediate(body.GetComponent<Collider>());
+            body.transform.SetParent(transform, false);
+            float cal = data.caliberMm / 1000f;
+            body.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);   // Kapsel-Achse (Y) nach vorne (Z)
+            body.transform.localScale = new Vector3(cal, cal * 1.75f, cal);
+            var r = body.GetComponent<Renderer>();
+            if (bodyMat == null)
             {
-                var sh = Shader.Find("Sprites/Default");
-                if (sh != null) lineMat = new Material(sh);
+                bodyMat = new Material(r.sharedMaterial) { name = "Granate" };
+                bodyMat.color = new Color(0.25f, 0.22f, 0.15f);
             }
-            if (lineMat != null) line.sharedMaterial = lineMat;
-            line.startWidth = 0.06f;
-            line.endWidth = 0.06f;
-            line.startColor = new Color(1f, 0.85f, 0.3f);
-            line.endColor = new Color(1f, 0.5f, 0.1f);
-            path.Add(transform.position);
+            r.sharedMaterial = bodyMat;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
         void ReportDamage(TankModule m, string msg) { damage[m] = msg; }
@@ -84,14 +92,11 @@ namespace PanzerSim
 
                 remaining -= hit.distance;
                 pos = hit.point;
-                path.Add(pos);
 
                 var plate = hit.collider.GetComponentInParent<ArmorPlate>();
                 if (plate == null)
                 {
-                    // Boden oder etwas ohne Panzerung
-                    if (!data.HasFiller) Effects.Impact(pos, hit.normal, dir, data.caliberMm, false, false);
-                    Stop(pos, data.HasFiller);
+                    HitGround(hit, dir);
                     return;
                 }
 
@@ -150,7 +155,7 @@ namespace PanzerSim
             HitModules(pos, end);
             pos = end;
             transform.position = pos;
-            path.Add(pos);
+            if (velocity.sqrMagnitude > 1f) transform.rotation = Quaternion.LookRotation(velocity);
             if (velocity.sqrMagnitude < 900f) { Stop(pos); return; }
 
             if (fuseTimer >= 0f)
@@ -158,7 +163,42 @@ namespace PanzerSim
                 fuseTimer -= dt;
                 if (fuseTimer <= 0f) { Stop(pos, true); return; }
             }
-            UpdateLine();
+        }
+
+        /// <summary>
+        /// Einschlag in Boden oder etwas ohne Panzerung. Im Boden entsteht eine kleine Grube;
+        /// bei steilem Einschlag bleibt die Granate manchmal einfach stecken (auch Sprenggranaten: Blindgaenger).
+        /// </summary>
+        void HitGround(RaycastHit hit, Vector3 dir)
+        {
+            Vector3 pos = hit.point;
+            bool isGround = hit.collider is TerrainCollider || (hit.normal.y > 0.5f && hit.collider.attachedRigidbody == null);
+            float graze = 90f - Vector3.Angle(-dir, hit.normal);   // 90 = senkrecht hinein, 0 = streifend
+            float cal = data.caliberMm / 1000f;
+
+            if (isGround)
+            {
+                float radius = Mathf.Clamp(cal * 6f, 0.3f, 0.7f);   // 88 mm -> ca. 0,5 m
+                if (data.HasFiller) radius += Mathf.Clamp(Mathf.Pow(data.fillerKg * 1000f, 1f / 3f) * 0.08f, 0.1f, 0.6f);
+
+                if (graze > 12f && Random.value < StuckChance)
+                {
+                    // Granate steckt im Boden: halb eingegraben, kein Zuender
+                    Effects.Impact(pos, hit.normal, dir, data.caliberMm, false, false);
+                    Effects.Crater(pos, hit.normal, radius * 0.6f, hit.collider.transform);
+                    stuck = true;
+                    transform.position = pos + dir * cal * 1.6f;
+                    transform.rotation = Quaternion.LookRotation(dir);
+                    transform.SetParent(hit.collider.transform, true);
+                    report.Add($"{data.name}: steckt im Boden ({Vector3.Distance(origin, pos):0} m){(data.HasFiller ? ", Blindgaenger" : "")}");
+                    Finish();
+                    return;
+                }
+                Effects.Crater(pos, hit.normal, radius, hit.collider.transform);
+            }
+
+            if (!data.HasFiller) Effects.Impact(pos, hit.normal, dir, data.caliberMm, false, false);
+            Stop(pos, data.HasFiller);
         }
 
         /// <summary>Innenteile entlang eines Wegstuecks treffen (nur nach Durchschlag).</summary>
@@ -204,18 +244,12 @@ namespace PanzerSim
         {
             if (finished) return;
             finished = true;
-            UpdateLine();
             if (damage.Count > 0) report.Add("   Schaden: " + string.Join(", ", damage.Values));
             if (report.Count > 0) RangeLog.Add(string.Join("\n", report));
             enabled = false;
-            Destroy(gameObject, 4f); // Leuchtspur noch kurz sichtbar lassen
-        }
-
-        void UpdateLine()
-        {
-            if (line == null) return;
-            line.positionCount = path.Count;
-            line.SetPositions(path.ToArray());
+            if (stuck) { Destroy(gameObject, 120f); return; }   // steckende Granate bleibt eine Weile liegen
+            if (body != null) body.SetActive(false);
+            Destroy(gameObject);
         }
 
         public static void Marker(Vector3 pos, Color c, float size)
