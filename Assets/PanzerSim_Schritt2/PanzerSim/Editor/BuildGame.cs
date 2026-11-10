@@ -18,6 +18,8 @@ namespace PanzerSim.EditorTools
             string root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
             string outDir = Path.Combine(root, "Builds", "BallistikStudios");
             string zip = Path.Combine(root, "Builds", "BallistikStudios.zip");
+            ShaderIncludes.Ensure();   // Laufzeit-Shader (URP Lit, Terrain) muessen mit in den Build, sonst wird alles pink
+
             // Nur den Inhalt leeren: der Ordner selbst kann gesperrt sein (Explorer, Terminal ...)
             Directory.CreateDirectory(outDir);
             foreach (var f in Directory.GetFiles(outDir)) File.Delete(f);
