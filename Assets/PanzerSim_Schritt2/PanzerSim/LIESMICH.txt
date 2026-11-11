@@ -35,7 +35,8 @@ ZIELE
 
 WAS SCHON SIMULIERT WIRD
 - Panzer aus echten Einzelplatten mit Dicke, Winkel, Material (Front, Seiten, Heck, Dach, Boden, Blende, Ketten)
-- Ungefaehre echte Werte: Panzer IV H, M4A2 Sherman, T-34-85
+- Ungefaehre echte Werte: Panzer IV H, M4A1E9 Sherman, T-34-85
+- M4A1E9-Modell: Tools/Blender/rig_sherman.py macht aus dem FBX das Spielmodell (Turm, Kanone, Raeder einzeln)
 - Federung, Kettenantrieb, Motorleistung, Haftung
 - Turmdrehung und Hoehenrichtung mit echten Geschwindigkeiten, Rohrsenkung/-erhoehung begrenzt
 - Ueberhoehung: die Kanone hebt sich je nach Entfernung

@@ -134,20 +134,40 @@ namespace PanzerSim
             sightType = SightType.German, sightFov = 25f, sightName = "TZF 5f"
         };
 
+        /// <summary>
+        /// M4A1E9: wiederaufgebauter M4A1 (Gusswanne) mit 75 mm M3, Zusatzpanzerung, Kommandantenkuppel und
+        /// verbreitertem VVSS-Laufwerk (Distanzstuecke + verlaengerte Endverbinder).
+        /// Masse aus dem 3D-Modell (Tools/Blender/rig_sherman.py, auf 5,84 m Wannenlaenge skaliert).
+        /// </summary>
         public static TankSpec Sherman => new TankSpec
         {
-            name = "M4A2 Sherman",
-            massT = 30.3f, powerPS = 410f, maxSpeedKmh = 48f, reverseKmh = 8f, turnRateDegS = 28f,
-            hullLength = 5.9f, hullWidth = 2.1f, hullHeight = 1.45f,
-            hullFront = new Armor(51, 56), hullRear = new Armor(38, 10), hullSide = new Armor(38, 0),
-            hullRoof = new Armor(19, 0), hullBottom = new Armor(13, 0),
-            turretLength = 2.1f, turretWidth = 1.9f, turretHeight = 0.9f, turretOffsetZ = 0f,
+            name = "M4A1E9 Sherman",
+            // Continental R975 Sternmotor, 400 PS; ca. 31 t mit Zusatzpanzerung; 39 km/h (24 mph)
+            massT = 31f, powerPS = 400f, maxSpeedKmh = 39f, reverseKmh = 6f, turnRateDegS = 28f,
+            hullLength = 5.84f, hullWidth = 2.6f, hullHeight = 1.52f, clearance = 0.43f,
+            trackWidth = 0.42f, trackInset = 0.48f,      // Kettenmitte liegt auf den Laufrollen des Modells (x = 1,03 m)
+            // Gusswanne: Bug 51 mm, je nach Stelle 37-55 Grad geneigt (genauer Winkel kommt aus der Modellform)
+            hullFront = new Armor(51, 47, ArmorMaterial.Cast), hullRear = new Armor(38, 10),
+            hullSide = new Armor(38, 0, ArmorMaterial.Cast), hullRoof = new Armor(19, 0), hullBottom = new Armor(19, 0),
+            meshArmor = true,
+            hullFrontLower = new Armor(64, 45, ArmorMaterial.Cast),   // Getriebegehaeuse (Guss, 51-108 mm gewoelbt)
+            hullGlacis = new Armor(51, 55, ArmorMaterial.Cast),
+            hullLowerSide = new Armor(38, 0),                         // untere Wanne hinter den Laufrollen (gewalzt)
+            turretLength = 2.5f, turretWidth = 2.0f, turretHeight = 0.77f, turretOffsetZ = -0.2f,
             turretFront = new Armor(76, 30, ArmorMaterial.Cast), turretSide = new Armor(51, 5, ArmorMaterial.Cast),
             turretRear = new Armor(51, 0, ArmorMaterial.Cast), turretRoof = new Armor(25, 0),
-            mantlet = new Armor(89, 0, ArmorMaterial.Cast),
-            traverseDegS = 24f, elevationDegS = 5f, minElevation = -10f, maxElevation = 25f,
-            ammoIndex = 2, ammo = new[] { 2, 6 }, reloadS = 6f, barrelLength = 2.8f,
-            sightType = SightType.US, sightFov = 12.7f, sightMag = 3f, sightName = "M70F"
+            mantlet = new Armor(89, 0, ArmorMaterial.Cast),           // Blende M34A1: Schild 51 mm + Rotor 38 mm
+            traverseDegS = 24f, elevationDegS = 5f, minElevation = -10f, maxElevation = 25f,   // hydraulisch 360 Grad in 15 s
+            // 75 mm M3: M61 APC (mit Sprengladung) und M72 AP (Vollgeschoss)
+            ammoIndex = 2, ammo = new[] { 2, 6 }, reloadS = 6f, barrelLength = 1.93f,   // sichtbarer Teil ab Schildzapfen
+            // Richtschuetze: Zielfernrohr M70F in der Blende M34A1, 3-fach, 12,7 Grad Sehfeld
+            sightType = SightType.US, sightFov = 12.7f, sightMag = 3f, sightName = "M70F",
+            modelResource = "Modelle/M4A1E9", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            // Leitrad hinten (radL0), 6 Laufrollen (VVSS, 508 mm), Antriebsrad vorne (radL7)
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.257f,
+            linkTracks = true, idlerRadius = 0.306f, sprocketRadius = 0.32f,
+            trackPitch = 0.152f, trackShoeWidth = 0.42f, trackThickness = 0.05f, trackSag = 0.04f   // Kette T48/T51: 6 Zoll Teilung
         };
 
         public static TankSpec T34_85 => new TankSpec
