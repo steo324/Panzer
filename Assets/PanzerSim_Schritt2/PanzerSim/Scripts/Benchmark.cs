@@ -24,7 +24,11 @@ namespace PanzerSim
             yield return new WaitForSeconds(6f);   // Karte laden, Shader aufwaermen
             var cam = Camera.main.GetComponent<TankCamera>();
             var pl = GameManager.Instance.BenchPlayer;
-            if (cam != null && pl != null) cam.SetView(pl.transform.eulerAngles.y, -0.4f);   // zum Horizont schauen (Ziele in der Ferne)
+            float camOff = 0f, camPitch = -0.4f;
+            var args = System.Environment.GetCommandLineArgs();
+            int ci = System.Array.IndexOf(args, "-benchcam");   // -benchcam <Winkel> <Neigung>: Kamera seitlich (z. B. 90 12)
+            if (ci >= 0 && ci + 2 < args.Length) { float.TryParse(args[ci + 1], out camOff); float.TryParse(args[ci + 2], out camPitch); }
+            if (cam != null && pl != null) cam.SetView(pl.transform.eulerAngles.y + camOff, camPitch);   // Standard: zum Horizont schauen
 
             var frames = new List<float>();
             float t = 0f;

@@ -35,6 +35,7 @@ namespace PanzerSim
         public static float MouseSens = 1f;
         public static bool InvertY;
         public static bool DetailTrees = true;        // neue Baeume (sonst einfache Kugelbaeume)
+        public static bool DevMode;                   // Entwickler-Modus: Test-Fahrzeuge in der Auswahl
         public static float UiScale = 1f;             // 0.75 .. 1.5, zusaetzlich zur automatischen Anpassung an die Aufloesung
 
         /// <summary>Faktor fuer Anzeigen im Spiel: waechst mit der Bildschirmhoehe (1080p = 1) mal UI-Groesse.</summary>
@@ -71,7 +72,7 @@ namespace PanzerSim
                 ViewDistance = PlayerPrefs.GetFloat("s.view", 750f); WheatShadows = PlayerPrefs.GetFloat("s.wShadow", 15f);
                 Fov = PlayerPrefs.GetFloat("s.fov", 60f); MouseSens = PlayerPrefs.GetFloat("s.sens", 1f);
                 InvertY = PlayerPrefs.GetInt("s.invY") == 1;
-                UiScale = PlayerPrefs.GetFloat("s.ui", 1f);
+                UiScale = PlayerPrefs.GetFloat("s.ui", 1f); DevMode = PlayerPrefs.GetInt("s.dev") == 1;
                 DetailTrees = PlayerPrefs.GetInt("s.trees", 1) == 1;
             }
             Apply(true);
@@ -90,7 +91,7 @@ namespace PanzerSim
             PlayerPrefs.SetFloat("s.view", ViewDistance); PlayerPrefs.SetFloat("s.wShadow", WheatShadows);
             PlayerPrefs.SetFloat("s.fov", Fov); PlayerPrefs.SetFloat("s.sens", MouseSens);
             PlayerPrefs.SetInt("s.invY", InvertY ? 1 : 0);
-            PlayerPrefs.SetFloat("s.ui", UiScale);
+            PlayerPrefs.SetFloat("s.ui", UiScale); PlayerPrefs.SetInt("s.dev", DevMode ? 1 : 0);
             PlayerPrefs.Save();
         }
 

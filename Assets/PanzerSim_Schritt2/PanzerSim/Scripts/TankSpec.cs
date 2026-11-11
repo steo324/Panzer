@@ -50,6 +50,8 @@ namespace PanzerSim
         public int[] ammo;          // Granaten, die diese Kanone verschiesst (Indizes in AmmoLibrary.All); Taste 1, 2, ...
         public float reloadS;
         public float barrelLength;
+        public bool noGun;                   // (noch) keine Hauptwaffe: Feuern und MG aus (Wiesel: TOW-Lenkrakete folgt)
+        public bool devOnly;                 // nur im Entwickler-Modus waehlbar (Fahrzeug in Arbeit)
         public bool muzzleBrake;             // Muendungsbremse (Gas schiesst seitlich raus)
 
         // Zielfernrohr
@@ -194,6 +196,35 @@ namespace PanzerSim
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.257f,
             linkTracks = true, idlerRadius = 0.306f, sprocketRadius = 0.32f,
             trackPitch = 0.152f, trackShoeWidth = 0.42f, trackThickness = 0.05f, trackSag = 0.04f   // Kette T48/T51: 6 Zoll Teilung
+        };
+
+        /// <summary>
+        /// Wiesel 1 TOW (Bundeswehr, Luftlande-Waffentraeger, ab 1989): Modell im Code gebaut nach Risszeichnungen
+        /// (Tools/Blender/build_wiesel.py). Vorerst nur fahrbar - die TOW-Lenkrakete kommt spaeter.
+        /// Werte ungefaehr: 2,8 t, Audi-5-Zylinder-Turbodiesel 87 PS, 70 km/h; Panzerung nur gegen Gewehrfeuer und Splitter.
+        /// </summary>
+        public static TankSpec Wiesel => new TankSpec
+        {
+            name = "Wiesel 1 TOW",
+            massT = 2.8f, powerPS = 87f, maxSpeedKmh = 70f, reverseKmh = 15f, turnRateDegS = 55f,
+            hullLength = 3.30f, hullWidth = 1.58f, hullHeight = 0.78f, clearance = 0.30f,
+            trackWidth = 0.24f, trackInset = 0.12f,          // Kettenmitte bei x = 0,79 m (Breite gesamt 1,82 m)
+            hullFront = new Armor(10, 60), hullRear = new Armor(6, 10), hullSide = new Armor(8, 10),
+            hullRoof = new Armor(6, 0), hullBottom = new Armor(6, 0),
+            turretLength = 0.5f, turretWidth = 0.45f, turretHeight = 0.5f, turretOffsetZ = -0.40f,
+            turretFront = new Armor(6, 0), turretSide = new Armor(6, 0), turretRear = new Armor(6, 0),
+            turretRoof = new Armor(4, 0), mantlet = new Armor(6, 0),
+            traverseDegS = 30f, elevationDegS = 15f, minElevation = -10f, maxElevation = 25f,
+            ammoIndex = 12, ammo = new[] { 12 }, reloadS = 15f, barrelLength = 1.0f, noGun = true, devOnly = true,
+            // TOW-Zielgeraet: 13-fach
+            sightType = SightType.US, sightFov = 4.5f, sightMag = 13f, sightName = "TOW-Zielgeraet (Rakete folgt)",
+            modelResource = "Modelle/Wiesel", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            // Leitrad hinten (radL0, laeuft mit am Boden), 3 Laufrollen, Antriebsrad vorne hochgesetzt (radL4)
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 5, wheelRadius = 0.19f,
+            linkTracks = true, idlerRadius = 0.235f, sprocketRadius = 0.14f,
+            trackPitch = 0.10f, trackShoeWidth = 0.24f, trackThickness = 0.035f, trackSag = 0.03f,
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 1, returnRollerRadius = 0.065f
         };
 
         public static TankSpec T34_85 => new TankSpec

@@ -178,7 +178,8 @@ namespace PanzerSim
             string reload = t.reloadLeft > 0f
                 ? $"Laedt ... {t.reloadLeft * t.ReloadMultiplier():0.0} s{(t.ReloadMultiplier() > 1f ? " (ohne Ladeschuetze!)" : "")}"
                 : "<color=#7f7>GELADEN</color>";
-            string s = $"<b>{t.spec.name}</b>   {t.SpeedKmh:0} km/h\n" +
+            string s = t.spec.noGun ? $"<b>{t.spec.name}</b>   {t.SpeedKmh:0} km/h\nWaffe: TOW-Lenkrakete (kommt spaeter)\n" + TrackStatus(t) + "\n<b>Besatzung</b>\n" :
+                       $"<b>{t.spec.name}</b>   {t.SpeedKmh:0} km/h\n" +
                        $"Munition [{t.AmmoSlot}/{t.AmmoLoadout.Length}]: {a.name} ({a.type}, {a.gun})\n" +
                        (a.IsHE ? $"Sprenggranate: Druckwelle schlaegt bis {Penetration.FlatPenetration(a, vAt):0} mm durch\n"
                         : a.IsHEAT ? $"Hohlladung: {Penetration.FlatPenetration(a, vAt):0} mm auf jede Entfernung\n"

@@ -12,7 +12,7 @@ namespace PanzerSim
         State state;
 
         static readonly System.Func<TankSpec>[] Tanks =
-            { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85 };
+            { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85, () => TankLibrary.Wiesel };
         readonly GameMap[] maps = { new PlainsMap(), new TestRangeMap() };
 
         int tankIndex, mapIndex;
@@ -536,6 +536,7 @@ namespace PanzerSim
             for (int i = 0; i < Tanks.Length; i++)
             {
                 var s = Tanks[i]();
+                if (s.devOnly && !GameSettings.DevMode) continue;   // Test-Fahrzeuge nur im Entwickler-Modus
                 if (GUILayout.Button(s.name, i == tankIndex ? btnSel : btn, GUILayout.Height(44)) && i != tankIndex)
                 {
                     tankIndex = i;
@@ -865,6 +866,12 @@ namespace PanzerSim
                 GUILayout.Space(10);
                 bool dev = DevMetrics.Visible;
                 if (Toggle("Entwickler-Anzeige (F3)", ref dev)) DevMetrics.Visible = dev;
+                if (Toggle("Entwickler-Modus (Test-Fahrzeuge, z. B. Wiesel)", ref GameSettings.DevMode))
+                {
+                    changed = true;
+                    if (!GameSettings.DevMode && Tanks[tankIndex]().devOnly) { tankIndex = 0; BuildPreview(); }
+                }
+                GUILayout.Label("Zeigt Fahrzeuge, die noch in Arbeit sind, in der Panzerauswahl.", note);
             }
             else
             {

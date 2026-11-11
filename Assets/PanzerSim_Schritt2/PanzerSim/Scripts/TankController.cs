@@ -149,7 +149,7 @@ namespace PanzerSim
 
             // Turm-MG: rechte Maustaste (eigener Panzer), fremde Panzer zeigen das uebertragene Feuer
             bool mgFire = false;
-            if (isPlayer) { mgFire = !destroyed && (Inp.MgHeld || BenchMg) && Cursor.lockState == CursorLockMode.Locked && Working(ModuleType.Gunner); net?.SetMg(mgFire); }
+            if (isPlayer) { mgFire = !destroyed && !spec.noGun && (Inp.MgHeld || BenchMg) && Cursor.lockState == CursorLockMode.Locked && Working(ModuleType.Gunner); net?.SetMg(mgFire); }
             else if (net != null) mgFire = !destroyed && net.MgFiring;
             MachineGun.Tick(this, mgFire, dt);
 
@@ -213,6 +213,7 @@ namespace PanzerSim
 
         void TryFire()
         {
+            if (spec.noGun) { RangeLog.AddLocal($"{spec.name}: noch keine Waffe (TOW-Rakete folgt)"); return; }
             if (reloadLeft > 0f) return;
             if (!SeatOk(ModuleType.Gunner)) { RangeLog.Add("Kein Richtschuetze!"); return; }
             if (!Working(ModuleType.Breech)) { RangeLog.Add("Kanonenverschluss zerstoert!"); return; }
