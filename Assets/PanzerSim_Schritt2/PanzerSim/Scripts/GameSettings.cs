@@ -24,6 +24,7 @@ namespace PanzerSim
         public static bool Fsr = true;                // Hochskalierung mit FSR statt einfach unscharf
         public static int AntiAliasing = 2;           // 0 Aus, 1 FXAA, 2 SMAA, 3 MSAA 4x + SMAA
         public static int Shadows = 2;                // 0 Aus, 1 Niedrig, 2 Mittel, 3 Hoch
+        public static int Effects = 2;                // Bildeffekte: 0 Niedrig (nur Farbe), 1 Mittel (+Bloom, SSAO halb), 2 Hoch (+SSAO, Vignette), 3 Ultra
         public static float WheatDensity = 1f;        // 0.25 .. 1
         public static float WheatDistance = 105f;     // 3D-Halme bis (m)
         public static float ViewDistance = 750f;      // Weizen-Fernbilder bis (m)
@@ -42,6 +43,7 @@ namespace PanzerSim
         public static readonly string[] PresetNames = { "Niedrig", "Mittel", "Hoch", "Ultra", "Benutzerdefiniert" };
         public static readonly string[] AaNames = { "Aus", "FXAA (schnell)", "SMAA", "MSAA 4x + SMAA" };
         public static readonly string[] ShadowNames = { "Aus", "Niedrig", "Mittel", "Hoch" };
+        public static readonly string[] EffectNames = { "Niedrig", "Mittel", "Hoch", "Ultra" };
         public static readonly string[] WindowNames = { "Vollbild (randloses Fenster)", "Vollbild (exklusiv)", "Fenster" };
         public static readonly int[] FpsSteps = { 0, 30, 60, 75, 120, 144, 165, 240 };
 
@@ -64,7 +66,7 @@ namespace PanzerSim
                 WindowMode = PlayerPrefs.GetInt("s.window"); VSync = PlayerPrefs.GetInt("s.vsync") == 1;
                 FpsLimit = PlayerPrefs.GetInt("s.fps"); Preset = PlayerPrefs.GetInt("s.preset");
                 RenderScale = PlayerPrefs.GetFloat("s.scale", 1f); Fsr = PlayerPrefs.GetInt("s.fsr", 1) == 1;
-                AntiAliasing = PlayerPrefs.GetInt("s.aa", 2); Shadows = PlayerPrefs.GetInt("s.shadows", 2);
+                AntiAliasing = PlayerPrefs.GetInt("s.aa", 2); Shadows = PlayerPrefs.GetInt("s.shadows", 2); Effects = PlayerPrefs.GetInt("s.fx", 2);
                 WheatDensity = PlayerPrefs.GetFloat("s.wDens", 1f); WheatDistance = PlayerPrefs.GetFloat("s.wDist", 105f);
                 ViewDistance = PlayerPrefs.GetFloat("s.view", 750f); WheatShadows = PlayerPrefs.GetFloat("s.wShadow", 15f);
                 Fov = PlayerPrefs.GetFloat("s.fov", 60f); MouseSens = PlayerPrefs.GetFloat("s.sens", 1f);
@@ -83,7 +85,7 @@ namespace PanzerSim
             PlayerPrefs.SetInt("s.window", WindowMode); PlayerPrefs.SetInt("s.vsync", VSync ? 1 : 0);
             PlayerPrefs.SetInt("s.fps", FpsLimit); PlayerPrefs.SetInt("s.preset", Preset);
             PlayerPrefs.SetFloat("s.scale", RenderScale); PlayerPrefs.SetInt("s.fsr", Fsr ? 1 : 0);
-            PlayerPrefs.SetInt("s.aa", AntiAliasing); PlayerPrefs.SetInt("s.shadows", Shadows);
+            PlayerPrefs.SetInt("s.aa", AntiAliasing); PlayerPrefs.SetInt("s.shadows", Shadows); PlayerPrefs.SetInt("s.fx", Effects);
             PlayerPrefs.SetFloat("s.wDens", WheatDensity); PlayerPrefs.SetFloat("s.wDist", WheatDistance);
             PlayerPrefs.SetFloat("s.view", ViewDistance); PlayerPrefs.SetFloat("s.wShadow", WheatShadows);
             PlayerPrefs.SetFloat("s.fov", Fov); PlayerPrefs.SetFloat("s.sens", MouseSens);
@@ -104,6 +106,7 @@ namespace PanzerSim
         public static void ApplyPreset(int p)
         {
             Preset = p;
+            if (p <= 3) Effects = p;
             switch (p)
             {
                 case 0: RenderScale = 0.7f; Fsr = true; AntiAliasing = 1; Shadows = 1; WheatDensity = 0.5f; WheatDistance = 55f; ViewDistance = 400f; WheatShadows = 0f; break;
@@ -145,6 +148,7 @@ namespace PanzerSim
                 SetProp(urp, "gpuResidentDrawerMode", 0);   // GPU Resident Drawer aus (DX11-Absturz mit vielen Objekten)
             }
             ApplyCamera(Camera.main);
+            Visuals.Apply(Camera.main, Effects);
         }
 
         public static void ApplyCamera(Camera cam)

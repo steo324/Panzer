@@ -35,6 +35,7 @@ namespace PanzerSim.EditorTools
             });
             Make("TerrainLit", "Universal Render Pipeline/Terrain/Lit", null);
             Make("SpritesDefault", "Sprites/Default", null);
+            Make("SkyProcedural", "Skybox/Procedural", null);
             AssetDatabase.SaveAssets();
         }
 

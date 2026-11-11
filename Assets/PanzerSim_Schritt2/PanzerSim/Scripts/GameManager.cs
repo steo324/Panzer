@@ -65,6 +65,13 @@ namespace PanzerSim
             gameObject.AddComponent<GameUpdater>();   // neue Version auf GitHub? -> laden, neu starten
             LoadServerList();
             ShowMenu();
+            if (Arg("-bench") != null)
+            {
+                var b = gameObject.AddComponent<Benchmark>();
+                b.outDir = Arg("-bench");
+                b.preset = int.TryParse(Arg("-preset"), out int bp) ? Mathf.Clamp(bp, 0, 3) : -1;
+                return;
+            }
             if (Has("-host")) StartHostGame();
             else if (Arg("-code") != null) StartJoinCode(Arg("-code"));
             else if (Arg("-connect") != null) { ipText = Arg("-connect"); StartJoin(); }
@@ -250,6 +257,8 @@ namespace PanzerSim
             preview = TankBuilder.Build(Tanks[tankIndex](), StagePos, Quaternion.Euler(0f, 210f, 0f), false);
             preview.rb.isKinematic = true;
         }
+
+        public void BenchStart() => StartGame();
 
         void StartGame()
         {
@@ -737,6 +746,7 @@ namespace PanzerSim
                 if (GameSettings.RenderScale < 0.99f && Toggle("Hochskalieren mit FSR", ref GameSettings.Fsr)) custom = true;
                 if (Selector("Kantenglaettung", ref GameSettings.AntiAliasing, GameSettings.AaNames)) custom = true;
                 if (Selector("Schatten", ref GameSettings.Shadows, GameSettings.ShadowNames)) custom = true;
+                if (Selector("Bildeffekte (Licht, Farbe, SSAO)", ref GameSettings.Effects, GameSettings.EffectNames)) custom = true;
 
                 GUILayout.Space(10);
                 GUILayout.Label("WEIZEN UND SICHTWEITE", head);
