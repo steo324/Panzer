@@ -37,6 +37,8 @@ namespace PanzerSim
         float connectStart, statusTimer;
         NetTank localNet;
         string ipText = "127.0.0.1", portText = NetSync.DefaultPort.ToString(), netMessage = "";
+        bool relayBusy, viaRelay;
+        string hostCode = "", codeText = "";
 
         void Awake() { Instance = this; }
 
@@ -64,6 +66,7 @@ namespace PanzerSim
             LoadServerList();
             ShowMenu();
             if (Has("-host")) StartHostGame();
+            else if (Arg("-code") != null) StartJoinCode(Arg("-code"));
             else if (Arg("-connect") != null) { ipText = Arg("-connect"); StartJoin(); }
         }
 
@@ -97,24 +100,58 @@ namespace PanzerSim
         }
 
         // ================= Mehrspieler-Ablauf =================
-        void StartHostGame()
+        /// <summary>Hosten: zuerst ueber Unity Relay (Beitrittscode, geht ohne Portfreigabe), sonst klassisch ueber Port 7777.</summary>
+        async void StartHostGame()
         {
-            netMessage = "";
+            if (relayBusy) return;
+            netMessage = ""; hostCode = ""; relayBusy = true;
+            string code = null, relayError = null;
+            try { code = await RelayConnect.Host(NetSync.MaxPlayers - 1); }
+            catch (System.Exception e) { relayError = RelayConnect.Explain(e); }
+            relayBusy = false;
+            if (this == null || state != State.Menu) return;
             BuildMap(mapIndex);
-            if (!NetSync.StartHost(tankIndex, mapIndex, Port)) { netMessage = NetSync.LastError; ShowMenu(); return; }
+            bool ok = code != null ? NetSync.StartHostRelay(tankIndex, mapIndex) : NetSync.StartHost(tankIndex, mapIndex, Port);
+            if (!ok) { netMessage = NetSync.LastError; ShowMenu(); return; }
             netGame = true;
             EnterPlaying();
-            RangeLog.AddLocal($"Spiel gehostet auf Port {Port}. Mitspieler verbinden sich mit deiner IP.");
+            if (code != null)
+            {
+                hostCode = code;
+                Debug.Log("[Netz] Beitrittscode: " + code);
+                RangeLog.AddLocal($"Spiel gehostet. Beitrittscode: {code}  (steht oben im Bild; Freunde: Serverliste -> Code eingeben)");
+            }
+            else
+                RangeLog.AddLocal($"{relayError} Gehostet auf Port {Port} - nur Heimnetz/Tailscale koennen beitreten.");
         }
 
         void StartJoin()
         {
-            netMessage = "";
+            netMessage = ""; viaRelay = false;
             if (!NetSync.StartClient(tankIndex, ipText.Trim(), Port)) { netMessage = NetSync.LastError; return; }
             netGame = true;
             connecting = true;
             connectStart = Time.unscaledTime;
         }
+
+        /// <summary>Beitreten mit Beitrittscode (Unity Relay).</summary>
+        async void StartJoinCode(string code)
+        {
+            code = (code ?? "").Trim().ToUpperInvariant();
+            if (relayBusy || code.Length == 0) return;
+            netMessage = ""; relayBusy = true; listOpen = false;
+            try { await RelayConnect.Join(code); }
+            catch (System.Exception e) { relayBusy = false; netMessage = RelayConnect.Explain(e); return; }
+            relayBusy = false;
+            if (this == null || state != State.Menu) return;
+            viaRelay = true; ipText = code;
+            if (!NetSync.StartClientRelay(tankIndex)) { netMessage = NetSync.LastError; return; }
+            netGame = true;
+            connecting = true;
+            connectStart = Time.unscaledTime;
+        }
+
+        string ConnectTarget => viaRelay ? $"Code {ipText}" : $"{ipText}:{Port}";
 
         /// <summary>Client: Server hat die Spielrunde geschickt -> Karte bauen und los.</summary>
         public void BeginClientGame(int mapIdx)
@@ -122,7 +159,7 @@ namespace PanzerSim
             connecting = false;
             BuildMap(Mathf.Clamp(mapIdx, 0, maps.Length - 1));
             EnterPlaying();
-            RangeLog.AddLocal($"Verbunden mit {ipText}:{Port}");
+            RangeLog.AddLocal($"Verbunden mit {ConnectTarget}");
         }
 
         void StartDedicatedServer()
@@ -185,7 +222,7 @@ namespace PanzerSim
             if (netGame || NetSync.Active)
             {
                 NetSync.Stop();
-                netGame = false; connecting = false; localNet = null;
+                netGame = false; connecting = false; localNet = null; hostCode = "";
             }
             ClearGame();
             state = State.Menu;
@@ -386,10 +423,32 @@ namespace PanzerSim
                 GUI.matrix = Matrix4x4.Scale(new Vector3(sc, sc, 1f));
                 float w = Screen.width / sc;
                 GUI.Box(new Rect(w / 2f - 260, 460, 520, 160), GUIContent.none, panel);
-                GUI.Label(new Rect(w / 2f - 230, 480, 460, 40), $"Verbinde mit {ipText}:{Port} ...", head);
+                GUI.Label(new Rect(w / 2f - 230, 480, 460, 40), $"Verbinde mit {ConnectTarget} ...", head);
                 if (GUI.Button(new Rect(w / 2f - 120, 550, 240, 50), "Abbrechen", btn)) { NetSync.LastError = ""; netMessage = ""; ShowMenu(); }
                 GUI.matrix = Matrix4x4.identity;
                 return;
+            }
+            if (relayBusy)
+            {
+                InitStyles();
+                float sc = Screen.height / 1080f;
+                GUI.matrix = Matrix4x4.Scale(new Vector3(sc, sc, 1f));
+                float w = Screen.width / sc;
+                GUI.Box(new Rect(w / 2f - 260, 470, 520, 100), GUIContent.none, panel);
+                GUI.Label(new Rect(w / 2f - 230, 495, 460, 40), "Online-Verbindung wird aufgebaut ...", head);
+                GUI.matrix = Matrix4x4.identity;
+                return;
+            }
+            if (netGame && hostCode.Length > 0)
+            {
+                // Beitrittscode fuer Freunde immer oben sichtbar
+                InitStyles();
+                float sc = Screen.height / 1080f;
+                GUI.matrix = Matrix4x4.Scale(new Vector3(sc, sc, 1f));
+                float w = Screen.width / sc;
+                GUI.Box(new Rect(w / 2f - 170, 8, 340, 40), GUIContent.none, panel);
+                GUI.Label(new Rect(w / 2f - 160, 12, 320, 32), $"Beitrittscode:  <b><color=#fd6>{hostCode}</color></b>", text);
+                GUI.matrix = Matrix4x4.identity;
             }
             if (state == State.Playing) return;
             InitStyles();
@@ -441,9 +500,9 @@ namespace PanzerSim
             // ---- Mehrspieler ----
             GUILayout.Space(16);
             GUILayout.Label("MEHRSPIELER", head);
-            GUI.enabled = !GameUpdater.Busy;
-            if (GUILayout.Button("Serverliste (Server suchen und beitreten)", btnSel, GUILayout.Height(44))) OpenServerList();
-            if (GUILayout.Button("Selbst hosten (gewaehlter Panzer + Karte)", btn, GUILayout.Height(40))) StartHostGame();
+            GUI.enabled = !GameUpdater.Busy && !relayBusy;
+            if (GUILayout.Button("Serverliste / Mit Code beitreten", btnSel, GUILayout.Height(44))) OpenServerList();
+            if (GUILayout.Button("Selbst hosten (Freunde treten mit Code bei)", btn, GUILayout.Height(40))) StartHostGame();
             GUI.enabled = true;
             if (!string.IsNullOrEmpty(netMessage)) GUILayout.Label($"<color=#f77>{netMessage}</color>", text);
             GUILayout.EndArea();
@@ -537,7 +596,7 @@ namespace PanzerSim
             GUILayout.Label("<b>Ping</b>", text, GUILayout.Width(80));
             GUILayout.Label("<b>Version</b>", text, GUILayout.Width(190));
             GUILayout.EndHorizontal();
-            listScroll = GUILayout.BeginScrollView(listScroll, GUILayout.Height(500));
+            listScroll = GUILayout.BeginScrollView(listScroll, GUILayout.Height(440));
             var entries = new List<ServerQuery.Entry>(servers.Values);
             entries.Sort((a, b) => (b.info != null).CompareTo(a.info != null));
             string remove = null;
@@ -568,6 +627,14 @@ namespace PanzerSim
             if (remove != null) { savedServers.Remove(remove); servers.Remove(remove); SaveServerList(); }
 
             GUILayout.Space(10);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Beitrittscode:", text, GUILayout.Width(130));
+            codeText = GUILayout.TextField(codeText, 12, GUILayout.Width(160), GUILayout.Height(34)).ToUpperInvariant();
+            if (GUILayout.Button("Mit Code beitreten", btnSel, GUILayout.Width(220), GUILayout.Height(38)) && codeText.Trim().Length > 0)
+                StartJoinCode(codeText);
+            GUILayout.Label("<color=#999>(Code bekommt, wer \"Selbst hosten\" klickt)</color>", small);
+            GUILayout.EndHorizontal();
+            GUILayout.Space(6);
             GUILayout.BeginHorizontal();
             GUILayout.Label("IP / Name:", text, GUILayout.Width(90));
             addText = GUILayout.TextField(addText, 64, GUILayout.Width(300), GUILayout.Height(34));

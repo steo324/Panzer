@@ -117,6 +117,29 @@ namespace PanzerSim
             return ok;
         }
 
+        /// <summary>Host ueber Unity Relay (vorher RelayConnect.Host). Kein offener Port noetig.</summary>
+        public static bool StartHostRelay(int tankIndex, int mapIndex)
+        {
+            var nm = Ensure(); if (nm == null) return false;
+            MapIndex = mapIndex;
+            Transport.SetRelayServerData(RelayConnect.Data);
+            nm.NetworkConfig.ConnectionData = Payload(tankIndex);
+            bool ok = nm.StartHost();
+            if (ok) SpawnSession(); else LastError = "Host konnte nicht starten.";
+            return ok;
+        }
+
+        /// <summary>Client ueber Unity Relay (vorher RelayConnect.Join).</summary>
+        public static bool StartClientRelay(int tankIndex)
+        {
+            var nm = Ensure(); if (nm == null) return false;
+            Transport.SetRelayServerData(RelayConnect.Data);
+            nm.NetworkConfig.ConnectionData = Payload(tankIndex);
+            bool ok = nm.StartClient();
+            if (!ok) LastError = "Verbindung konnte nicht gestartet werden.";
+            return ok;
+        }
+
         public static bool StartServer(int mapIndex, ushort port)
         {
             var nm = Ensure(); if (nm == null) return false;
