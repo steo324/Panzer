@@ -278,7 +278,7 @@ namespace PanzerSim
             GUI.Label(new Rect(60, H - 76, 1400, 26),
                 "Weizenhalme: ffish.asia / floraZia.com, CC0", small);
             GUI.Label(new Rect(60, H - 50, 900, 30),
-                "Im Spiel: Esc = Pause  ·  W/A/S/D fahren  ·  Maus zielen  ·  Linksklick feuern  ·  Shift Visier  ·  X Ansicht  ·  F3 Dev-Anzeige", small);
+                "Im Spiel: Esc = Pause  ·  W/A/S/D fahren  ·  Maus zielen  ·  Linksklick feuern  ·  Shift Visier  ·  X Ansicht  ·  G Kette reparieren  ·  F3 Dev-Anzeige", small);
         }
 
         void DrawPause(float W, float H)

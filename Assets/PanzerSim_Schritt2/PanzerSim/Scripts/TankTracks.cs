@@ -125,9 +125,21 @@ namespace PanzerSim
             float length = cum[cum.Count - 1];
             if (length < 0.5f) return;
 
+            // ---- Bruchstellen dieser Kette: Lage auf dem Kettenweg (Bogenlaenge) ----
+            bool sideLeft = x < 0f;
+            breakS.Clear(); breakGap.Clear();
+            foreach (var b in tank.trackBreaks)
+            {
+                if (b.leftSide != sideLeft) continue;
+                breakS.Add(NearestArc(b.zy));
+                breakGap.Add(b.gap);
+            }
+            bool broken = breakS.Count > 0;
+
             // ---- Bewegung: unten steht die Kette auf dem Boden, also laeuft sie relativ zum Panzer rueckwaerts ----
+            // Eine gerissene Kette laeuft nicht mehr mit.
             float halfTrack = Mathf.Abs(x);
-            float v = tank.ForwardSpeed + (left ? 1f : -1f) * tank.YawRate * halfTrack;
+            float v = broken ? 0f : tank.ForwardSpeed + (left ? 1f : -1f) * tank.YawRate * halfTrack;
             if (left) travelL += v * dt; else travelR += v * dt;
             float travel = left ? travelL : travelR;
 
@@ -143,6 +155,7 @@ namespace PanzerSim
             for (int k = 0; k < n; k++)
             {
                 float s = offset + k * spacing;
+                if (broken && InGap(s, length)) continue;   // herausgerissene Glieder
                 while (seg < cum.Count - 2 && cum[seg + 1] < s) seg++;
                 float segLen = Mathf.Max(cum[seg + 1] - cum[seg], 0.0001f);
                 float t = (s - cum[seg]) / segLen;
@@ -165,6 +178,80 @@ namespace PanzerSim
                 int count = Mathf.Min(1023, matrices.Count - i);
                 Graphics.DrawMeshInstanced(cube, 0, mat, matrices.GetRange(i, count), null, ShadowCastingMode.On, true);
             }
+        }
+
+        readonly List<float> breakS = new List<float>(), breakGap = new List<float>();
+
+        /// <summary>Bogenlaenge des Kettenweg-Punkts, der der Stelle zy (z, y im Panzer) am naechsten liegt.</summary>
+        float NearestArc(Vector2 zy)
+        {
+            float best = float.MaxValue, bestS = 0f;
+            for (int i = 0; i + 1 < path.Count; i++)
+            {
+                Vector2 a = path[i], b = path[i + 1], ab = b - a;
+                float t = Mathf.Clamp01(Vector2.Dot(zy - a, ab) / Mathf.Max(ab.sqrMagnitude, 1e-6f));
+                float d = (a + ab * t - zy).sqrMagnitude;
+                if (d < best) { best = d; bestS = cum[i] + ab.magnitude * t; }
+            }
+            return bestS;
+        }
+
+        bool InGap(float s, float length)
+        {
+            for (int i = 0; i < breakS.Count; i++)
+            {
+                float d = Mathf.Abs(Mathf.Repeat(s - breakS[i] + length / 2f, length) - length / 2f);   // Abstand auf dem geschlossenen Ring
+                if (d < breakGap[i] / 2f) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Herausgerissene Kettenglieder als Physik-Teile: bei Sprengtreffern fliegen sie von blastFrom weg,
+        /// sonst fallen sie einfach herunter. Granaten fliegen durch sie hindurch (eigene Ebene).
+        /// </summary>
+        public static void SpawnLinks(TankController tank, Vector3 at, int count, Vector3 blastFrom, bool explosive)
+        {
+            if (tank == null || count <= 0) return;
+            var s = tank.spec;
+            Material m = LinkMaterial();
+            Vector3 along = tank.transform.forward;
+            for (int i = 0; i < count && i < 14; i++)
+            {
+                var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                go.name = "Kettenglied";
+                go.layer = ArmorPlate.PhysicsOnlyLayer;
+                go.GetComponent<Renderer>().sharedMaterial = m;
+                go.transform.position = at + along * ((i - count / 2f) * s.trackPitch) + Random.insideUnitSphere * 0.05f;
+                go.transform.rotation = tank.transform.rotation * Quaternion.Euler(Random.Range(-20f, 20f), 0f, Random.Range(-10f, 10f));
+                go.transform.localScale = new Vector3(s.trackShoeWidth, s.trackThickness, s.trackPitch * 0.9f);
+                var rb = go.AddComponent<Rigidbody>();
+                rb.mass = 15f;
+                Vector3 vTank = tank.rb != null ? tank.rb.GetPointVelocity(at) : Vector3.zero;
+                Vector3 push = explosive
+                    ? ((go.transform.position - blastFrom).normalized + Vector3.up * 0.8f).normalized * Random.Range(6f, 14f)
+                    : Vector3.down * 0.5f + Random.insideUnitSphere * 0.8f;
+#if UNITY_6000_0_OR_NEWER
+                rb.linearVelocity = vTank + push;
+#else
+                rb.velocity = vTank + push;
+#endif
+                rb.angularVelocity = Random.insideUnitSphere * (explosive ? 15f : 3f);
+                Object.Destroy(go, 30f);
+            }
+        }
+
+        static Material LinkMaterial()
+        {
+            if (mat == null)
+            {
+                var sh = Shader.Find("Universal Render Pipeline/Lit");
+                if (sh == null) sh = Shader.Find("Standard");
+                mat = new Material(sh) { enableInstancing = true, color = new Color(0.16f, 0.15f, 0.14f) };
+                if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", 0.25f);
+                if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", 0.6f);
+            }
+            return mat;
         }
 
         /// <summary>Hoehe der Kettenmitte, wenn sie bei z oben auf dem Rad w aufliegt (sonst sehr tief).</summary>

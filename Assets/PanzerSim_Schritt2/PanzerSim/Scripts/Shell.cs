@@ -105,7 +105,11 @@ namespace PanzerSim
 
                 // Spreng- und Hohlladungsgranaten explodieren beim Aufschlag - eigene Wirkung statt Weiterfliegen
                 if (data.IsHE) { HitHE(pos, hit.normal, tank, plateMm, plateName, r); return; }
-                if (data.IsHEAT && r.outcome != HitOutcome.Ricochet) { HitHEAT(pos, hit.normal, dir, r); return; }
+                if (data.IsHEAT && r.outcome != HitOutcome.Ricochet) { HitHEAT(pos, hit.normal, dir, r, tank, plateName); return; }
+
+                // Panzerbrechende Granate durch die Kette: an dieser Stelle gerissen (geht sie weiter durch die andere Kette: zweite Stelle)
+                if (tank != null && plateName.StartsWith("Kette") && r.outcome != HitOutcome.Ricochet)
+                    report.Add("   " + tank.DamageTrack(pos, 30f + data.caliberMm * 0.3f, pos - dir, false));
 
                 switch (r.outcome)
                 {
@@ -195,6 +199,7 @@ namespace PanzerSim
                     return;
                 }
                 Effects.Crater(pos, hit.normal, radius, hit.collider.transform);
+                if (data.IsHE) NearMissTracks(pos);
             }
 
             if (!data.HasFiller) Effects.Impact(pos, hit.normal, dir, data.caliberMm, false, false);
@@ -209,6 +214,13 @@ namespace PanzerSim
         {
             Effects.Explosion(pos, data.fillerKg, false);
             Shell.Marker(pos, new Color(1f, 0.55f, 0.1f), 0.3f);
+            if (tank != null && plateName.StartsWith("Kette"))
+            {
+                // Sprengtreffer auf die Kette: Glieder fliegen weg, grosse Luecke
+                report.Add("   " + tank.DamageTrack(pos, 55f + data.fillerKg * 60f, pos + normal * 0.2f, true));
+                Finish();
+                return;
+            }
             if (tank != null)
             {
                 Vector3 inside = pos - normal * (plateMm / 1000f + 0.05f);   // knapp hinter der Platte
@@ -248,9 +260,11 @@ namespace PanzerSim
         /// Weitere Platten auf dem Weg (z. B. erst Kette, dann Wanne) kosten Durchschlag; Luftspalte lassen den Strahl zerfasern.
         /// Innen trifft der Strahl nur, was in seiner Linie liegt, dazu ein schmaler Splitterkegel.
         /// </summary>
-        void HitHEAT(Vector3 pos, Vector3 normal, Vector3 dir, HitResult r)
+        void HitHEAT(Vector3 pos, Vector3 normal, Vector3 dir, HitResult r, TankController tank, string plateName)
         {
             Effects.Explosion(pos, data.fillerKg * 0.6f, false);
+            if (tank != null && plateName.StartsWith("Kette"))
+                report.Add("   " + tank.DamageTrack(pos, 35f, pos + normal * 0.2f, true));
             if (r.outcome != HitOutcome.Penetration)
             {
                 Shell.Marker(pos, Color.red, 0.25f);
@@ -273,6 +287,9 @@ namespace PanzerSim
                 if (reserve < eff)
                 {
                     report.Add($"   Strahl bleibt in {nm} stecken ({mm:0} mm, effektiv {eff:0} mm, Rest {reserve:0} mm)");
+                    // auch ein schwacher Strahl reisst eine Kette, wenn er sie noch erreicht
+                    if (plate.Tank != null && nm.StartsWith("Kette") && reserve > 0f)
+                        report.Add("   " + plate.Tank.DamageTrack(h.point, 15f, h.point - dir, false));
                     reach = h.distance;
                     break;
                 }
@@ -280,6 +297,7 @@ namespace PanzerSim
                 reach -= h.distance;
                 exit = h.point + dir * 0.01f;
                 report.Add($"   Strahl durchschlaegt auch {nm} ({eff:0} mm effektiv, Rest {reserve:0} mm)");
+                if (plate.Tank != null && nm.StartsWith("Kette")) report.Add("   " + plate.Tank.DamageTrack(h.point, 25f, h.point - dir, false));
                 if (reach <= 0.05f) break;
             }
             // Innenwirkung: der Strahl selbst + schmaler Kegel aus Splittern (stoppt an der naechsten Panzerung)
@@ -287,6 +305,26 @@ namespace PanzerSim
             Damage.Fragments(exit, dir, 1, 0f, 140f, len, ReportDamage);
             Damage.Fragments(exit, dir, 10, 9f, 35f + reserve * 0.3f, len, ReportDamage);
             Finish();
+        }
+
+        /// <summary>Sprenggranate schlaegt neben einem Panzer ein: Ketten im Umkreis reissen (je naeher, desto mehr).
+        /// Wirkradius waechst mit der Sprengstoffmenge (0,7 kg -> ca. 1,6 m, 0,9 kg -> ca. 1,7 m).</summary>
+        void NearMissTracks(Vector3 pos)
+        {
+            float radius = 1.8f * Mathf.Pow(Mathf.Max(data.fillerKg, 0.05f), 1f / 3f);
+            var done = new HashSet<(TankController, bool)>();
+            foreach (var c in Physics.OverlapSphere(pos, radius, ArmorPlate.ShotMask, QueryTriggerInteraction.Ignore))
+            {
+                var plate = c.GetComponentInParent<ArmorPlate>();
+                if (plate == null || plate.Tank == null || !plate.gameObject.name.StartsWith("Kette")) continue;
+                Vector3 cp = c.ClosestPoint(pos);
+                bool left = plate.Tank.transform.InverseTransformPoint(cp).x < 0f;
+                if (!done.Add((plate.Tank, left))) continue;
+                float k = 1f - Mathf.Clamp01(Vector3.Distance(pos, cp) / radius);
+                float dmg = (55f + data.fillerKg * 60f) * k;
+                if (dmg < 15f) continue;   // zu weit weg
+                report.Add($"   Nahtreffer: " + plate.Tank.DamageTrack(cp, dmg, pos, true));
+            }
         }
 
         /// <summary>Innenteile entlang eines Wegstuecks treffen (nur nach Durchschlag).</summary>

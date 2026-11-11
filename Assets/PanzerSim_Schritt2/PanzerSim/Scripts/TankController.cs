@@ -135,6 +135,8 @@ namespace PanzerSim
             UpdateCrew(dt);
             UpdateFire(dt);
             UpdateRecoil(dt);
+            UpdateRepair(dt);
+            if (isPlayer && !destroyed && Inp.Down(KeyCode.G)) StartRepair();
             if (reloadLeft > 0f && seats.Count > 0) reloadLeft -= dt / ReloadMultiplier();
 
             if (destroyed) { throttle = 0f; steer = 0f; brake = true; return; }
@@ -206,6 +208,81 @@ namespace PanzerSim
             Effects.Muzzle(parts.muzzle.position, parts.gunPivot.forward, Ammo.caliberMm, spec.muzzleBrake);
             recoilT = 0f;
             reloadLeft = spec.reloadS;
+        }
+
+        // =============== Ketten: Schaden und Reparatur ===============
+        /// <summary>Eine Bruchstelle in einer Kette. leftSide = Kette auf der linken Seite (x &lt; 0).</summary>
+        public class TrackBreak
+        {
+            public bool leftSide;
+            public Vector2 zy;      // Lage im Panzer (z = vorne, y = oben)
+            public float damage;    // Schadensmenge (bestimmt Lueckengroesse und Reparaturzeit)
+            public float gap;       // Laenge der Luecke in m
+        }
+        public readonly List<TrackBreak> trackBreaks = new List<TrackBreak>();
+        public bool repairing { get; private set; }
+        public float repairLeft { get; private set; }
+        public const float MaxRepairS = 40f;
+
+        public bool TrackBroken(bool leftSide)
+        {
+            foreach (var b in trackBreaks) if (b.leftSide == leftSide) return true;
+            return false;
+        }
+
+        /// <summary>Reparaturzeit nach Gesamtschaden: kleine Bruchstelle ca. 15 s, mehrere/Sprengtreffer bis 40 s.</summary>
+        public float RepairTimeNeeded()
+        {
+            float d = 0f;
+            foreach (var b in trackBreaks) d += b.damage;
+            float t = 4f + d * 0.2f;
+            if (!SeatOk(ModuleType.Loader)) t *= 1.25f;   // weniger Haende
+            return Mathf.Clamp(t, 8f, MaxRepairS);
+        }
+
+        /// <summary>
+        /// Kette an der getroffenen Stelle beschaedigen. Liegt dort schon eine Bruchstelle, wird sie groesser.
+        /// explosive = Sprengtreffer: Glieder fliegen mit Physik weg (von blastFrom aus).
+        /// </summary>
+        public string DamageTrack(Vector3 worldPoint, float damage, Vector3 blastFrom, bool explosive)
+        {
+            Vector3 l = transform.InverseTransformPoint(worldPoint);
+            bool left = l.x < 0f;
+            var zy = new Vector2(l.z, l.y);
+            TrackBreak b = null;
+            foreach (var x in trackBreaks)
+                if (x.leftSide == left && (x.zy - zy).magnitude < 0.6f) { b = x; break; }
+            if (b == null) { b = new TrackBreak { leftSide = left, zy = zy }; trackBreaks.Add(b); }
+            float before = b.gap;
+            b.damage += damage;
+            b.gap = Mathf.Clamp(0.25f + b.damage * 0.006f, 0.3f, 1.4f);
+            if (repairing) { repairing = false; RangeLog.Add($"{spec.name}: Reparatur unterbrochen!"); }
+            // Glieder, die neu herausgerissen wurden
+            int links = Mathf.Max(1, Mathf.RoundToInt((b.gap - before) / Mathf.Max(spec.trackPitch, 0.05f)));
+            TankTracks.SpawnLinks(this, worldPoint, explosive ? links : Mathf.Min(links, 2), blastFrom, explosive);
+            return $"Kette {(left ? "links" : "rechts")} gerissen";
+        }
+
+        void StartRepair()
+        {
+            if (trackBreaks.Count == 0 || repairing || destroyed) return;
+            if (!SeatOk(ModuleType.Driver) && !SeatOk(ModuleType.Loader) && !SeatOk(ModuleType.RadioOperator))
+            { RangeLog.Add("Niemand da, der die Kette reparieren kann!"); return; }
+            repairing = true;
+            repairLeft = RepairTimeNeeded();
+            RangeLog.Add($"{spec.name}: Kette wird repariert ({repairLeft:0} s, Panzer muss stehen)");
+        }
+
+        void UpdateRepair(float dt)
+        {
+            if (!repairing) return;
+            if (destroyed) { repairing = false; return; }
+            if (SpeedKmh > 3f) return;          // Besatzung arbeitet nur im Stand
+            repairLeft -= dt;
+            if (repairLeft > 0f) return;
+            trackBreaks.Clear();
+            repairing = false;
+            RangeLog.Add($"{spec.name}: Kette repariert");
         }
 
         // =============== Rohrruecklauf ===============
@@ -293,7 +370,9 @@ namespace PanzerSim
                 float gF = Vector3.Dot(gT, fwd), gR = Vector3.Dot(gT, right);
 
                 float fF;
-                if (throttle == 0f && (brake || Mathf.Abs(vF) < 1.0f))
+                if (TrackBroken(wheelPoints[i].x < 0f))
+                    fF = -vF * massPer * 0.25f;                      // Kette gerissen: Laufrollen rollen nur, kein Antrieb, keine Bremse
+                else if (throttle == 0f && (brake || Mathf.Abs(vF) < 1.0f))
                     fF = -vF * massPer * 6f - gF;                    // Bremse / Stillstand: Ketten halten (Haftreibung)
                 else if (brake && throttle == 0f && steer == 0f || (!canDrive && brake))
                     fF = -vF * massPer * 4f;                         // Bremse
@@ -327,6 +406,20 @@ namespace PanzerSim
                 float speedFactor = Mathf.Lerp(1f, 0.6f, Mathf.Clamp01(speed / vMax));
                 float wantRate = canDrive ? steer * spec.turnRateDegS * Mathf.Deg2Rad * speedFactor : 0f;
                 if (throttle < 0f) wantRate = -wantRate; // rueckwaerts lenkt wie ein Auto
+                // Eine Kette gerissen: nur die heile Kette treibt, der Panzer dreht um die kaputte Seite
+                bool bl = TrackBroken(true), br = TrackBroken(false);
+                if (bl || br)
+                {
+                    if (bl && br || !canDrive) wantRate = 0f;
+                    else
+                    {
+                        float spacing = Mathf.Max(spec.hullWidth + spec.trackWidth - 2f * spec.trackInset, 1f);
+                        float good = bl ? 1f : -1f;                                   // Seite der heilen Kette (+1 = rechts)
+                        wantRate = -good * target / spacing;                           // rechte Kette vor -> Drehung nach links
+                        float lim = spec.turnRateDegS * Mathf.Deg2Rad;
+                        wantRate = Mathf.Clamp(wantRate, -lim, lim);
+                    }
+                }
                 float inertia = rb.inertiaTensor.y;
                 float torque = (wantRate - yawRate) * inertia * 6f;
                 float maxTorque = rb.mass * 9.81f * 0.6f * (spec.hullLength * 0.25f) * grounded / n; // Haftung begrenzt

@@ -68,6 +68,24 @@ namespace PanzerSim.EditorTools
 
         static TankVisual current;   // Laufwerk + Kettenglieder vor der Aufnahme einmal berechnen (laeuft sonst nur im Spiel)
 
+        /// <summary>Ein Bild eines Panzers von der Seite (fuer andere Tests, z. B. Kettenschaden).</summary>
+        public static void Render(TankController tc, Vector3 offset, float fov, string fileName)
+        {
+            string outDir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "ModelCheck"));
+            Directory.CreateDirectory(outDir);
+            var sun = new GameObject("Sonne").AddComponent<Light>();
+            sun.type = LightType.Directional; sun.intensity = 1.3f;
+            sun.transform.rotation = Quaternion.Euler(45f, -30f, 0f);
+            RenderSettings.ambientLight = new Color(0.45f, 0.45f, 0.5f);
+            var cam = new GameObject("Kamera").AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0.55f, 0.65f, 0.75f);
+            cam.fieldOfView = fov;
+            current = tc.visual;
+            Shot(cam, tc.transform, offset, Path.Combine(outDir, fileName));
+            current = null;
+            Object.DestroyImmediate(cam.gameObject); Object.DestroyImmediate(sun.gameObject);
+        }
+
         static void Shot(Camera cam, Transform target, Vector3 offset, string path)
         {
             Vector3 c = target.position + Vector3.up * 1.4f;
