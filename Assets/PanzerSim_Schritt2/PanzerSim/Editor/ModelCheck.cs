@@ -16,7 +16,7 @@ namespace PanzerSim.EditorTools
             string outDir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "ModelCheck"));
             Directory.CreateDirectory(outDir);
             ModelPrefabs.RunAll();
-            var specs = new[] { TankLibrary.Sherman, TankLibrary.PanzerIV };
+            var specs = new[] { TankLibrary.Sherman, TankLibrary.PanzerIV, TankLibrary.T34_85 };
             foreach (var s in specs)
             {
                 var tc = TankBuilder.Build(s, Vector3.zero, Quaternion.identity, false);
@@ -52,6 +52,10 @@ namespace PanzerSim.EditorTools
                 cam.fieldOfView = 18f;
                 Shot(cam, root, new Vector3(-9f, -0.6f, 0f), Path.Combine(outDir, $"{s.name}_laufwerk.png"));
                 cam.fieldOfView = 30f;
+                // Turm gedreht: sitzt er sauber auf dem Turmring (kein Loch im Wannendach)?
+                tc.parts.turret.localRotation = Quaternion.Euler(0f, 35f, 0f);
+                Shot(cam, root, new Vector3(-6f, 6f, 7f), Path.Combine(outDir, $"{s.name}_turm_gedreht.png"));
+                tc.parts.turret.localRotation = Quaternion.identity;
                 current = null;
                 TankController.ViewMode = 1; tc.ApplyXray();
                 Shot(cam, root, new Vector3(-9f, 5f, -9f), Path.Combine(outDir, $"{s.name}_roentgen.png"));

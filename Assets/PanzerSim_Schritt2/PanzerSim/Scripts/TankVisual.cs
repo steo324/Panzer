@@ -94,6 +94,13 @@ namespace PanzerSim
                 Vector3 lp = hull.InverseTransformPoint(turretBone.position);
                 parts.turret.localPosition = new Vector3(lp.x, parts.turret.localPosition.y, lp.z);
                 turretOffset = Quaternion.Inverse(parts.turret.rotation) * turretBone.rotation;
+                if (s.modelTurretPivotShift != Vector3.zero)
+                {
+                    // Drehpunkt in die Mitte des Turmrings: unser Turm wandert, das Modell bleibt stehen,
+                    // unsere Kanone wandert zurueck (Muendung bleibt an der Rohrspitze des Modells)
+                    parts.turret.localPosition += s.modelTurretPivotShift;
+                    parts.gunPivot.localPosition -= parts.turret.InverseTransformVector(hull.TransformVector(s.modelTurretPivotShift));
+                }
                 turretBoneLocalPos = parts.turret.InverseTransformPoint(turretBone.position);
             }
             else Debug.LogWarning($"Turmgelenk '{s.modelTurretBone}' im Modell nicht gefunden.");

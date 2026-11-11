@@ -37,6 +37,7 @@ namespace PanzerSim
         public Armor hullFront, hullRear, hullSide, hullRoof, hullBottom;
         // Nur fuer Panzerung aus der Modellform (meshArmor): genauere Zonen
         public bool meshArmor;
+        public bool meshArmorFixWinding;     // Modell hat nach innen zeigende Flaechen: fuer die Panzerung nach aussen drehen (sonst fliegen Granaten durch)
         public Armor hullFrontLower = new Armor(-1, 0), hullGlacis = new Armor(-1, 0), hullLowerSide = new Armor(-1, 0);
 
         // Turm
@@ -68,6 +69,8 @@ namespace PanzerSim
         public float modelScale = 0f;        // feste Skalierung (0 = automatisch aus der Breite)
         public float modelScaleMul = 1f;     // Feinanpassung der Groesse
         public Vector3 modelOffset;          // Feinanpassung der Position
+        public Vector3 modelTurretPivotShift; // Turm-Drehpunkt verschieben (m, Panzer-Koordinaten, z = vorne), Modell bleibt stehen:
+                                              // fuer Modelle, deren Turmgelenk nicht in der Mitte des Turmrings sitzt
 
         // Laufrollen und Ketten im Modell (optional)
         public string wheelBoneLeft;         // z. B. "wheeltrackleft" -> wheeltrackleft0 ... wheeltrackleft9
@@ -185,6 +188,7 @@ namespace PanzerSim
             // Richtschuetze: Zielfernrohr M70F in der Blende M34A1, 3-fach, 12,7 Grad Sehfeld
             sightType = SightType.US, sightFov = 12.7f, sightMag = 3f, sightName = "M70F",
             modelResource = "Modelle/M4A1E9", modelScale = 1f,
+            modelTurretPivotShift = new Vector3(0f, 0f, 0.23f),   // Turmring-Mitte liegt 23 cm vor dem Turmgelenk des Modells
             modelTurretBone = "turret", modelGunBone = "cannon",
             // Leitrad hinten (radL0), 6 Laufrollen (VVSS, 508 mm), Antriebsrad vorne (radL7)
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.257f,
@@ -211,6 +215,8 @@ namespace PanzerSim
             ammoIndex = 4, ammo = new[] { 4, 7 }, reloadS = 8f, barrelLength = 3.2f,
             sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-16",
             modelResource = "Modelle/T34_85", modelScale = 1f,
+            modelTurretPivotShift = new Vector3(0f, 0f, 0.25f),   // Turmring-Mitte liegt 25 cm vor dem Turmgelenk des Modells (sonst Loch beim Drehen)
+            meshArmorFixWinding = true,                           // Turm des Modells hat nach innen zeigende Flaechen
             modelTurretBone = "turret", modelGunBone = "cannon",
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 7, wheelRadius = 0.4f,
             linkTracks = true, idlerRadius = 0.281f, sprocketRadius = 0.233f,   // hinten Antriebsrad, vorne Leitrad

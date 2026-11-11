@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 namespace PanzerSim
@@ -226,8 +226,12 @@ namespace PanzerSim
             var tz = new[] { new List<byte>(), new List<byte>(), new List<byte>() };
             float hullTop = s.clearance + s.hullHeight;
             float gunZ = gunT != null ? root.InverseTransformPoint(gunT.position).z : s.hullLength / 2f;
+            Vector3 gunPos = gunT != null ? root.InverseTransformPoint(gunT.position) : new Vector3(0f, hullTop, gunZ);
             int used = 0;
 
+            // 1. Durchgang: welche Meshes gehoeren zu welchem Teil, und wo ist die Mitte jedes Teils?
+            var meshParts = new List<(MeshFilter mf, int part)>();
+            var bounds = new Bounds[3]; var hasBounds = new bool[3];
             foreach (var mf in model.GetComponentsInChildren<MeshFilter>())
             {
                 var mesh = mf.sharedMesh;
@@ -236,9 +240,22 @@ namespace PanzerSim
                 if (!string.IsNullOrEmpty(s.wheelBoneLeft) && (n.StartsWith(s.wheelBoneLeft) || n.StartsWith(s.wheelBoneRight) || n.StartsWith("arm"))) continue; // Laufrollen sind keine Panzerung
                 if (!string.IsNullOrEmpty(s.returnRollerLeft) && (n.StartsWith(s.returnRollerLeft) || n.StartsWith(s.returnRollerRight))) continue; // Stuetzrollen auch nicht
                 if (!mesh.isReadable) { Debug.LogWarning("Mesh-Panzerung: " + n + " ist nicht lesbar."); continue; }
+                int p = gunT != null && (mf.transform == gunT || mf.transform.IsChildOf(gunT)) ? 2
+                      : turretT != null && (mf.transform == turretT || mf.transform.IsChildOf(turretT)) ? 1 : 0;
+                meshParts.Add((mf, p));
+                Matrix4x4 m = root.worldToLocalMatrix * mf.transform.localToWorldMatrix;
+                Bounds mb = mesh.bounds;
+                for (int k = 0; k < 8; k++)
+                {
+                    Vector3 corner = m.MultiplyPoint3x4(mb.center + Vector3.Scale(mb.extents, new Vector3((k & 1) == 0 ? -1 : 1, (k & 2) == 0 ? -1 : 1, (k & 4) == 0 ? -1 : 1)));
+                    if (!hasBounds[p]) { bounds[p] = new Bounds(corner, Vector3.zero); hasBounds[p] = true; } else bounds[p].Encapsulate(corner);
+                }
+            }
 
-                int part = gunT != null && (mf.transform == gunT || mf.transform.IsChildOf(gunT)) ? 2
-                         : turretT != null && (mf.transform == turretT || mf.transform.IsChildOf(turretT)) ? 1 : 0;
+            // 2. Durchgang: Dreiecke uebernehmen
+            foreach (var (mf, part) in meshParts)
+            {
+                var mesh = mf.sharedMesh;
                 Matrix4x4 toPart = space[part].worldToLocalMatrix * mf.transform.localToWorldMatrix;
                 Matrix4x4 toRoot = root.worldToLocalMatrix * mf.transform.localToWorldMatrix;
                 Vector3[] v = mesh.vertices, nr = mesh.normals;
@@ -255,11 +272,24 @@ namespace PanzerSim
                     for (int i = 0; i + 2 < idx.Length; i += 3)
                     {
                         int a = idx[i], b = idx[i + 1], c = idx[i + 2];
-                        Vector3 cen = toRoot.MultiplyPoint3x4((v[a] + v[b] + v[c]) / 3f);
-                        Vector3 nn = hasN ? nr[a] + nr[b] + nr[c] : Vector3.Cross(v[b] - v[a], v[c] - v[a]);
-                        nn = toRoot.MultiplyVector(nn).normalized;
+                        Vector3 ra = toRoot.MultiplyPoint3x4(v[a]), rb = toRoot.MultiplyPoint3x4(v[b]), rc = toRoot.MultiplyPoint3x4(v[c]);
+                        Vector3 cen = (ra + rb + rc) / 3f;
+                        Vector3 fn = Vector3.Cross(rb - ra, rc - ra);   // Vorderseite (Unity: nur sie wird von Strahlen getroffen)
+                        if (fn.sqrMagnitude < 1e-12f) continue;          // entartetes Dreieck
+                        // Manche Modelle haben Flaechen, deren Vorderseite nach innen zeigt: Granaten flogen dort einfach hindurch.
+                        // Darum jedes Dreieck nach aussen drehen - weg von der Mitte seines Teils (Rohr: weg von der Rohrachse).
+                        Vector3 outward = part == 2 ? cen - gunPos : cen - bounds[part].center;
+                        if (part == 2 && cen.z - gunZ >= 0.8f) outward.z = 0f;
+                        // Nur drehen, wenn auch die Normalen des Modells nach innen zeigen - an konkaven Stellen (Nischen, Kanten)
+                        // stimmt "weg von der Mitte" nicht, dort haben richtig gebaute Modelle passende Normalen.
+                        bool normalsInward = !hasN || Vector3.Dot(toRoot.MultiplyVector(nr[a] + nr[b] + nr[c]), outward) < 0f;
+                        if (s.meshArmorFixWinding && Vector3.Dot(fn, outward) < 0f && normalsInward) { int t = b; b = c; c = t; fn = -fn; }
+                        // Ansicht: Normalen dieses Dreiecks ebenfalls nach aussen (sonst erscheint es dunkel)
+                        Vector3 fnPart = toPart.MultiplyVector(mf.transform.worldToLocalMatrix.MultiplyVector(root.TransformDirection(fn))).normalized;
+                        foreach (int q in new[] { a, b, c })
+                            if (Vector3.Dot(pn[part][baseIndex + q], fnPart) < 0f) pn[part][baseIndex + q] = -pn[part][baseIndex + q];
                         tris[part].Add(baseIndex + a); tris[part].Add(baseIndex + b); tris[part].Add(baseIndex + c);
-                        tz[part].Add(Classify(part, cen, nn, s, hullTop, gunZ));
+                        tz[part].Add(Classify(part, cen, fn.normalized, s, hullTop, gunZ));
                     }
                 }
                 used++;
