@@ -30,6 +30,27 @@ namespace PanzerSim
         /// <summary>Gerade wird ein Ergebnis vom Server angewendet (darf Schaden setzen, auch auf Clients).</summary>
         public static bool ApplyingServerState;
 
+        public const int MaxPlayers = 8;
+        /// <summary>Name in der Serverliste (Startparameter -name).</summary>
+        public static string ServerName = "Ballistik-Server";
+
+        static byte[] Payload(int tankIndex)
+        {
+            var v = System.Text.Encoding.UTF8.GetBytes(GameVersion.Current);
+            var p = new byte[1 + v.Length];
+            p[0] = (byte)tankIndex;
+            System.Array.Copy(v, 0, p, 1, v.Length);
+            return p;
+        }
+
+        /// <summary>Angaben fuer die Serverliste aktualisieren (Server/Host, im Hauptthread).</summary>
+        public static void UpdateQueryInfo(string mapName, ushort port)
+        {
+            if (!IsServer) return;
+            int players = NM.ConnectedClientsIds.Count;   // beim Host zaehlt er selbst mit
+            ServerQuery.SetInfo(new ServerQuery.Info { name = ServerName, map = mapName, version = GameVersion.Current, players = players, max = MaxPlayers, port = port });
+        }
+
         public static GameObject TankPrefab, SessionPrefab;
         static readonly Dictionary<ulong, int> requestedTank = new Dictionary<ulong, int>();
         public static int MapIndex;
@@ -58,10 +79,25 @@ namespace PanzerSim
             nm.AddNetworkPrefab(SessionPrefab);
             nm.ConnectionApprovalCallback = (req, resp) =>
             {
+                // Anfrage: [Panzer-Nummer][Version als Text]
                 int tank = req.Payload != null && req.Payload.Length > 0 ? req.Payload[0] : 0;
+                string ver = req.Payload != null && req.Payload.Length > 1 ? System.Text.Encoding.UTF8.GetString(req.Payload, 1, req.Payload.Length - 1) : "?";
+                resp.CreatePlayerObject = false;
+                bool self = req.ClientNetworkId == NetworkManager.ServerClientId;   // Host selbst
+                if (!self && ver != GameVersion.Current && !GameVersion.IsDev)
+                {
+                    resp.Approved = false;
+                    resp.Reason = $"Andere Version: Server {GameVersion.Current}, du {ver}. Spiel neu starten (aktualisiert sich dann).";
+                    return;
+                }
+                if (!self && NM.ConnectedClientsIds.Count >= MaxPlayers)
+                {
+                    resp.Approved = false;
+                    resp.Reason = $"Server voll ({MaxPlayers} Spieler).";
+                    return;
+                }
                 requestedTank[req.ClientNetworkId] = tank;
                 resp.Approved = true;
-                resp.CreatePlayerObject = false;
             };
             nm.OnClientConnectedCallback += OnClientConnected;
             nm.OnClientDisconnectCallback += OnClientDisconnected;
@@ -75,9 +111,9 @@ namespace PanzerSim
             var nm = Ensure(); if (nm == null) return false;
             MapIndex = mapIndex;
             Transport.SetConnectionData("0.0.0.0", port, "0.0.0.0");
-            nm.NetworkConfig.ConnectionData = new[] { (byte)tankIndex };
+            nm.NetworkConfig.ConnectionData = Payload(tankIndex);
             bool ok = nm.StartHost();
-            if (ok) SpawnSession(); else LastError = "Host konnte nicht starten (Port belegt?).";
+            if (ok) { SpawnSession(); ServerQuery.StartResponder(); } else LastError = "Host konnte nicht starten (Port belegt?).";
             return ok;
         }
 
@@ -87,7 +123,7 @@ namespace PanzerSim
             MapIndex = mapIndex;
             Transport.SetConnectionData("0.0.0.0", port, "0.0.0.0");
             bool ok = nm.StartServer();
-            if (ok) SpawnSession(); else LastError = "Server konnte nicht starten (Port belegt?).";
+            if (ok) { SpawnSession(); ServerQuery.StartResponder(); } else LastError = "Server konnte nicht starten (Port belegt?).";
             return ok;
         }
 
@@ -95,7 +131,7 @@ namespace PanzerSim
         {
             var nm = Ensure(); if (nm == null) return false;
             Transport.SetConnectionData(address, port);
-            nm.NetworkConfig.ConnectionData = new[] { (byte)tankIndex };
+            nm.NetworkConfig.ConnectionData = Payload(tankIndex);
             bool ok = nm.StartClient();
             if (!ok) LastError = "Verbindung konnte nicht gestartet werden.";
             return ok;
@@ -103,6 +139,7 @@ namespace PanzerSim
 
         public static void Stop()
         {
+            ServerQuery.StopResponder();
             if (NM != null && NM.IsListening) NM.Shutdown();
             requestedTank.Clear();
         }
@@ -137,7 +174,7 @@ namespace PanzerSim
             }
             else if (clientId == NM.LocalClientId || !NM.IsConnectedClient)
             {
-                LastError = "Verbindung zum Server getrennt.";
+                LastError = !string.IsNullOrEmpty(NM.DisconnectReason) ? NM.DisconnectReason : "Verbindung zum Server getrennt.";
                 GameManager.Instance?.OnNetworkEnded();
             }
         }

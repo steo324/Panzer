@@ -21,6 +21,7 @@ namespace PanzerSim.EditorTools
             ShaderIncludes.Ensure();   // Laufzeit-Shader (URP Lit, Terrain) muessen mit in den Build, sonst wird alles pink
             ModelPrefabs.RunAll();     // Modell-Prefabs (Sherman, Panzer IV) aus Geometrie + komprimierten Texturen
             NetPrefabs.Ensure();       // Netzwerk-Prefabs fuer den Mehrspieler
+            StampVersion();            // Versionsnummer (Datum/Uhrzeit UTC) fuer Auto-Update und Versionspruefung
 
             // Nur den Inhalt leeren: der Ordner selbst kann gesperrt sein (Explorer, Terminal ...)
             Directory.CreateDirectory(outDir);
@@ -57,6 +58,15 @@ namespace PanzerSim.EditorTools
             Debug.Log($"BUILD FERTIG: {zip}  ({new FileInfo(zip).Length / 1048576f:0} MB)");
             BuildLinuxServer(root, scene);
             if (!Application.isBatchMode) EditorUtility.RevealInFinder(zip);
+        }
+
+        /// <summary>Schreibt Assets/Resources/version.txt (z. B. 2026.11.11.1542, UTC). Spiel und Server desselben Builds teilen sie.</summary>
+        static void StampVersion()
+        {
+            string v = System.DateTime.UtcNow.ToString("yyyy.MM.dd.HHmm");
+            File.WriteAllText(Path.Combine(Application.dataPath, "Resources", "version.txt"), v);
+            AssetDatabase.ImportAsset("Assets/Resources/version.txt", ImportAssetOptions.ForceUpdate);
+            Debug.Log("VERSION: " + v);
         }
 
         /// <summary>

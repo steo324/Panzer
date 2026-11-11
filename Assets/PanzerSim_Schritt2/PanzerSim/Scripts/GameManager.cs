@@ -58,7 +58,10 @@ namespace PanzerSim
             if (int.TryParse(Arg("-tank"), out int t)) tankIndex = Mathf.Clamp(t, 0, Tanks.Length - 1);
             if (ushort.TryParse(Arg("-port"), out ushort p)) portText = p.ToString();
             autoFire = Has("-autofire");
+            NetSync.ServerName = Arg("-name") ?? $"Ballistik-Server ({System.Environment.MachineName})";
             if (Has("-server") || NetSync.Headless) { StartDedicatedServer(); return; }
+            gameObject.AddComponent<GameUpdater>();   // neue Version auf GitHub? -> laden, neu starten
+            LoadServerList();
             ShowMenu();
             if (Has("-host")) StartHostGame();
             else if (Arg("-connect") != null) { ipText = Arg("-connect"); StartJoin(); }
@@ -259,6 +262,13 @@ namespace PanzerSim
         // ================= Eingabe =================
         void Update()
         {
+            // Server/Host: Angaben fuer die Serverliste aktuell halten
+            if (NetSync.IsServer && map != null)
+            {
+                queryTimer -= Time.unscaledDeltaTime;
+                if (queryTimer <= 0f) { queryTimer = 1f; NetSync.UpdateQueryInfo(map.Name, Port); }
+            }
+            if (listOpen) UpdateServerList();
             if (NetSync.Headless)
             {
                 // Dedizierter Server: alle 30 s Status ins Log
@@ -396,6 +406,7 @@ namespace PanzerSim
 
         void DrawMenu(float W, float H)
         {
+            if (listOpen) { DrawServerList(W, H); return; }   // sonst nimmt das Menue darunter die Klicks
             GUI.Label(new Rect(60, 40, 900, 60), "BALLISTIK STUDIOS", title);
             GUI.Label(new Rect(64, 100, 900, 30), "Panzer  ·  Zweiter Weltkrieg  ·  Echte Ballistik", sub);
 
@@ -430,16 +441,17 @@ namespace PanzerSim
             // ---- Mehrspieler ----
             GUILayout.Space(16);
             GUILayout.Label("MEHRSPIELER", head);
-            if (GUILayout.Button("Spiel hosten (gewaehlter Panzer + Karte)", btn, GUILayout.Height(40))) StartHostGame();
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("IP", text, GUILayout.Width(26));
-            ipText = GUILayout.TextField(ipText, 64, GUILayout.Height(32));
-            GUILayout.Label("Port", text, GUILayout.Width(40));
-            portText = GUILayout.TextField(portText, 5, GUILayout.Width(70), GUILayout.Height(32));
-            GUILayout.EndHorizontal();
-            if (GUILayout.Button("Beitreten", btn, GUILayout.Height(40))) StartJoin();
+            GUI.enabled = !GameUpdater.Busy;
+            if (GUILayout.Button("Serverliste (Server suchen und beitreten)", btnSel, GUILayout.Height(44))) OpenServerList();
+            if (GUILayout.Button("Selbst hosten (gewaehlter Panzer + Karte)", btn, GUILayout.Height(40))) StartHostGame();
+            GUI.enabled = true;
             if (!string.IsNullOrEmpty(netMessage)) GUILayout.Label($"<color=#f77>{netMessage}</color>", text);
             GUILayout.EndArea();
+
+            // Update-Hinweis und Version
+            if (!string.IsNullOrEmpty(GameUpdater.Status))
+                GUI.Label(new Rect(W - 490, 720, 430, 26), $"<color=#fd6>{GameUpdater.Status}</color>", small);
+            GUI.Label(new Rect(W - 490, 916, 430, 22), $"Version {GameVersion.Current}", small);
 
             // ---- Start ----
             if (GUI.Button(new Rect(W - 490, 750, 430, 90), "LOS GEHT'S", big)) StartGame();
@@ -454,6 +466,127 @@ namespace PanzerSim
                 "Weizenhalme: ffish.asia / floraZia.com, CC0", small);
             GUI.Label(new Rect(60, H - 50, 900, 30),
                 "Im Spiel: Esc = Pause  ·  W/A/S/D fahren  ·  Maus zielen  ·  Linksklick feuern  ·  Shift Visier  ·  X Ansicht  ·  G Kette reparieren  ·  F3 Dev-Anzeige", small);
+        }
+
+        // ================= Serverliste =================
+        bool listOpen;
+        float probeTimer, queryTimer;
+        Vector2 listScroll;
+        string addText = "";
+        readonly Dictionary<string, ServerQuery.Entry> servers = new Dictionary<string, ServerQuery.Entry>();
+        readonly List<string> savedServers = new List<string>();     // vom Spieler eingetragen (lokal gespeichert)
+        readonly List<string> listedServers = new List<string>();    // aus servers.txt im GitHub-Repo
+
+        void LoadServerList()
+        {
+            savedServers.Clear();
+            foreach (var s in PlayerPrefs.GetString("servers", "").Split('\n'))
+                if (!string.IsNullOrWhiteSpace(s)) savedServers.Add(s.Trim());
+            StartCoroutine(FetchListedServers());
+        }
+
+        void SaveServerList() { PlayerPrefs.SetString("servers", string.Join("\n", savedServers)); PlayerPrefs.Save(); }
+
+        /// <summary>Optionale oeffentliche Liste: servers.txt im Repo (je Zeile eine Adresse, # = Kommentar).</summary>
+        System.Collections.IEnumerator FetchListedServers()
+        {
+            using (var req = UnityEngine.Networking.UnityWebRequest.Get($"https://raw.githubusercontent.com/{GameUpdater.Repo}/main/servers.txt"))
+            {
+                req.timeout = 8;
+                yield return req.SendWebRequest();
+                if (req.result != UnityEngine.Networking.UnityWebRequest.Result.Success) yield break;
+                listedServers.Clear();
+                foreach (var line in req.downloadHandler.text.Split('\n'))
+                {
+                    string l = line.Split('#')[0].Trim();
+                    if (l.Length > 0) listedServers.Add(l);
+                }
+            }
+        }
+
+        void OpenServerList() { listOpen = true; probeTimer = 0f; netMessage = ""; }
+
+        void UpdateServerList()
+        {
+            probeTimer -= Time.unscaledDeltaTime;
+            if (probeTimer <= 0f)
+            {
+                probeTimer = 2f;
+                var targets = new List<string>(savedServers);
+                targets.AddRange(listedServers);
+                ServerQuery.Probe(targets);
+                foreach (var s in targets)
+                    if (!servers.ContainsKey(s)) servers[s] = new ServerQuery.Entry { address = s, manual = true };
+            }
+            ServerQuery.Collect(servers);
+        }
+
+        void DrawServerList(float W, float H)
+        {
+            GUI.DrawTexture(new Rect(0, 0, W, H), texShade);
+            var r = new Rect(W / 2f - 560, 120, 1120, 820);
+            GUI.Box(r, GUIContent.none, panel);
+            GUILayout.BeginArea(new Rect(r.x + 24, r.y + 18, r.width - 48, r.height - 36));
+            GUILayout.Label("SERVERLISTE", head);
+            GUILayout.Label($"Server im Heimnetz erscheinen von selbst. Fuer Server ueber Tailscale/Internet die IP unten eintragen.   Deine Version: {GameVersion.Current}   ·   Dein Panzer: {Tanks[tankIndex]().name}", small);
+            GUILayout.Space(8);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("<b>Name</b>", text, GUILayout.Width(330));
+            GUILayout.Label("<b>Karte</b>", text, GUILayout.Width(160));
+            GUILayout.Label("<b>Spieler</b>", text, GUILayout.Width(80));
+            GUILayout.Label("<b>Ping</b>", text, GUILayout.Width(80));
+            GUILayout.Label("<b>Version</b>", text, GUILayout.Width(190));
+            GUILayout.EndHorizontal();
+            listScroll = GUILayout.BeginScrollView(listScroll, GUILayout.Height(500));
+            var entries = new List<ServerQuery.Entry>(servers.Values);
+            entries.Sort((a, b) => (b.info != null).CompareTo(a.info != null));
+            string remove = null;
+            foreach (var e in entries)
+            {
+                bool online = e.info != null && Time.unscaledTime - e.lastSeen < 7f;
+                bool sameVer = online && (e.info.version == GameVersion.Current || GameVersion.IsDev);
+                GUILayout.BeginHorizontal();
+                string name = online ? e.info.name : e.address;
+                GUILayout.Label($"{name}\n<color=#999>{e.address}{(online ? ":" + e.info.port : "")}</color>", text, GUILayout.Width(330), GUILayout.Height(46));
+                GUILayout.Label(online ? e.info.map : "<color=#f77>keine Antwort</color>", text, GUILayout.Width(160));
+                GUILayout.Label(online ? $"{e.info.players}/{e.info.max}" : "-", text, GUILayout.Width(80));
+                GUILayout.Label(online ? $"{e.pingMs:0} ms" : "-", text, GUILayout.Width(80));
+                GUILayout.Label(online ? (sameVer ? e.info.version : $"<color=#f77>{e.info.version}</color>") : "-", text, GUILayout.Width(190));
+                GUI.enabled = online && sameVer && e.info.players < e.info.max;
+                if (GUILayout.Button("Beitreten", btnSel, GUILayout.Width(130), GUILayout.Height(40)))
+                {
+                    ipText = e.address; portText = e.info.port.ToString();
+                    listOpen = false;
+                    StartJoin();
+                }
+                GUI.enabled = true;
+                if (e.manual && savedServers.Contains(e.address) && GUILayout.Button("X", btn, GUILayout.Width(40), GUILayout.Height(40))) remove = e.address;
+                GUILayout.EndHorizontal();
+            }
+            if (entries.Count == 0) GUILayout.Label("Suche ... (noch kein Server gefunden)", text);
+            GUILayout.EndScrollView();
+            if (remove != null) { savedServers.Remove(remove); servers.Remove(remove); SaveServerList(); }
+
+            GUILayout.Space(10);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("IP / Name:", text, GUILayout.Width(90));
+            addText = GUILayout.TextField(addText, 64, GUILayout.Width(300), GUILayout.Height(34));
+            if (GUILayout.Button("Zur Liste hinzufuegen", btn, GUILayout.Width(220), GUILayout.Height(38)) && addText.Trim().Length > 0)
+            {
+                if (!savedServers.Contains(addText.Trim())) { savedServers.Add(addText.Trim()); SaveServerList(); }
+                probeTimer = 0f;
+            }
+            if (GUILayout.Button("Direkt verbinden", btn, GUILayout.Width(200), GUILayout.Height(38)) && addText.Trim().Length > 0)
+            {
+                ipText = addText.Trim(); portText = NetSync.DefaultPort.ToString();
+                listOpen = false;
+                StartJoin();
+            }
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Schliessen", btn, GUILayout.Width(160), GUILayout.Height(38))) { listOpen = false; ServerQuery.StopSearch(); }
+            GUILayout.EndHorizontal();
+            GUILayout.Label("Kein Server sichtbar? Auf dem Server-PC muessen UDP-Port 7777 (Spiel) und 7778 (Serverliste) offen sein.", small);
+            GUILayout.EndArea();
         }
 
         void DrawPause(float W, float H)
