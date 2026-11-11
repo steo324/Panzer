@@ -213,7 +213,15 @@ namespace PanzerSim
             td.SetHeights(0, 0, h);
 
             // Bodenarten: 0 Wiese, 1 Weizen, 2 Erde/Weg, 3 dunkle Wiese
-            td.terrainLayers = new[]
+            // Fototexturen (CC0, ambientCG.com) mit Normal Map + Maske; ohne sie (oder auf dem Server) einfache Rauschtexturen
+            bool hd = !NetSync.Headless && Resources.Load<Texture2D>("Boden/Wiese_Farbe") != null;
+            td.terrainLayers = hd ? new[]
+            {
+                HdLayer("Wiese", 3.2f, new Color(1.0f, 1.0f, 0.76f)),          // heller, gelblicher
+                HdLayer("Acker", 2.6f, new Color(1.08f, 0.98f, 0.78f)),
+                HdLayer("Weg", 3.0f, new Color(0.95f, 0.90f, 0.82f)),
+                HdLayer("WieseDunkel", 3.6f, new Color(0.74f, 0.86f, 0.64f)),  // dunkler, satter
+            } : new[]
             {
                 Layer(NoiseTex(new Color(0.33f, 0.45f, 0.18f), new Color(0.24f, 0.36f, 0.12f), 7), 10f),
                 Layer(NoiseTex(new Color(0.78f, 0.66f, 0.33f), new Color(0.62f, 0.50f, 0.22f), 11), 6f),
@@ -232,7 +240,17 @@ namespace PanzerSim
                     int fk = FieldKind(wx, wz);
                     if (fk == 1) { w0 = 0f; w1 = 1f; }
                     else if (fk == 2) { w0 = 0f; w1 = 0.6f; w2 = 0.4f; }   // abgeerntet: Stoppeln
-                    else if (Mathf.PerlinNoise(wx * 0.01f, wz * 0.01f) > 0.6f) { w0 = 0.3f; w3 = 0.7f; }
+                    else
+                    {
+                        // Wiese: helle/dunkle Flecken in mehreren Groessen - bricht das Kachelmuster auf
+                        float v = Mathf.PerlinNoise(wx * 0.008f + 3f, wz * 0.008f + 7f) * 0.6f
+                                + Mathf.PerlinNoise(wx * 0.045f + 13f, wz * 0.045f + 5f) * 0.4f;
+                        w3 = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.36f, 0.66f, v));
+                        w0 = 1f - w3;
+                        // vereinzelt kahle Stellen
+                        float bare = Mathf.PerlinNoise(wx * 0.06f + 41f, wz * 0.06f + 17f);
+                        if (bare > 0.72f) { float b = Mathf.InverseLerp(0.72f, 0.85f, bare) * 0.6f; w2 = b; w0 *= 1f - b; w3 *= 1f - b; }
+                    }
                     if (road < 3.5f) { w0 = 0f; w1 = 0f; w3 = 0f; w2 = 1f; }
                     else if (road < 5f) { float t = (road - 3.5f) / 1.5f; w2 = 1f - t; w0 *= t; w1 *= t; w3 *= t; }
                     float sum = w0 + w1 + w2 + w3;
@@ -246,7 +264,12 @@ namespace PanzerSim
             tgo.transform.position = new Vector3(-Size / 2f, 0f, -Size / 2f);
             terrain = tgo.GetComponent<Terrain>();
             var sh = Shader.Find("Universal Render Pipeline/Terrain/Lit");
-            if (sh != null) terrain.materialTemplate = new Material(sh);
+            if (sh != null)
+            {
+                var tm = new Material(sh);
+                if (hd) SetTerrainDetail(tm, GameSettings.Effects >= 1);
+                terrain.materialTemplate = tm;
+            }
             terrain.basemapDistance = 1500f;
             Physics.SyncTransforms();
         }
@@ -267,6 +290,31 @@ namespace PanzerSim
             float lx = Mathf.Repeat(wx + 1000f, 140f), lz = Mathf.Repeat(wz + 1000f, 140f);
             if (!(lx > 8f && lx < 132f && lz > 8f && lz < 132f)) return 0;
             return 1;   // alle Aecker: stehender Weizen
+        }
+
+        /// <summary>Fototextur-Bodenart aus Resources/Boden: Farbe, Normal Map (Relief), Maske (Verdeckung, Hoehe, Glaette).</summary>
+        static TerrainLayer HdLayer(string name, float tile, Color tint)
+        {
+            return new TerrainLayer
+            {
+                diffuseTexture = Resources.Load<Texture2D>($"Boden/{name}_Farbe"),
+                normalMapTexture = Resources.Load<Texture2D>($"Boden/{name}_Normal"),
+                maskMapTexture = Resources.Load<Texture2D>($"Boden/{name}_Maske"),
+                normalScale = 1.3f,
+                tileSize = new Vector2(tile, tile),
+                diffuseRemapMax = new Vector4(tint.r, tint.g, tint.b, 1f),
+                maskMapRemapMax = new Vector4(0f, 1f, 1f, 0.35f),   // kein Metall, Glaette gedaempft (Boden glaenzt nicht)
+                smoothness = 0f, metallic = 0f,
+            };
+        }
+
+        /// <summary>Relief und Hoehen-Uebergaenge an/aus (Bildeffekte Niedrig = aus, spart Rechenzeit auf schwacher Grafik).</summary>
+        public static void SetTerrainDetail(Material m, bool on)
+        {
+            if (on) { m.EnableKeyword("_NORMALMAP"); m.EnableKeyword("_MASKMAP"); m.EnableKeyword("_TERRAIN_BLEND_HEIGHT"); }
+            else { m.DisableKeyword("_NORMALMAP"); m.DisableKeyword("_MASKMAP"); m.DisableKeyword("_TERRAIN_BLEND_HEIGHT"); }
+            m.SetFloat("_EnableHeightBlend", on ? 1f : 0f);
+            m.SetFloat("_HeightTransition", 0.25f);
         }
 
         static TerrainLayer Layer(Texture2D tex, float tile)

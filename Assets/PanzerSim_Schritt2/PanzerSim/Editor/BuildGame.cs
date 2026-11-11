@@ -18,6 +18,7 @@ namespace PanzerSim.EditorTools
             string root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
             string outDir = Path.Combine(root, "Builds", "BallistikStudios");
             string zip = Path.Combine(root, "Builds", "BallistikStudios.zip");
+            BodenTexturImport.Ensure();   // Bodentexturen: Normal Maps/Masken richtig importiert
             ShaderIncludes.Ensure();   // Laufzeit-Shader (URP Lit, Terrain) muessen mit in den Build, sonst wird alles pink
             ModelPrefabs.RunAll();     // Modell-Prefabs (Sherman, Panzer IV) aus Geometrie + komprimierten Texturen
             NetPrefabs.Ensure();       // Netzwerk-Prefabs fuer den Mehrspieler

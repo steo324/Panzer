@@ -70,6 +70,7 @@ namespace PanzerSim
                 var b = gameObject.AddComponent<Benchmark>();
                 b.outDir = Arg("-bench");
                 b.preset = int.TryParse(Arg("-preset"), out int bp) ? Mathf.Clamp(bp, 0, 3) : -1;
+                if (float.TryParse(Arg("-benchyaw"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float by)) BenchYaw = by;
                 return;
             }
             if (Has("-host")) StartHostGame();
@@ -259,6 +260,8 @@ namespace PanzerSim
         }
 
         public void BenchStart() => StartGame();
+        /// <summary>Leistungstest: Panzer um diesen Winkel gedreht starten (-benchyaw), fuer andere Blickrichtungen.</summary>
+        public static float BenchYaw;
 
         void StartGame()
         {
@@ -273,7 +276,7 @@ namespace PanzerSim
             if (player != null) Destroy(player.gameObject);
             Vector2 p = map.PlayerXZ;
             var pos = new Vector3(p.x, map.GroundY(p.x, p.y) + 0.4f, p.y);
-            player = TankBuilder.Build(Tanks[tankIndex](), pos, Quaternion.Euler(0f, map.PlayerYaw, 0f), true);
+            player = TankBuilder.Build(Tanks[tankIndex](), pos, Quaternion.Euler(0f, map.PlayerYaw + BenchYaw, 0f), true);
             tankCam.target = player;
         }
 
@@ -531,7 +534,7 @@ namespace PanzerSim
             GUI.Label(new Rect(60, H - 102, 1600, 26),
                 "Modelle: T-34-85 von DedRam (sketchfab.com/heirohindrima), CC BY 4.0  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan), CC BY 4.0", small);
             GUI.Label(new Rect(60, H - 76, 1400, 26),
-                "Weizenhalme: ffish.asia / floraZia.com, CC0", small);
+                "Weizenhalme: ffish.asia / floraZia.com, CC0  ·  Bodentexturen: ambientCG.com, CC0", small);
             GUI.Label(new Rect(60, H - 50, 900, 30),
                 "Im Spiel: Esc = Pause  ·  W/A/S/D fahren  ·  Maus zielen  ·  Linksklick feuern  ·  Shift Visier  ·  X Ansicht  ·  G Kette reparieren  ·  F3 Dev-Anzeige", small);
         }

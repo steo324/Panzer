@@ -34,6 +34,8 @@ namespace PanzerSim.EditorTools
                 m.renderQueue = 3000;
             });
             Make("TerrainLit", "Universal Render Pipeline/Terrain/Lit", null);
+            // Gelaende mit Fototexturen: Normal Map, Maske, Hoehen-Uebergaenge (Varianten muessen mit in den Build)
+            Make("TerrainLitHD", "Universal Render Pipeline/Terrain/Lit", m => PanzerSim.PlainsMap.SetTerrainDetail(m, true));
             Make("SpritesDefault", "Sprites/Default", null);
             Make("SkyProcedural", "Skybox/Procedural", null);
             AssetDatabase.SaveAssets();

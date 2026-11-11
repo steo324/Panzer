@@ -32,7 +32,10 @@ namespace PanzerSim
             volume.enabled = on;
 
             // 0 Niedrig: nur Farbe/Tonemapping (fast kostenlos) · 1 Mittel: + Bloom · 2 Hoch: + Vignette · 3 Ultra: Bloom in hoher Qualitaet
-            bloom.active = look >= 1;
+            var args = System.Environment.GetCommandLineArgs();
+            bool Has(string a) => System.Array.IndexOf(args, a) >= 0;   // Fehlersuche: einzelne Effekte abschalten
+            bloom.active = look >= 1 && !Has("-nobloom");
+            if (Has("-nossao")) look = Mathf.Min(look, 0);
             bloom.highQualityFiltering.Override(look >= 3);
             bloom.downscale.Override(look >= 3 ? BloomDownscaleMode.Half : BloomDownscaleMode.Quarter);
             vignette.active = look >= 2;
@@ -42,7 +45,7 @@ namespace PanzerSim
                 var data = cam.GetUniversalAdditionalCameraData();
                 if (data != null) data.renderPostProcessing = on;
             }
-            ApplySky(on);
+            ApplySky(on && !Has("-nosky"));
             ApplySsao(on ? look : -1);
         }
 
