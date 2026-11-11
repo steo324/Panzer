@@ -160,9 +160,11 @@ namespace PanzerSim
                     acc -= spec.trackPitch;
                     first.gap += spec.trackPitch;
                     totalGap += spec.trackPitch;
-                    // vorwaerts: hinten am Leitrad ablegen, rueckwaerts: vorne am Antriebsrad
-                    float z = vSide >= 0f ? idler.center.z : sprocket.center.z;
-                    Vector3 above = tank.transform.TransformPoint(new Vector3(x, 1.2f, z));
+                    // Das freie Ende faellt an der Bruchstelle von den Raedern und wird von dort aus abgelegt
+                    // (die Bruchstelle wandert mit dem Panzer mit: die Spur beginnt dort, wo die Kette gerissen ist)
+                    Vector2 bp = breakS.Count > 0 ? ArcPoint(breakS[0]) : new Vector2(vSide >= 0f ? idler.center.z : sprocket.center.z, 0f);
+                    float z = bp.x;
+                    Vector3 above = tank.transform.TransformPoint(new Vector3(x, Mathf.Max(bp.y, 0f) + 1.2f, z));
                     Vector3 at = above + Vector3.down * 1.2f; Vector3 up = tank.transform.up;
                     if (tank.RaycastGround(above, Vector3.down, 3f, out RaycastHit gh)) { at = gh.point; up = gh.normal; }
                     Quaternion rot = Quaternion.LookRotation(Vector3.ProjectOnPlane(tank.transform.forward, up), up);
@@ -230,6 +232,20 @@ namespace PanzerSim
                 if (d < best) { best = d; bestS = cum[i] + ab.magnitude * t; }
             }
             return bestS;
+        }
+
+        /// <summary>Punkt (z, y) auf dem Kettenweg bei Bogenlaenge s.</summary>
+        Vector2 ArcPoint(float s)
+        {
+            float len = cum[cum.Count - 1];
+            s = Mathf.Repeat(s, len);
+            for (int i = 0; i + 1 < path.Count; i++)
+                if (cum[i + 1] >= s)
+                {
+                    float seg = Mathf.Max(cum[i + 1] - cum[i], 1e-6f);
+                    return Vector2.Lerp(path[i], path[i + 1], (s - cum[i]) / seg);
+                }
+            return path[path.Count - 1];
         }
 
         bool InGap(float s, float length)

@@ -74,7 +74,7 @@ namespace PanzerSim.EditorTools
                 var ground = GameObject.CreatePrimitive(PrimitiveType.Plane); ground.transform.localScale = Vector3.one * 10f;
                 var tc = TankBuilder.Build(TankLibrary.T34_85, new Vector3(0f, 0.05f, 0f), Quaternion.identity, false);
                 Physics.SyncTransforms();
-                tc.DamageTrack(tc.transform.TransformPoint(new Vector3(1.3f, 0.1f, 1.5f)), 60f, Vector3.zero, false);
+                tc.DamageTrack(tc.transform.TransformPoint(new Vector3(1.3f, 0.9f, 2.6f)), 60f, Vector3.zero, false);   // vorne oben gerissen
                 var lu = typeof(TankVisual).GetMethod("LateUpdate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
                 // 15 m vorwaerts in kleinen Schritten (im Editor ist die Bildzeit winzig: Geschwindigkeit entsprechend klein)
                 TankTracks.SuppressDraw = true;
