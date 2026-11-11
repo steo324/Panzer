@@ -36,6 +36,9 @@ ZIELE
 WAS SCHON SIMULIERT WIRD
 - Panzer aus echten Einzelplatten mit Dicke, Winkel, Material (Front, Seiten, Heck, Dach, Boden, Blende, Ketten)
 - Ungefaehre echte Werte: Panzer IV F2, M4A1E9 Sherman, T-34-85
+- Munition (Taste 1/2/3): panzerbrechend (AP/APC/APCBC/APHE), Sprenggranate (HE: Druckwelle schlaegt nur duenne
+  Platten durch, sonst Abplatzer/Kanonenschaden) und Hohlladung (HEAT: fester Durchschlag auf jede Entfernung,
+  Strahl max. 2,5 m, Luftspalte schwaechen ihn). Tests im Editor: Panzer/Munitions-Test, Panzer/Panzerungs-Check
 - Modelle: Tools/Blender/rig_sherman.py und rig_panzer4.py machen aus den Downloads die Spielmodelle
   (Turm, Kanone, Raeder einzeln); Editor/ModelPrefabs.cs baut daraus die Prefabs (laeuft vor jedem Build)
 - Lizenzen (alle CC BY 4.0, Namensnennung Pflicht - steht auch im Hauptmenue):

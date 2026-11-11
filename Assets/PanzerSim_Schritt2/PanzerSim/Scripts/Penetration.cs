@@ -43,8 +43,19 @@ namespace PanzerSim
 
         public static float FlatPenetration(ShellData s, float velocity)
         {
+            if (s.IsHE) return HEBlastMm(s.fillerKg);
+            if (s.IsHEAT) return s.heatPenMm;   // Hohlladung: unabhaengig von der Geschwindigkeit
             return DeMarreMm(velocity, s.massKg, s.caliberMm) * FillerFactor(s);
         }
+
+        /// <summary>
+        /// Sprenggranate: so dicke Platten schlaegt die Druckwelle beim Aufschlag durch (mm RHA).
+        /// Faustregel: waechst mit der dritten Wurzel der Sprengstoffmenge (0,7 kg -> ca. 18 mm, 0,9 kg -> ca. 19 mm).
+        /// </summary>
+        public static float HEBlastMm(float fillerKg) => 20f * Mathf.Pow(Mathf.Max(fillerKg, 0f), 1f / 3f);
+
+        /// <summary>Ab diesem Auftreffwinkel gleitet eine Hohlladung ab bzw. der Zuender spricht nicht richtig an.</summary>
+        public const float HEATGrazeAngle = 80f;
 
         /// <summary>Ab diesem Auftreffwinkel beginnen Abpraller.</summary>
         static float RicochetStartAngle(ShellType t)
@@ -83,6 +94,43 @@ namespace PanzerSim
 
             r.impactAngleDeg = Vector3.Angle(-dir, surfaceNormal);
             r.penetrationMm = FlatPenetration(s, v);
+
+            // Sprenggranate: explodiert sofort auf der Oberflaeche, kein Abpraller. Die Druckwelle wirkt fast senkrecht
+            // auf die Platte (Winkel spielt kaum eine Rolle) - durch, wenn die Platte duenner ist als die Druckwelle schafft.
+            if (s.IsHE)
+            {
+                r.effectiveArmorMm = plateMm;
+                r.residualVelocity = 0f;
+                r.exitDirection = dir;
+                r.outcome = r.penetrationMm >= plateMm ? HitOutcome.Penetration : HitOutcome.NoPenetration;
+                r.note = r.outcome == HitOutcome.Penetration
+                    ? "Sprenggranate: Druckwelle schlaegt die Platte durch"
+                    : $"Sprenggranate explodiert aussen (Platte {plateMm - r.penetrationMm:0} mm zu dick fuer die Druckwelle)";
+                return r;
+            }
+
+            // Hohlladung: fester Durchschlag, effektive Dicke nach Winkel (keine Normalisierung wie bei Panzerkappen).
+            // Sehr flach auftreffend gleitet sie ab.
+            if (s.IsHEAT)
+            {
+                float t = plateMm * (plateMat == ArmorMaterial.Cast ? 0.95f : 1f);
+                r.effectiveArmorMm = t / Mathf.Max(Mathf.Cos(r.impactAngleDeg * Mathf.Deg2Rad), 0.05f);
+                if (r.impactAngleDeg > HEATGrazeAngle)
+                {
+                    r.outcome = HitOutcome.Ricochet;
+                    r.exitDirection = Vector3.Reflect(dir, surfaceNormal);
+                    r.residualVelocity = v * 0.5f;
+                    r.note = "Hohlladung gleitet ab (zu flach)";
+                    return r;
+                }
+                r.residualVelocity = 0f;
+                r.exitDirection = dir;
+                r.outcome = r.penetrationMm >= r.effectiveArmorMm ? HitOutcome.Penetration : HitOutcome.NoPenetration;
+                r.note = r.outcome == HitOutcome.Penetration
+                    ? $"Hohlladung: Strahl schlaegt durch ({r.penetrationMm - r.effectiveArmorMm:0} mm Reserve)"
+                    : $"Hohlladung: kein Durchschlag (fehlen {r.effectiveArmorMm - r.penetrationMm:0} mm)";
+                return r;
+            }
 
             float thickness = plateMm * ArmorPlate.Quality(plateMat, s);
             float overmatch = s.caliberMm / Mathf.Max(plateMm, 1f); // Kaliber im Verhaeltnis zur Dicke

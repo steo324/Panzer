@@ -103,6 +103,10 @@ namespace PanzerSim
                 report.Add($"{data.name} -> {who}{plateName} ({plateMm:0} mm)\n   {r.note}. {r.penetrationMm:0} mm Durchschlag gegen " +
                            $"{r.effectiveArmorMm:0} mm effektiv, Winkel {r.impactAngleDeg:0}°, {Vector3.Distance(origin, pos):0} m");
 
+                // Spreng- und Hohlladungsgranaten explodieren beim Aufschlag - eigene Wirkung statt Weiterfliegen
+                if (data.IsHE) { HitHE(pos, hit.normal, tank, plateMm, plateName, r); return; }
+                if (data.IsHEAT && r.outcome != HitOutcome.Ricochet) { HitHEAT(pos, hit.normal, dir, r); return; }
+
                 switch (r.outcome)
                 {
                     case HitOutcome.Ricochet:
@@ -177,7 +181,7 @@ namespace PanzerSim
                 float radius = Mathf.Clamp(cal * 6f, 0.3f, 0.7f);   // 88 mm -> ca. 0,5 m
                 if (data.HasFiller) radius += Mathf.Clamp(Mathf.Pow(data.fillerKg * 1000f, 1f / 3f) * 0.08f, 0.1f, 0.6f);
 
-                if (graze > 12f && Random.value < StuckChance)
+                if (!data.ImpactFuze && graze > 12f && Random.value < StuckChance)
                 {
                     // Granate steckt im Boden: halb eingegraben, kein Zuender
                     Effects.Impact(pos, hit.normal, dir, data.caliberMm, false, false);
@@ -195,6 +199,94 @@ namespace PanzerSim
 
             if (!data.HasFiller) Effects.Impact(pos, hit.normal, dir, data.caliberMm, false, false);
             Stop(pos, data.HasFiller);
+        }
+
+        /// <summary>
+        /// Sprenggranate trifft Panzerung: Explosion auf der Oberflaeche. Duenne Platte -> Druckwelle und Splitter innen;
+        /// dicke Platte -> hoechstens Abplatzer innen; Treffer an Rohr/Blende beschaedigen die Kanone.
+        /// </summary>
+        void HitHE(Vector3 pos, Vector3 normal, TankController tank, float plateMm, string plateName, HitResult r)
+        {
+            Effects.Explosion(pos, data.fillerKg, false);
+            Shell.Marker(pos, new Color(1f, 0.55f, 0.1f), 0.3f);
+            if (tank != null)
+            {
+                Vector3 inside = pos - normal * (plateMm / 1000f + 0.05f);   // knapp hinter der Platte
+                if (r.outcome == HitOutcome.Penetration)
+                {
+                    Damage.Explosion(inside, data.fillerKg * 0.5f, ReportDamage);   // ein Teil der Wucht geht nach innen
+                    Damage.Fragments(inside, -normal, 24, 55f, 30f, 3f, ReportDamage);
+                    report.Add("   Druckwelle und Splitter im Inneren");
+                }
+                else if (plateMm < r.penetrationMm * 2f)
+                {
+                    Damage.Fragments(inside, -normal, 6, 40f, 12f, 1.5f, ReportDamage);   // Abplatzer von der Innenseite
+                    report.Add("   Abplatzer an der Innenseite");
+                }
+                // Kanone getroffen (Rohr oder Blende): Verschluss/Rohr beschaedigt
+                bool gunHit = plateName.Contains("Blende") || plateName.Contains("Kanone") || plateName.Contains("Rohr");
+                if (!gunHit && tank.parts.gunPivot != null && tank.parts.muzzle != null)
+                {
+                    Vector3 a = tank.parts.gunPivot.position, b = tank.parts.muzzle.position;
+                    Vector3 ab = b - a;
+                    float t = Mathf.Clamp01(Vector3.Dot(pos - a, ab) / Mathf.Max(ab.sqrMagnitude, 0.001f));
+                    gunHit = Vector3.Distance(pos, a + ab * t) < 0.35f;
+                }
+                if (gunHit)
+                    foreach (var m in tank.parts.modules)
+                        if (m != null && m.type == ModuleType.Breech)
+                        {
+                            string msg = m.ApplyDamage(35f);
+                            if (msg != null) ReportDamage(m, msg + " (Sprengtreffer an der Kanone)");
+                        }
+            }
+            Finish();
+        }
+
+        /// <summary>
+        /// Hohlladung trifft Panzerung: Explosion aussen, bei Durchschlag ein Metallstrahl von hoechstens 2,5 m Reichweite.
+        /// Weitere Platten auf dem Weg (z. B. erst Kette, dann Wanne) kosten Durchschlag; Luftspalte lassen den Strahl zerfasern.
+        /// Innen trifft der Strahl nur, was in seiner Linie liegt, dazu ein schmaler Splitterkegel.
+        /// </summary>
+        void HitHEAT(Vector3 pos, Vector3 normal, Vector3 dir, HitResult r)
+        {
+            Effects.Explosion(pos, data.fillerKg * 0.6f, false);
+            if (r.outcome != HitOutcome.Penetration)
+            {
+                Shell.Marker(pos, Color.red, 0.25f);
+                Finish();
+                return;
+            }
+            Shell.Marker(pos, Color.green, 0.25f);
+            float reserve = r.penetrationMm - r.effectiveArmorMm;
+            float reach = 2.5f;
+            Vector3 exit = pos + dir * 0.01f;
+            for (int i = 0; i < 6; i++)
+            {
+                if (!Physics.Raycast(exit, dir, out RaycastHit h, reach, ArmorPlate.ShotMask, QueryTriggerInteraction.Ignore)) break;
+                var plate = h.collider.GetComponentInParent<ArmorPlate>();
+                if (plate == null) { reach = h.distance; break; }          // Boden o. ae.: Strahl endet dort
+                if (h.distance > 0.05f) reserve *= 1f - Mathf.Clamp01(h.distance / 2.5f);   // Luftspalt: Strahl zerfasert
+                plate.GetArmor(h, out float mm, out ArmorMaterial mat, out string nm);
+                float ang = Vector3.Angle(-dir, h.normal);
+                float eff = mm / Mathf.Max(Mathf.Cos(ang * Mathf.Deg2Rad), 0.05f);
+                if (reserve < eff)
+                {
+                    report.Add($"   Strahl bleibt in {nm} stecken ({mm:0} mm, effektiv {eff:0} mm, Rest {reserve:0} mm)");
+                    reach = h.distance;
+                    break;
+                }
+                reserve -= eff;
+                reach -= h.distance;
+                exit = h.point + dir * 0.01f;
+                report.Add($"   Strahl durchschlaegt auch {nm} ({eff:0} mm effektiv, Rest {reserve:0} mm)");
+                if (reach <= 0.05f) break;
+            }
+            // Innenwirkung: der Strahl selbst + schmaler Kegel aus Splittern (stoppt an der naechsten Panzerung)
+            float len = Mathf.Max(reach, 0.3f);
+            Damage.Fragments(exit, dir, 1, 0f, 140f, len, ReportDamage);
+            Damage.Fragments(exit, dir, 10, 9f, 35f + reserve * 0.3f, len, ReportDamage);
+            Finish();
         }
 
         /// <summary>Innenteile entlang eines Wegstuecks treffen (nur nach Durchschlag).</summary>

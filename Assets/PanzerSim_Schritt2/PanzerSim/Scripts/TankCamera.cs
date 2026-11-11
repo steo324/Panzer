@@ -175,7 +175,9 @@ namespace PanzerSim
                 : "<color=#7f7>GELADEN</color>";
             string s = $"<b>{t.spec.name}</b>   {t.SpeedKmh:0} km/h\n" +
                        $"Munition [{t.AmmoSlot}/{t.AmmoLoadout.Length}]: {a.name} ({a.type}, {a.gun})\n" +
-                       $"Durchschlag auf {t.sightRange:0} m: {Penetration.FlatPenetration(a, vAt):0} mm\n" +
+                       (a.IsHE ? $"Sprenggranate: Druckwelle schlaegt bis {Penetration.FlatPenetration(a, vAt):0} mm durch\n"
+                        : a.IsHEAT ? $"Hohlladung: {Penetration.FlatPenetration(a, vAt):0} mm auf jede Entfernung\n"
+                        : $"Durchschlag auf {t.sightRange:0} m: {Penetration.FlatPenetration(a, vAt):0} mm\n") +
                        $"Visier: {t.sightRange:0} m {(autoRange ? "(automatisch)" : "(von Hand, Q/E)")}\n" +
                        $"{reload}\n\n<b>Besatzung</b>\n";
             foreach (ModuleType role in new[] { ModuleType.Commander, ModuleType.Gunner, ModuleType.Loader, ModuleType.Driver, ModuleType.RadioOperator })

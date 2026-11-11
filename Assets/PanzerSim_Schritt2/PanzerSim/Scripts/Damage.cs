@@ -50,12 +50,24 @@ namespace PanzerSim
         {
             float radius = 0.8f + 2.2f * Mathf.Pow(fillerKg, 1f / 3f);
             float blast = 60f + fillerKg * 2000f;
+            float shield = Penetration.HEBlastMm(fillerKg);   // dickere Panzerung dazwischen haelt die Druckwelle auf
             foreach (var c in Physics.OverlapSphere(pos, radius, ~0, QueryTriggerInteraction.Collide))
             {
                 if (!c.isTrigger) continue;
                 var m = c.GetComponent<TankModule>();
                 if (m == null || m.Destroyed) continue;
-                float d = Vector3.Distance(pos, c.ClosestPoint(pos));
+                Vector3 cp = c.ClosestPoint(pos);
+                // Liegt Panzerung zwischen Explosion und Innenteil? (z. B. Sprenggranate neben dem Panzer)
+                if (Physics.Linecast(pos, cp, out RaycastHit wall, ArmorPlate.ShotMask, QueryTriggerInteraction.Ignore))
+                {
+                    var plate = wall.collider.GetComponentInParent<ArmorPlate>();
+                    if (plate != null)
+                    {
+                        plate.GetArmor(wall, out float mm, out _, out _);
+                        if (mm > shield) continue;
+                    }
+                }
+                float d = Vector3.Distance(pos, cp);
                 string msg = m.ApplyDamage(blast * (1f - d / radius));
                 if (msg != null) report?.Invoke(m, msg);
             }

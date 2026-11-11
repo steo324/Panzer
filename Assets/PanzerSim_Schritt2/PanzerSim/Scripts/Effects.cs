@@ -285,7 +285,7 @@ namespace PanzerSim
             if (sh == null) { Debug.LogWarning("Effekte: Partikel-Shader fehlt."); return false; }
             Vegetation.EnsureInit();
             root = new GameObject("Effekte");
-            Object.DontDestroyOnLoad(root);
+            if (Application.isPlaying) Object.DontDestroyOnLoad(root);   // im Editor-Test (Munitions-Test) nicht erlaubt
             runner = root.AddComponent<Runner>();
 
             var puff = PuffTexture(64, 7);

@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace PanzerSim
 {
@@ -106,7 +106,7 @@ namespace PanzerSim
         {
             name = "Tiger I",
             massT = 57f, powerPS = 700f, maxSpeedKmh = 40f, reverseKmh = 7f, turnRateDegS = 22f,
-            // Masse an das 3D-Modell angepasst (Maßstab 1,2 = echte Tiger-Groesse)
+            // Masse an das 3D-Modell angepasst (MaÃŸstab 1,2 = echte Tiger-Groesse)
             hullLength = 6.15f, hullWidth = 3.2f, hullHeight = 1.5f, clearance = 0.35f,
             trackWidth = 0.725f, trackInset = 0.49f,
             hullFront = new Armor(100, 9), hullRear = new Armor(80, 9), hullSide = new Armor(80, 0),
@@ -115,7 +115,7 @@ namespace PanzerSim
             turretFront = new Armor(100, 0), turretSide = new Armor(80, 0), turretRear = new Armor(80, 0),
             turretRoof = new Armor(25, 0), mantlet = new Armor(110, 0),
             traverseDegS = 7f, elevationDegS = 4f, minElevation = -8f, maxElevation = 15f,
-            ammoIndex = 1, ammo = new[] { 1 }, reloadS = 8.5f, barrelLength = 3.5f, muzzleBrake = true,
+            ammoIndex = 1, ammo = new[] { 1, 11, 12 }, reloadS = 8.5f, barrelLength = 3.5f, muzzleBrake = true,
             sightType = SightType.German, sightFov = 25f, sightMag = 2.5f, sightName = "TZF 9c",
             sightZoomFov = new[] { 25f, 14f }, sightZoomMag = new[] { 2.5f, 5f },
             modelResource = "Modelle/Tiger", modelScale = 1.2f,
@@ -147,7 +147,7 @@ namespace PanzerSim
             turretFront = new Armor(50, 11), turretSide = new Armor(30, 25), turretRear = new Armor(30, 15),
             turretRoof = new Armor(10, 0), mantlet = new Armor(50, 0),
             traverseDegS = 14f, elevationDegS = 5f, minElevation = -8f, maxElevation = 20f,   // elektrischer Turmantrieb
-            ammoIndex = 8, ammo = new[] { 8 }, reloadS = 6.5f, barrelLength = 2.73f, muzzleBrake = true,   // sichtbarer Teil ab Schildzapfen
+            ammoIndex = 8, ammo = new[] { 8, 9, 10 }, reloadS = 6.5f, barrelLength = 2.73f, muzzleBrake = true,   // sichtbarer Teil ab Schildzapfen
             // Turmzielfernrohr TZF 5f: 2,5-fach, 25 Grad Sehfeld
             sightType = SightType.German, sightFov = 25f, sightMag = 2.5f, sightName = "TZF 5f",
             modelResource = "Modelle/PanzerIV_F2", modelScale = 1f,
@@ -184,7 +184,7 @@ namespace PanzerSim
             mantlet = new Armor(89, 0, ArmorMaterial.Cast),           // Blende M34A1: Schild 51 mm + Rotor 38 mm
             traverseDegS = 24f, elevationDegS = 5f, minElevation = -10f, maxElevation = 25f,   // hydraulisch 360 Grad in 15 s
             // 75 mm M3: M61 APC (mit Sprengladung) und M72 AP (Vollgeschoss)
-            ammoIndex = 2, ammo = new[] { 2, 6 }, reloadS = 6f, barrelLength = 1.93f,   // sichtbarer Teil ab Schildzapfen
+            ammoIndex = 2, ammo = new[] { 2, 6, 13 }, reloadS = 6f, barrelLength = 1.93f,   // sichtbarer Teil ab Schildzapfen
             // Richtschuetze: Zielfernrohr M70F in der Blende M34A1, 3-fach, 12,7 Grad Sehfeld
             sightType = SightType.US, sightFov = 12.7f, sightMag = 3f, sightName = "M70F",
             modelResource = "Modelle/M4A1E9", modelScale = 1f,
@@ -212,7 +212,7 @@ namespace PanzerSim
             turretRear = new Armor(52, 10, ArmorMaterial.Cast), turretRoof = new Armor(20, 0),
             mantlet = new Armor(40, 0, ArmorMaterial.Cast),
             traverseDegS = 20f, elevationDegS = 5f, minElevation = -5f, maxElevation = 22f,
-            ammoIndex = 4, ammo = new[] { 4, 7 }, reloadS = 8f, barrelLength = 3.2f,
+            ammoIndex = 4, ammo = new[] { 4, 7, 14 }, reloadS = 8f, barrelLength = 3.2f,
             sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-16",
             modelResource = "Modelle/T34_85", modelScale = 1f,
             modelTurretPivotShift = new Vector3(0f, 0f, 0.25f),   // Turmring-Mitte liegt 25 cm vor dem Turmgelenk des Modells (sonst Loch beim Drehen)

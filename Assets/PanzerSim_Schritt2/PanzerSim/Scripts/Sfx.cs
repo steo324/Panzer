@@ -46,7 +46,7 @@ namespace PanzerSim
             if (root == null)
             {
                 root = new GameObject("Geraeusche");
-                Object.DontDestroyOnLoad(root);
+                if (Application.isPlaying) Object.DontDestroyOnLoad(root);
                 pool.Clear();
             }
             foreach (var s in pool) if (s != null && !s.isPlaying) return s;
