@@ -20,6 +20,7 @@ namespace PanzerSim.EditorTools
             string zip = Path.Combine(root, "Builds", "BallistikStudios.zip");
             ShaderIncludes.Ensure();   // Laufzeit-Shader (URP Lit, Terrain) muessen mit in den Build, sonst wird alles pink
             ModelPrefabs.RunAll();     // Modell-Prefabs (Sherman, Panzer IV) aus Geometrie + komprimierten Texturen
+            NetPrefabs.Ensure();       // Netzwerk-Prefabs fuer den Mehrspieler
 
             // Nur den Inhalt leeren: der Ordner selbst kann gesperrt sein (Explorer, Terminal ...)
             Directory.CreateDirectory(outDir);
@@ -40,6 +41,7 @@ namespace PanzerSim.EditorTools
                 scenes = new[] { scene },
                 locationPathName = Path.Combine(outDir, "BallistikStudios.exe"),
                 target = BuildTarget.StandaloneWindows64,
+                subtarget = (int)StandaloneBuildSubtarget.Player,   // ausdruecklich normales Spiel (nicht Server)
                 options = BuildOptions.None
             };
             BuildReport report = BuildPipeline.BuildPlayer(opts);
@@ -53,7 +55,47 @@ namespace PanzerSim.EditorTools
             if (File.Exists(zip)) File.Delete(zip);
             ZipFile.CreateFromDirectory(outDir, zip, System.IO.Compression.CompressionLevel.Optimal, false);
             Debug.Log($"BUILD FERTIG: {zip}  ({new FileInfo(zip).Length / 1048576f:0} MB)");
-            EditorUtility.RevealInFinder(zip);
+            BuildLinuxServer(root, scene);
+            if (!Application.isBatchMode) EditorUtility.RevealInFinder(zip);
+        }
+
+        /// <summary>
+        /// Dedizierter Linux-Server ohne Grafik nach Builds/BallistikServer/ (z. B. fuer CachyOS/Arch).
+        /// Braucht im Unity Hub das Modul "Linux Dedicated Server Build Support"; ohne Modul wird er uebersprungen.
+        /// Start: ./BallistikServer.x86_64 -batchmode -nographics -server -map 0 -port 7777
+        /// </summary>
+        [MenuItem("Panzer/Linux-Server bauen")]
+        public static void BuildLinuxServerMenu() => BuildLinuxServer(Path.GetFullPath(Path.Combine(Application.dataPath, "..")), "Assets/PanzerSim/Spiel.unity");
+
+        static void BuildLinuxServer(string root, string scene)
+        {
+            if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, BuildTarget.StandaloneLinux64))
+            {
+                Debug.LogWarning("LINUX-SERVER UEBERSPRUNGEN: Modul 'Linux Dedicated Server Build Support' im Unity Hub installieren.");
+                return;
+            }
+            string outDir = Path.Combine(root, "Builds", "BallistikServer");
+            Directory.CreateDirectory(outDir);
+            foreach (var f in Directory.GetFiles(outDir)) File.Delete(f);
+            foreach (var d in Directory.GetDirectories(outDir)) Directory.Delete(d, true);
+            NetPrefabs.Ensure();
+            var opts = new BuildPlayerOptions
+            {
+                scenes = new[] { scene },
+                locationPathName = Path.Combine(outDir, "BallistikServer.x86_64"),
+                target = BuildTarget.StandaloneLinux64,
+                subtarget = (int)StandaloneBuildSubtarget.Server,
+                options = BuildOptions.None
+            };
+            var report = BuildPipeline.BuildPlayer(opts);
+            EditorUserBuildSettings.standaloneBuildSubtarget = StandaloneBuildSubtarget.Player;   // Unity merkt sich sonst "Server"
+            if (report.summary.result != BuildResult.Succeeded)
+            {
+                Debug.LogError($"LINUX-SERVER FEHLGESCHLAGEN: {report.summary.result} (Modul installiert?)");
+                return;
+            }
+            foreach (var d in Directory.GetDirectories(outDir, "*BurstDebugInformation_DoNotShip*")) Directory.Delete(d, true);
+            Debug.Log($"LINUX-SERVER FERTIG: {outDir}");
         }
     }
 }

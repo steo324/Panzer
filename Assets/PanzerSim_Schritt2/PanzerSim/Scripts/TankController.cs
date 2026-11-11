@@ -52,6 +52,14 @@ namespace PanzerSim
         string lastDriveInfo = "";             // Roentgenblick fuer alle Panzer
         public TankVisual visual;
 
+        // ---- Mehrspieler ----
+        /// <summary>Netzwerk-Objekt dieses Panzers (null = Einzelspieler).</summary>
+        public NetTank net;
+        /// <summary>Fremder Panzer im Mehrspieler: uebertragene Geschwindigkeit (fuer Ketten/Raeder).</summary>
+        public Vector3? netVelocity;
+        /// <summary>Zerstoerbare Anbauteile in fester Reihenfolge (gleich auf allen Rechnern).</summary>
+        public readonly List<DestructiblePart> destructibles = new List<DestructiblePart>();
+
         public ShellData Ammo => AmmoLibrary.All[ammoIndex];
         /// <summary>Granaten, die dieser Panzer laden kann (ohne Angabe: nur die Startmunition).</summary>
         public int[] AmmoLoadout => spec.ammo != null && spec.ammo.Length > 0 ? spec.ammo : new[] { spec.ammoIndex };
@@ -82,10 +90,10 @@ namespace PanzerSim
         Vector3 Velocity
         {
 #if UNITY_6000_0_OR_NEWER
-            get => rb.linearVelocity;
+            get => rb.isKinematic && netVelocity.HasValue ? netVelocity.Value : rb.linearVelocity;
             set => rb.linearVelocity = value;
 #else
-            get => rb.velocity;
+            get => rb.isKinematic && netVelocity.HasValue ? netVelocity.Value : rb.velocity;
             set => rb.velocity = value;
 #endif
         }
@@ -158,6 +166,7 @@ namespace PanzerSim
 
                 if (Inp.Down(KeyCode.F)) Extinguish();
                 if (Inp.FireDown) TryFire();
+                if (autoFire) AutoFireUpdate(dt);
 
                 AimTurret(dt);
             }
@@ -201,13 +210,54 @@ namespace PanzerSim
             if (!SeatOk(ModuleType.Gunner)) { RangeLog.Add("Kein Richtschuetze!"); return; }
             if (!Working(ModuleType.Breech)) { RangeLog.Add("Kanonenverschluss zerstoert!"); return; }
 
-            Shell.Fire(Ammo, parts.muzzle.position, parts.gunPivot.forward);
+            Vector3 origin = parts.muzzle.position, dir = parts.gunPivot.forward;
+            if (net != null && NetSync.Active)
+            {
+                net.RequestFire(ammoIndex, origin, dir);                       // Server rechnet die echte Granate
+                if (!NetSync.IsServer) Shell.Fire(Ammo, origin, dir, true);     // eigene Geister-Granate sofort sehen
+            }
+            else Shell.Fire(Ammo, origin, dir);
             // Rueckstoss: Granate + Treibgase (ca. 1,5x Geschossimpuls); die Rohrbremse daempft ihn ueber den Ruecklauf
             rb.AddForceAtPosition(-parts.gunPivot.forward * Ammo.massKg * Ammo.muzzleVelocity * 0.45f,
                                   parts.gunPivot.position, ForceMode.Impulse);
-            Effects.Muzzle(parts.muzzle.position, parts.gunPivot.forward, Ammo.caliberMm, spec.muzzleBrake);
-            recoilT = 0f;
+            PlayFireEffects(ammoIndex);
             reloadLeft = spec.reloadS;
+        }
+
+        // ---- Test: automatisch auf den naechsten Panzer schiessen (Startparameter -autofire) ----
+        public bool autoFire;
+        TankController autoTarget;
+        float autoSearch;
+        void AutoFireUpdate(float dt)
+        {
+            autoSearch -= dt;
+            if (autoSearch <= 0f || autoTarget == null || autoTarget.destroyed)
+            {
+                autoSearch = 1f;
+                autoTarget = null;
+                float best = float.MaxValue;
+                foreach (var t in FindObjectsByType<TankController>(FindObjectsSortMode.None))
+                {
+                    if (t == this || t.destroyed || t.spec == null) continue;
+                    float d = (t.transform.position - transform.position).sqrMagnitude;
+                    if (d < best) { best = d; autoTarget = t; }
+                }
+            }
+            if (autoTarget == null) return;
+            aimPoint = autoTarget.transform.TransformPoint(0f, autoTarget.spec.clearance + autoTarget.spec.hullHeight * 0.6f, 0f);
+            sightRange = Vector3.Distance(SightPosition, aimPoint);
+            Vector3 want = aimPoint - parts.muzzle.position;
+            float off = Vector3.Angle(new Vector3(parts.gunPivot.forward.x, 0f, parts.gunPivot.forward.z), new Vector3(want.x, 0f, want.z));
+            if (reloadLeft <= 0f && off < 0.8f) TryFire();
+        }
+
+        /// <summary>Muendungsfeuer, Knall und Rohrruecklauf (auch fuer fremde Panzer im Mehrspieler).</summary>
+        public void PlayFireEffects(int ammo)
+        {
+            var a = AmmoLibrary.All[Mathf.Clamp(ammo, 0, AmmoLibrary.All.Length - 1)];
+            if (parts.muzzle != null && parts.gunPivot != null)
+                Effects.Muzzle(parts.muzzle.position, parts.gunPivot.forward, a.caliberMm, spec.muzzleBrake);
+            recoilT = 0f;
         }
 
         // =============== Ketten: Schaden und Reparatur ===============
@@ -246,6 +296,8 @@ namespace PanzerSim
         /// </summary>
         public string DamageTrack(Vector3 worldPoint, float damage, Vector3 blastFrom, bool explosive)
         {
+            if (!NetSync.MayApplyDamage) return "";   // Geister-Granate / Mehrspieler-Client ohne Server-Auftrag
+            if (NetSync.ShouldBroadcast(this)) net.SendTrackBreak(worldPoint, damage, blastFrom, explosive);
             Vector3 l = transform.InverseTransformPoint(worldPoint);
             bool left = l.x < 0f;
             var zy = new Vector2(l.z, l.y);
@@ -283,6 +335,31 @@ namespace PanzerSim
             trackBreaks.Clear();
             repairing = false;
             RangeLog.Add($"{spec.name}: Kette repariert");
+            if (net != null && NetSync.Active) net.ReportRepairDone();   // Server und alle anderen erfahren es
+        }
+
+        /// <summary>Mehrspieler: Reparatur fertig (vom Besitzer gemeldet).</summary>
+        public void NetTrackRepaired()
+        {
+            trackBreaks.Clear();
+            repairing = false;
+        }
+
+        // ---- Treffermarken im Mehrspieler: Bezugsteil (0 = Wanne, 1 = Turm, 2 = Kanone) ----
+        public Transform DecalRef(int sel) => sel == 1 && parts.turret != null ? parts.turret : sel == 2 && parts.gunPivot != null ? parts.gunPivot : transform;
+
+        ArmorMeshFollower armorFollower;
+        /// <summary>Woran die Marke haengen soll: Teil der Mesh-Panzerung (folgt Turm/Kanone), sonst das Bezugsteil.</summary>
+        public Transform DecalParent(int sel)
+        {
+            if (armorFollower == null)
+                foreach (var f in FindObjectsByType<ArmorMeshFollower>(FindObjectsSortMode.None)) if (f.owner == this) { armorFollower = f; break; }
+            if (armorFollower != null)
+            {
+                var t = armorFollower.transform.Find(sel == 1 ? "Turm" : sel == 2 ? "Kanone" : "Wanne");
+                if (t != null) return t;
+            }
+            return DecalRef(sel);
         }
 
         // =============== Rohrruecklauf ===============
@@ -309,6 +386,7 @@ namespace PanzerSim
         void FixedUpdate()
         {
             if (spec == null) return;
+            if (rb.isKinematic) return;   // fremder Panzer im Mehrspieler: folgt nur der uebertragenen Lage
             float dt = Time.fixedDeltaTime;
             int n = wheelPoints.Count;
             int roadCount = 0;
@@ -553,6 +631,7 @@ namespace PanzerSim
         public void OnModuleDamaged(TankModule m)
         {
             if (destroyed) return;
+            if (NetSync.IsClientOnly) return;   // Mehrspieler: Server entscheidet (Zufall!) und schickt Brand/Explosion/Zerstoerung
 
             if (m.type == ModuleType.Ammo && Random.value < (m.Destroyed ? 0.7f : 0.25f))
             {
@@ -567,8 +646,14 @@ namespace PanzerSim
             if (alive < 2) SetDestroyed("Besatzung ausgeschaltet");
         }
 
+        /// <summary>Mehrspieler-Client: vom Server gemeldet.</summary>
+        public void NetDetonate() { if (!destroyed) DetonateAmmo(); }
+        public void NetSetDestroyed(string reason) => SetDestroyed(reason);
+        public void NetFireState(bool on) { if (on && !burning) StartFire(); else if (!on && burning) StopFire(); }
+
         void DetonateAmmo()
         {
+            if (NetSync.ShouldBroadcast(this)) net.SendDetonate();
             SetDestroyed("MUNITION EXPLODIERT");
             foreach (var mod in parts.modules)
                 if (mod.IsCrew) { mod.hp = 0f; mod.UpdateColor(); }
@@ -596,9 +681,10 @@ namespace PanzerSim
         void SetDestroyed(string reason)
         {
             if (destroyed) return;
+            if (NetSync.ShouldBroadcast(this) && !reason.StartsWith("MUNITION")) net.SendDestroyed(reason);
             destroyed = true;
             destroyedReason = reason;
-            RangeLog.Add($"*** {spec.name} ZERSTOERT: {reason} ***");
+            if (!NetSync.IsClientOnly) RangeLog.Add($"*** {spec.name} ZERSTOERT: {reason} ***");   // Clients bekommen die Zeile vom Server
             if (!reason.StartsWith("MUNITION"))
                 Effects.Burn(transform, new Vector3(0f, spec.clearance + spec.hullHeight, -spec.hullLength * 0.3f), 40f, 0.45f);
             foreach (var p in parts.plates)
@@ -607,9 +693,10 @@ namespace PanzerSim
 
         void StartFire()
         {
+            if (NetSync.ShouldBroadcast(this)) net.SendFire(true);
             burning = true;
             fireTimer = 0f;
-            RangeLog.Add($"{spec.name}: BRAND im Motorraum!");
+            if (!NetSync.IsClientOnly) RangeLog.Add($"{spec.name}: BRAND im Motorraum!");
             fireFx = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             fireFx.name = "Feuer";
             DestroyImmediate(fireFx.GetComponent<Collider>());
@@ -629,18 +716,27 @@ namespace PanzerSim
             foreach (var m in parts.modules)
                 if (m.IsCrew && !m.Destroyed) m.ApplyDamage(3f * dt);
 
-            // Computer-Besatzung loescht nach 12 s selbst
-            if (!isPlayer && !destroyed && fireTimer > 12f) Extinguish();
+            // Computer-Besatzung loescht nach 12 s selbst (im Mehrspieler nur auf dem Server, nur bei Zielpanzern)
+            if (!isPlayer && !destroyed && fireTimer > 12f && !NetSync.IsClientOnly && (net == null || net.isTarget.Value)) Extinguish();
         }
 
         public void Extinguish()
         {
             if (!burning) return;
+            // Mehrspieler-Client: Wunsch an den Server (nur fuer den eigenen Panzer)
+            if (NetSync.IsClientOnly) { if (net != null && net.IsOwner) net.RequestExtinguish(); return; }
             if (!hasExtinguisher) { if (isPlayer) RangeLog.Add("Kein Feuerloescher mehr!"); return; }
             hasExtinguisher = false;
+            StopFire();
+            RangeLog.Add($"{spec.name}: Feuer geloescht");
+        }
+
+        void StopFire()
+        {
+            if (NetSync.ShouldBroadcast(this)) net.SendFire(false);
+            if (NetSync.IsClientOnly) hasExtinguisher = false;
             burning = false;
             if (fireFx != null) Destroy(fireFx);
-            RangeLog.Add($"{spec.name}: Feuer geloescht");
         }
 
         /// <summary>Sichtbarkeit: Mit 3D-Modell sind Platten unsichtbar. Roentgen zeigt Innenteile statt Modell.</summary>

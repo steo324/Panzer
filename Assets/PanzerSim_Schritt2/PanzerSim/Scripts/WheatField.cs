@@ -94,6 +94,7 @@ namespace PanzerSim
             System.Func<float, float, float> groundY, System.Func<float, float, bool> rowsAlongX,
             System.Func<float, float, bool> grassGrows = null)
         {
+            if (NetSync.Headless) return null;   // Server ohne Grafik: Weizen ist reine Optik
             if (!SystemInfo.supportsComputeShaders) { Debug.LogWarning("Weizen: Grafikkarte ohne Compute-Shader - kein Weizen."); return null; }
             var prefab = Resources.Load<GameObject>("Modelle/Weizen");
             var cs = Resources.Load<ComputeShader>("Shaders/WeizenCull");

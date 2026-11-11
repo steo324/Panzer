@@ -28,20 +28,162 @@ namespace PanzerSim
         float orbit;
         static readonly Vector3 StagePos = new Vector3(0f, -2000f, 0f);
 
+        public static GameManager Instance { get; private set; }
+        public static TankSpec TankSpecByIndex(int i) => Tanks[Mathf.Clamp(i, 0, Tanks.Length - 1)]();
+        static int IndexOfSpec(TankSpec s) { for (int i = 0; i < Tanks.Length; i++) if (Tanks[i]().name == s.name) return i; return 0; }
+
+        // ---- Mehrspieler ----
+        bool netGame, connecting, autoFire;
+        float connectStart, statusTimer;
+        NetTank localNet;
+        string ipText = "127.0.0.1", portText = NetSync.DefaultPort.ToString(), netMessage = "";
+
+        void Awake() { Instance = this; }
+
         void Start()
         {
             Time.fixedDeltaTime = 0.01f;
+            Application.runInBackground = true;   // Mehrspieler: auch ohne Fokus weiterrechnen
             cam = Camera.main;
             tankCam = cam.GetComponent<TankCamera>();
             if (tankCam == null) tankCam = cam.gameObject.AddComponent<TankCamera>();
             GameSettings.EnsureLoaded();
             GameSettings.ApplyCamera(cam);
+
+            // Startparameter: -server / -host / -connect <IP>  [-map n] [-tank n] [-port n] [-autofire]
+            var args = System.Environment.GetCommandLineArgs();
+            string Arg(string name) { int i = System.Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; }
+            bool Has(string name) => System.Array.IndexOf(args, name) >= 0;
+            if (int.TryParse(Arg("-map"), out int m)) mapIndex = Mathf.Clamp(m, 0, maps.Length - 1);
+            if (int.TryParse(Arg("-tank"), out int t)) tankIndex = Mathf.Clamp(t, 0, Tanks.Length - 1);
+            if (ushort.TryParse(Arg("-port"), out ushort p)) portText = p.ToString();
+            autoFire = Has("-autofire");
+            if (Has("-server") || NetSync.Headless) { StartDedicatedServer(); return; }
+            ShowMenu();
+            if (Has("-host")) StartHostGame();
+            else if (Arg("-connect") != null) { ipText = Arg("-connect"); StartJoin(); }
+        }
+
+        ushort Port => ushort.TryParse(portText, out ushort p) ? p : NetSync.DefaultPort;
+
+        /// <summary>Karte bauen (bei jedem Spieler gleich, feste Zufallszahl).</summary>
+        void BuildMap(int index)
+        {
+            if (preview != null) Destroy(preview.gameObject);
+            if (stage != null) stage.gameObject.SetActive(false);
+            if (mapRoot != null) Destroy(mapRoot.gameObject);
+            mapIndex = index;
+            map = maps[index];
+            mapRoot = new GameObject("Karte: " + map.Name).transform;
+            map.Build(mapRoot);
+            RenderSettings.fog = map.Fog && !NetSync.Headless;
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogColor = new Color(0.72f, 0.78f, 0.84f);
+            RenderSettings.fogStartDistance = 400f;
+            RenderSettings.fogEndDistance = 2600f;
+        }
+
+        void EnterPlaying()
+        {
+            RangeLog.Lines.Clear();
+            TankController.ViewMode = 0;
+            state = State.Playing;
+            Time.timeScale = 1f;
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+
+        // ================= Mehrspieler-Ablauf =================
+        void StartHostGame()
+        {
+            netMessage = "";
+            BuildMap(mapIndex);
+            if (!NetSync.StartHost(tankIndex, mapIndex, Port)) { netMessage = NetSync.LastError; ShowMenu(); return; }
+            netGame = true;
+            EnterPlaying();
+            RangeLog.AddLocal($"Spiel gehostet auf Port {Port}. Mitspieler verbinden sich mit deiner IP.");
+        }
+
+        void StartJoin()
+        {
+            netMessage = "";
+            if (!NetSync.StartClient(tankIndex, ipText.Trim(), Port)) { netMessage = NetSync.LastError; return; }
+            netGame = true;
+            connecting = true;
+            connectStart = Time.unscaledTime;
+        }
+
+        /// <summary>Client: Server hat die Spielrunde geschickt -> Karte bauen und los.</summary>
+        public void BeginClientGame(int mapIdx)
+        {
+            connecting = false;
+            BuildMap(Mathf.Clamp(mapIdx, 0, maps.Length - 1));
+            EnterPlaying();
+            RangeLog.AddLocal($"Verbunden mit {ipText}:{Port}");
+        }
+
+        void StartDedicatedServer()
+        {
+            Application.targetFrameRate = 60;   // sonst rechnet der Server ohne Pause mit voller CPU-Last
+            BuildMap(mapIndex);
+            if (!NetSync.StartServer(mapIndex, Port)) { Debug.LogError("[Server] " + NetSync.LastError); Application.Quit(1); return; }
+            netGame = true;
+            state = State.Playing;
+            Debug.Log($"[Server] laeuft: Karte '{map.Name}', Port {Port}. Beenden mit Strg+C.");
+        }
+
+        public void ServerSpawnTargets()
+        {
+            if (map == null) return;
+            foreach (var s in map.Targets())
+                NetSync.SpawnTargetTank(IndexOfSpec(s.spec), new Vector3(s.x, map.GroundY(s.x, s.z) + 0.4f, s.z), s.yaw);
+        }
+
+        /// <summary>Spawnpunkte nebeneinander (14 m Abstand) am Startpunkt der Karte.</summary>
+        public void SpawnPoint(int i, out Vector3 pos, out float yaw)
+        {
+            yaw = map != null ? map.PlayerYaw : 0f;
+            Vector2 p = map != null ? map.PlayerXZ : Vector2.zero;
+            Vector3 side = Quaternion.Euler(0f, yaw, 0f) * Vector3.right;
+            int slot = i % 8;
+            float off = (slot % 2 == 0 ? 1 : -1) * ((slot + 1) / 2) * 14f;
+            Vector3 xz = new Vector3(p.x, 0f, p.y) + side * off;
+            pos = new Vector3(xz.x, (map != null ? map.GroundY(xz.x, xz.z) : 0f) + 0.4f, xz.z);
+        }
+
+        public void OnNetTankSpawned(NetTank nt)
+        {
+            if (!nt.IsLocalPlayer) return;
+            localNet = nt;
+            player = nt.tc;
+            player.autoFire = autoFire;
+            tankCam.target = player;
+        }
+
+        public void OnNetTankDespawned(NetTank nt)
+        {
+            if (nt != localNet) return;
+            localNet = null;
+            player = null;
+            if (tankCam != null) tankCam.target = null;
+        }
+
+        /// <summary>Verbindung weg (Server beendet, Netzwerkfehler): zurueck ins Menue.</summary>
+        public void OnNetworkEnded()
+        {
+            if (!netGame) return;
+            netMessage = NetSync.LastError;
             ShowMenu();
         }
 
         // ================= Ablauf =================
         void ShowMenu()
         {
+            if (netGame || NetSync.Active)
+            {
+                NetSync.Stop();
+                netGame = false; connecting = false; localNet = null;
+            }
             ClearGame();
             state = State.Menu;
             Time.timeScale = 1f;
@@ -71,27 +213,10 @@ namespace PanzerSim
 
         void StartGame()
         {
-            if (preview != null) Destroy(preview.gameObject);
-            if (stage != null) stage.gameObject.SetActive(false);
-
-            map = maps[mapIndex];
-            mapRoot = new GameObject("Karte: " + map.Name).transform;
-            map.Build(mapRoot);
-
-            RenderSettings.fog = map.Fog;
-            RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogColor = new Color(0.72f, 0.78f, 0.84f);
-            RenderSettings.fogStartDistance = 400f;
-            RenderSettings.fogEndDistance = 2600f;
-
+            BuildMap(mapIndex);
             SpawnPlayer();
             SpawnTargets();
-            RangeLog.Lines.Clear();
-            TankController.ViewMode = 0;
-            state = State.Playing;
-            Time.timeScale = 1f;
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            EnterPlaying();
         }
 
         void SpawnPlayer()
@@ -116,6 +241,9 @@ namespace PanzerSim
 
         void ClearGame()
         {
+            // Netzwerk-Objekte raeumt Netcode beim Trennen selbst ab; hier nur die gebauten Panzer entfernen
+            foreach (var nt in FindObjectsByType<NetTank>(FindObjectsSortMode.None))
+                if (nt.tc != null) { Destroy(nt.tc.gameObject); nt.tc = null; }
             if (player != null) Destroy(player.gameObject);
             foreach (var t in targets) if (t != null) Destroy(t.gameObject);
             targets.Clear();
@@ -131,6 +259,22 @@ namespace PanzerSim
         // ================= Eingabe =================
         void Update()
         {
+            if (NetSync.Headless)
+            {
+                // Dedizierter Server: alle 30 s Status ins Log
+                statusTimer -= Time.unscaledDeltaTime;
+                if (statusTimer <= 0f && NetSync.NM != null)
+                {
+                    statusTimer = 30f;
+                    Debug.Log($"[Server] {NetSync.NM.ConnectedClientsIds.Count} Spieler verbunden, {FindObjectsByType<NetTank>(FindObjectsSortMode.None).Length} Panzer");
+                }
+                return;
+            }
+            if (connecting && Time.unscaledTime - connectStart > 15f)
+            {
+                NetSync.LastError = $"Keine Antwort von {ipText}:{Port} (Server an? Firewall/Port 7777 UDP offen?)";
+                OnNetworkEnded();
+            }
             if (state == State.Menu)
             {
                 // Kamera kreist langsam um den Vorschau-Panzer
@@ -152,7 +296,12 @@ namespace PanzerSim
             }
             if (state != State.Playing) return;
 
-            if (Inp.Down(KeyCode.N))
+            if (Inp.Down(KeyCode.N) && netGame)
+            {
+                // Mehrspieler: neuer Panzer nur, wenn der eigene zerstoert ist (Server erzeugt ihn)
+                if (localNet != null && (player == null || player.destroyed)) localNet.RequestRespawn();
+            }
+            else if (Inp.Down(KeyCode.N))
             {
                 if (player == null || player.destroyed) SpawnPlayer();
                 SpawnTargets();
@@ -167,7 +316,7 @@ namespace PanzerSim
         void Pause(bool on)
         {
             state = on ? State.Paused : State.Playing;
-            Time.timeScale = on ? 0f : 1f;
+            Time.timeScale = on && !netGame ? 0f : 1f;   // im Mehrspieler laeuft die Welt weiter
             Cursor.lockState = on ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = on;
         }
@@ -219,6 +368,19 @@ namespace PanzerSim
 
         void OnGUI()
         {
+            if (NetSync.Headless) return;
+            if (connecting)
+            {
+                InitStyles();
+                float sc = Screen.height / 1080f;
+                GUI.matrix = Matrix4x4.Scale(new Vector3(sc, sc, 1f));
+                float w = Screen.width / sc;
+                GUI.Box(new Rect(w / 2f - 260, 460, 520, 160), GUIContent.none, panel);
+                GUI.Label(new Rect(w / 2f - 230, 480, 460, 40), $"Verbinde mit {ipText}:{Port} ...", head);
+                if (GUI.Button(new Rect(w / 2f - 120, 550, 240, 50), "Abbrechen", btn)) { NetSync.LastError = ""; netMessage = ""; ShowMenu(); }
+                GUI.matrix = Matrix4x4.identity;
+                return;
+            }
             if (state == State.Playing) return;
             InitStyles();
             // Alles fuer 1920x1080 auslegen und skalieren
@@ -264,6 +426,19 @@ namespace PanzerSim
                 if (GUILayout.Button(maps[i].Name, i == mapIndex ? btnSel : btn, GUILayout.Height(44))) mapIndex = i;
             GUILayout.Space(14);
             GUILayout.Label(maps[mapIndex].Description, text);
+
+            // ---- Mehrspieler ----
+            GUILayout.Space(16);
+            GUILayout.Label("MEHRSPIELER", head);
+            if (GUILayout.Button("Spiel hosten (gewaehlter Panzer + Karte)", btn, GUILayout.Height(40))) StartHostGame();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("IP", text, GUILayout.Width(26));
+            ipText = GUILayout.TextField(ipText, 64, GUILayout.Height(32));
+            GUILayout.Label("Port", text, GUILayout.Width(40));
+            portText = GUILayout.TextField(portText, 5, GUILayout.Width(70), GUILayout.Height(32));
+            GUILayout.EndHorizontal();
+            if (GUILayout.Button("Beitreten", btn, GUILayout.Height(40))) StartJoin();
+            if (!string.IsNullOrEmpty(netMessage)) GUILayout.Label($"<color=#f77>{netMessage}</color>", text);
             GUILayout.EndArea();
 
             // ---- Start ----
@@ -292,9 +467,20 @@ namespace PanzerSim
             GUILayout.Space(16);
             if (GUILayout.Button("Weiter", btn, GUILayout.Height(52))) Pause(false);
             GUILayout.Space(6);
-            if (GUILayout.Button("Neu starten (N)", btn, GUILayout.Height(52))) { Pause(false); SpawnPlayer(); SpawnTargets(); RangeLog.Lines.Clear(); }
-            GUILayout.Space(6);
-            if (GUILayout.Button("Hauptmenue (Panzer/Karte wechseln)", btn, GUILayout.Height(52))) ShowMenu();
+            if (netGame)
+            {
+                GUI.enabled = localNet != null && (player == null || player.destroyed);
+                if (GUILayout.Button("Neuer Panzer (N, wenn zerstoert)", btn, GUILayout.Height(52))) { Pause(false); localNet.RequestRespawn(); }
+                GUI.enabled = true;
+                GUILayout.Space(6);
+                if (GUILayout.Button("Spiel verlassen", btn, GUILayout.Height(52))) ShowMenu();
+            }
+            else
+            {
+                if (GUILayout.Button("Neu starten (N)", btn, GUILayout.Height(52))) { Pause(false); SpawnPlayer(); SpawnTargets(); RangeLog.Lines.Clear(); }
+                GUILayout.Space(6);
+                if (GUILayout.Button("Hauptmenue (Panzer/Karte wechseln)", btn, GUILayout.Height(52))) ShowMenu();
+            }
             GUILayout.Space(6);
             if (GUILayout.Button("Einstellungen", btn, GUILayout.Height(52))) settingsOpen = true;
             GUILayout.Space(6);

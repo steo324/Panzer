@@ -206,7 +206,7 @@ namespace PanzerSim
             }
 
             matrices.AddRange(laidList);   // abgerollte Glieder auf dem Boden (Weltkoordinaten)
-            if (!visible || SuppressDraw) return;
+            if (!visible || SuppressDraw || NetSync.Headless) return;
             for (int i = 0; i < matrices.Count; i += 1023)
             {
                 int count = Mathf.Min(1023, matrices.Count - i);

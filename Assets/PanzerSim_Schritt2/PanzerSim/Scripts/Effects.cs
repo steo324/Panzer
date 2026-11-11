@@ -279,6 +279,7 @@ namespace PanzerSim
 
         static bool Ensure()
         {
+            if (NetSync.Headless) return false;   // Server ohne Grafik: keine Effekte
             if (root != null) return true;
             var sh = Shader.Find("PanzerSim/Partikel");
             if (sh == null) sh = Resources.Load<Shader>("Shaders/Partikel");

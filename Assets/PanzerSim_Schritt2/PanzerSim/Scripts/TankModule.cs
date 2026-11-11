@@ -53,11 +53,20 @@ namespace PanzerSim
         public string ApplyDamage(float dmg)
         {
             if (Destroyed || dmg <= 0f) return null;
+            if (!NetSync.MayApplyDamage) return null;   // Mehrspieler-Client: Schaden kommt nur vom Server
             hp = Mathf.Max(0f, hp - dmg);
             UpdateColor();
+            if (owner != null && NetSync.ShouldBroadcast(owner)) owner.net.SendModuleHp(owner.parts.modules.IndexOf(this), hp);
             if (owner != null) owner.OnModuleDamaged(this);
             if (Destroyed) return IsCrew ? $"{label} getoetet" : $"{label} zerstoert";
             return $"{label} {(IsCrew ? "verwundet" : "beschaedigt")} ({hp / maxHp * 100f:0}%)";
+        }
+
+        /// <summary>Mehrspieler-Client: Zustand vom Server uebernehmen.</summary>
+        public void SetHpFromServer(float value)
+        {
+            hp = Mathf.Clamp(value, 0f, maxHp);
+            UpdateColor();
         }
 
         public void UpdateColor()

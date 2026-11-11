@@ -6,6 +6,8 @@
 /[Bb]uilds/*
 # Windows-Spielbuild wird mitversioniert
 !/Builds/BallistikStudios/
+# Linux-Server (Mehrspieler)
+!/Builds/BallistikServer/
 /[Ll]ogs/
 /[Uu]ser[Ss]ettings/
 /[Mm]emoryCaptures/

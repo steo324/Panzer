@@ -23,6 +23,23 @@ namespace PanzerSim
         /// </summary>
         public static void Add(Kind kind, Vector3 pos, Vector3 normal, Vector3 shellDir, float caliberMm, float angleDeg, Transform parent, float size = 0f)
         {
+            if (NetSync.GhostActive) return;   // Geister-Granate: die echte Marke schickt der Server
+            AddLocal(kind, pos, normal, shellDir, caliberMm, angleDeg, parent, size);
+            if (!NetSync.IsServer || parent == null) return;
+            // Mehrspieler: an alle Clients, relativ zu Wanne/Turm/Kanone des getroffenen Panzers
+            var follower = parent.GetComponentInParent<ArmorMeshFollower>();
+            TankController tc = follower != null ? follower.owner : parent.GetComponentInParent<TankController>();
+            if (tc == null || tc.net == null || !tc.net.IsSpawned) return;
+            string n = parent.name;
+            byte sel = (byte)(n == "Turm" || (tc.parts.turret != null && parent.IsChildOf(tc.parts.turret)) ? 1 : 0);
+            if (n == "Kanone" || (tc.parts.gunPivot != null && parent.IsChildOf(tc.parts.gunPivot))) sel = 2;
+            Transform rf = tc.DecalRef(sel);
+            tc.net.SendDecal((byte)kind, sel, rf.InverseTransformPoint(pos), rf.InverseTransformDirection(normal), rf.InverseTransformDirection(shellDir), caliberMm, angleDeg, size);
+        }
+
+        /// <summary>Marke nur hier setzen (ohne Weitergabe), z. B. wenn sie vom Server kommt.</summary>
+        public static void AddLocal(Kind kind, Vector3 pos, Vector3 normal, Vector3 shellDir, float caliberMm, float angleDeg, Transform parent, float size = 0f)
+        {
             if (!Ensure()) return;
             normal.Normalize();
             float cal = caliberMm / 1000f;
@@ -61,6 +78,7 @@ namespace PanzerSim
 
         static bool Ensure()
         {
+            if (NetSync.Headless) return false;   // Server ohne Grafik
             if (quad != null && holeMat != null) return true;
             var sh = Shader.Find("PanzerSim/Partikel");
             if (sh == null) sh = Resources.Load<Shader>("Shaders/Partikel");

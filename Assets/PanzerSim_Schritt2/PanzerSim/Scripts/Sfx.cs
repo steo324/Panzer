@@ -29,7 +29,7 @@ namespace PanzerSim
 
         static void Play(AudioClip clip, Vector3 pos, float pitch, float volume, float minDist)
         {
-            if (clip == null) return;
+            if (clip == null || NetSync.Headless) return;
             var cam = Camera.main;
             float delay = cam != null ? Vector3.Distance(cam.transform.position, pos) / SpeedOfSound : 0f;
             var src = Source();

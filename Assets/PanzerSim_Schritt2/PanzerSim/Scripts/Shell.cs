@@ -7,10 +7,18 @@ namespace PanzerSim
     public static class RangeLog
     {
         public static readonly List<string> Lines = new List<string>();
+        /// <summary>Zeile ins Protokoll. Im Mehrspieler schickt der Server sie an alle; Geister-Granaten schreiben nichts.</summary>
         public static void Add(string s)
+        {
+            if (NetSync.GhostActive) return;
+            AddLocal(s);
+            if (NetSync.IsServer) NetSession.Instance?.Log(s);
+        }
+        public static void AddLocal(string s)
         {
             Lines.Insert(0, s);
             if (Lines.Count > 8) Lines.RemoveAt(Lines.Count - 1);
+            if (NetSync.Active) Debug.Log("[Protokoll] " + s.Replace("\n", " | "));
         }
     }
 
@@ -35,16 +43,20 @@ namespace PanzerSim
         /// <summary>Wie oft eine Granate im Boden stecken bleibt statt abzuprallen/zu zerspringen (bei steilem Einschlag).</summary>
         public const float StuckChance = 0.3f;
 
-        public static Shell Fire(ShellData d, Vector3 position, Vector3 direction)
+        bool ghost;   // Mehrspieler: nur Optik (der Server rechnet die echte Granate)
+
+        public static Shell Fire(ShellData d, Vector3 position, Vector3 direction, bool ghost = false)
         {
-            var go = new GameObject("Granate " + d.name);
+            if (ghost && NetSync.Headless) return null;
+            var go = new GameObject((ghost ? "Geist " : "Granate ") + d.name);
             go.transform.position = position;
             go.transform.rotation = Quaternion.LookRotation(direction);
             var sh = go.AddComponent<Shell>();
             sh.data = d;
             sh.origin = position;
             sh.velocity = direction.normalized * d.muzzleVelocity;
-            sh.SetupBody();
+            sh.ghost = ghost;
+            if (!NetSync.Headless) sh.SetupBody();
             return sh;
         }
 
@@ -69,6 +81,14 @@ namespace PanzerSim
         void FixedUpdate()
         {
             if (finished) return;
+            if (!ghost) { Step(); return; }
+            NetSync.GhostActive = true;      // Geister-Granate: Effekte ja, Schaden/Marken/Protokoll nein
+            try { Step(); }
+            finally { NetSync.GhostActive = false; }
+        }
+
+        void Step()
+        {
             float dt = Time.fixedDeltaTime;
             life += dt;
             if (life > 15f) { Finish(); return; }

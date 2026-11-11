@@ -10,12 +10,15 @@ namespace PanzerSim
     public class DestructiblePart : MonoBehaviour
     {
         public TankController owner;
+        public int index = -1;   // feste Nummer am Panzer (gleich auf allen Rechnern, fuer den Mehrspieler)
         public bool broken { get; private set; }
 
         /// <summary>Teil abreissen. dir = Stossrichtung, speed = Wegfluggeschwindigkeit (m/s).</summary>
         public void Break(Vector3 point, Vector3 dir, float speed)
         {
             if (broken) return;
+            if (!NetSync.MayApplyDamage) return;   // Geister-Granate / Client ohne Server-Auftrag
+            if (NetSync.ShouldBroadcast(owner)) owner.net.SendPartBreak(index, point, dir, speed);
             broken = true;
             foreach (var c in GetComponentsInChildren<Collider>()) { c.enabled = false; Destroy(c); }   // Treffer-Box sofort weg (auch fuer Strahlen im selben Bild)
             Vector3 vTank = owner != null && owner.rb != null ? owner.rb.GetPointVelocity(point) : Vector3.zero;
@@ -109,7 +112,7 @@ namespace PanzerSim
                     var bc = hitBox.AddComponent<BoxCollider>();
                     bc.center = pd.mesh.bounds.center;
                     bc.size = Vector3.Max(pd.mesh.bounds.size, Vector3.one * 0.04f);
-                    go.AddComponent<DestructiblePart>().owner = tc;
+                    var dp = go.AddComponent<DestructiblePart>(); dp.owner = tc; dp.index = tc.destructibles.Count; tc.destructibles.Add(dp);
                     made++;
                 }
             }
@@ -303,8 +306,7 @@ namespace PanzerSim
                     var bc = hitBox.AddComponent<BoxCollider>();
                     bc.center = pd.localBounds.center;
                     bc.size = Vector3.Max(pd.localBounds.size, Vector3.one * 0.04f);
-                    var part = go.AddComponent<DestructiblePart>();
-                    part.owner = tc;
+                    var part = go.AddComponent<DestructiblePart>(); part.owner = tc; part.index = tc.destructibles.Count; tc.destructibles.Add(part);
                     made++;
                 }
             }
