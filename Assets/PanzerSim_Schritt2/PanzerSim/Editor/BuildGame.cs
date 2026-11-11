@@ -97,7 +97,12 @@ namespace PanzerSim.EditorTools
                 subtarget = (int)StandaloneBuildSubtarget.Server,
                 options = BuildOptions.None
             };
+            // Shader NICHT wegoptimieren: die Karten erzeugen Materialien zur Laufzeit (new Material(shader)),
+            // ohne Shader stuerzt der Server beim Kartenaufbau ab.
+            bool oldOpt = PlayerSettings.dedicatedServerOptimizations;
+            PlayerSettings.dedicatedServerOptimizations = false;
             var report = BuildPipeline.BuildPlayer(opts);
+            PlayerSettings.dedicatedServerOptimizations = oldOpt;
             EditorUserBuildSettings.standaloneBuildSubtarget = StandaloneBuildSubtarget.Player;   // Unity merkt sich sonst "Server"
             if (report.summary.result != BuildResult.Succeeded)
             {
