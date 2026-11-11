@@ -76,6 +76,7 @@ namespace PanzerSim
             }
             if (Has("-host")) StartHostGame();
             else if (Arg("-code") != null) StartJoinCode(Arg("-code"));
+            else if (Arg("-lobbyjoin") != null) LobbyJoin(Arg("-lobbyjoin"));
             else if (Arg("-connect") != null) { ipText = Arg("-connect"); StartJoin(); }
         }
 
@@ -161,6 +162,20 @@ namespace PanzerSim
             connectStart = Time.unscaledTime;
         }
 
+        /// <summary>Test (-lobbyjoin Name): Server mit diesem Namen in der Internetliste suchen und beitreten.</summary>
+        async void LobbyJoin(string serverName)
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                var list = await LobbyListing.Query();
+                if (list != null)
+                    foreach (var e in list)
+                        if (e.info.name == serverName) { Debug.Log($"[Netz] Internetliste: '{e.info.name}' gefunden ({list.Count} Server)"); StartJoinCode(e.info.code); return; }
+                await System.Threading.Tasks.Task.Delay(3000);
+            }
+            Debug.LogWarning("[Netz] Internetliste: Server nicht gefunden: " + serverName);
+        }
+
         string ConnectTarget => viaRelay ? $"Code {ipText}" : $"{ipText}:{Port}";
 
         /// <summary>Client: Server hat die Spielrunde geschickt -> Karte bauen und los.</summary>
@@ -172,14 +187,31 @@ namespace PanzerSim
             RangeLog.AddLocal($"Verbunden mit {ConnectTarget}");
         }
 
-        void StartDedicatedServer()
+        bool serverRunning;
+
+        /// <summary>
+        /// Dedizierter Server: zuerst ueber Unity Relay + oeffentlicher Eintrag (Unity Lobby) - dann finden ihn alle
+        /// in der Serverliste, ohne Tailscale/Portfreigabe. Klappt das nicht (offline, -norelay): direkt ueber Port.
+        /// </summary>
+        async void StartDedicatedServer()
         {
             Application.targetFrameRate = 60;   // sonst rechnet der Server ohne Pause mit voller CPU-Last
             BuildMap(mapIndex);
-            if (!NetSync.StartServer(mapIndex, Port)) { Debug.LogError("[Server] " + NetSync.LastError); Application.Quit(1); return; }
+            string code = null;
+            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-norelay") < 0)
+            {
+                try { code = await RelayConnect.Host(NetSync.MaxPlayers); }
+                catch (System.Exception e) { Debug.LogWarning("[Server] Relay nicht verfuegbar, starte direkt ueber Port: " + RelayConnect.Explain(e)); }
+            }
+            bool ok = code != null ? NetSync.StartServerRelay(mapIndex, code) : NetSync.StartServer(mapIndex, Port);
+            if (!ok) { Debug.LogError("[Server] " + NetSync.LastError); Application.Quit(1); return; }
             netGame = true;
             state = State.Playing;
-            Debug.Log($"[Server] laeuft: Karte '{map.Name}', Port {Port}, Version {GameVersion.Current}. Beenden mit Strg+C.");
+            serverRunning = true;
+            Debug.Log(code != null
+                ? $"[Server] laeuft ueber Unity Relay (Code {code}): Karte '{map.Name}', Version {GameVersion.Current}. Beenden mit Strg+C."
+                : $"[Server] laeuft: Karte '{map.Name}', Port {Port}, Version {GameVersion.Current}. Beenden mit Strg+C.");
+            if (code != null) await LobbyListing.Publish(NetSync.ServerName, map.Name, code, NetSync.MaxPlayers);
             gameObject.AddComponent<ServerUpdater>();   // neue Version auf GitHub -> neu starten, sobald leer
         }
 
@@ -320,6 +352,14 @@ namespace PanzerSim
             {
                 queryTimer -= Time.unscaledDeltaTime;
                 if (queryTimer <= 0f) { queryTimer = 1f; NetSync.UpdateQueryInfo(map.Name, Port); }
+                LobbyListing.Tick();
+            }
+            // Dedizierter Server: Netzwerk weg (z. B. Relay-Verbindung abgerissen) -> beenden, systemd startet neu
+            if (serverRunning && !NetSync.Active)
+            {
+                serverRunning = false;
+                Debug.LogError("[Server] Netzwerk beendet - Neustart.");
+                Application.Quit(2);
             }
             if (listOpen) UpdateServerList();
             if (NetSync.Headless)
@@ -594,7 +634,20 @@ namespace PanzerSim
                     if (!servers.ContainsKey(s)) servers[s] = new ServerQuery.Entry { address = s, manual = true };
             }
             ServerQuery.Collect(servers);
+            // oeffentliche Internet-Server (Unity Lobby) alle 6 s abfragen
+            lobbyTimer -= Time.unscaledDeltaTime;
+            if (lobbyTimer <= 0f) { lobbyTimer = 6f; QueryInternet(); }
         }
+
+        float lobbyTimer;
+        List<ServerQuery.Entry> internetServers = new List<ServerQuery.Entry>();
+        async void QueryInternet()
+        {
+            var list = await LobbyListing.Query();
+            if (list != null) internetServers = list;
+        }
+
+        static bool IsOnline(ServerQuery.Entry e) => e.info != null && Time.unscaledTime - e.lastSeen < (e.internet ? 20f : 7f);
 
         void DrawServerList(float W, float H)
         {
@@ -603,7 +656,7 @@ namespace PanzerSim
             GUI.Box(r, GUIContent.none, panel);
             GUILayout.BeginArea(new Rect(r.x + 24, r.y + 18, r.width - 48, r.height - 36));
             GUILayout.Label("SERVERLISTE", head);
-            GUILayout.Label($"Server im Heimnetz erscheinen von selbst. Fuer Server ueber Tailscale/Internet die IP unten eintragen.   Deine Version: {GameVersion.Current}   ·   Dein Panzer: {Tanks[tankIndex]().name}", small);
+            GUILayout.Label($"Internet-Server und Server im Heimnetz erscheinen von selbst. Server ueber Tailscale: IP unten eintragen.   Deine Version: {GameVersion.Current}   ·   Dein Panzer: {Tanks[tankIndex]().name}", small);
             GUILayout.Space(8);
             GUILayout.BeginHorizontal();
             GUILayout.Label("<b>Name</b>", text, GUILayout.Width(330));
@@ -614,25 +667,33 @@ namespace PanzerSim
             GUILayout.EndHorizontal();
             listScroll = GUILayout.BeginScrollView(listScroll, GUILayout.Height(440));
             var entries = new List<ServerQuery.Entry>(servers.Values);
+            // Internet-Server dazu, ausser sie sind schon ueber Heimnetz/Tailscale in der Liste (gleicher Code)
+            foreach (var ie in internetServers)
+            {
+                bool dup = false;
+                foreach (var le in servers.Values) if (IsOnline(le) && !string.IsNullOrEmpty(le.info.code) && le.info.code == ie.info.code) dup = true;
+                if (!dup) entries.Add(ie);
+            }
             entries.Sort((a, b) => (b.info != null).CompareTo(a.info != null));
             string remove = null;
             foreach (var e in entries)
             {
-                bool online = e.info != null && Time.unscaledTime - e.lastSeen < 7f;
+                bool online = IsOnline(e);
                 bool sameVer = online && (e.info.version == GameVersion.Current || GameVersion.IsDev);
                 GUILayout.BeginHorizontal();
                 string name = online ? e.info.name : e.address;
-                GUILayout.Label($"{name}\n<color=#999>{e.address}{(online ? ":" + e.info.port : "")}</color>", text, GUILayout.Width(330), GUILayout.Height(46));
+                string where = e.internet ? "Internet (Unity Relay)" : $"{e.address}{(online ? ":" + e.info.port : "")}";
+                GUILayout.Label($"{name}\n<color=#999>{where}</color>", text, GUILayout.Width(330), GUILayout.Height(46));
                 GUILayout.Label(online ? e.info.map : "<color=#f77>keine Antwort</color>", text, GUILayout.Width(160));
                 GUILayout.Label(online ? $"{e.info.players}/{e.info.max}" : "-", text, GUILayout.Width(80));
-                GUILayout.Label(online ? $"{e.pingMs:0} ms" : "-", text, GUILayout.Width(80));
+                GUILayout.Label(online && e.pingMs >= 0f ? $"{e.pingMs:0} ms" : "-", text, GUILayout.Width(80));
                 GUILayout.Label(online ? (sameVer ? e.info.version : $"<color=#f77>{e.info.version}</color>") : "-", text, GUILayout.Width(190));
                 GUI.enabled = online && sameVer && e.info.players < e.info.max;
                 if (GUILayout.Button("Beitreten", btnSel, GUILayout.Width(130), GUILayout.Height(40)))
                 {
-                    ipText = e.address; portText = e.info.port.ToString();
                     listOpen = false;
-                    StartJoin();
+                    if (!string.IsNullOrEmpty(e.info.code)) StartJoinCode(e.info.code);   // Server laeuft ueber Unity Relay
+                    else { ipText = e.address; portText = e.info.port.ToString(); StartJoin(); }
                 }
                 GUI.enabled = true;
                 if (e.manual && savedServers.Contains(e.address) && GUILayout.Button("X", btn, GUILayout.Width(40), GUILayout.Height(40))) remove = e.address;
@@ -661,9 +722,10 @@ namespace PanzerSim
             }
             if (GUILayout.Button("Direkt verbinden", btn, GUILayout.Width(200), GUILayout.Height(38)) && addText.Trim().Length > 0)
             {
-                ipText = addText.Trim(); portText = NetSync.DefaultPort.ToString();
                 listOpen = false;
-                StartJoin();
+                // laeuft der Server ueber Relay, kennt die Abfrage seinen Code
+                if (servers.TryGetValue(addText.Trim(), out var known) && IsOnline(known) && !string.IsNullOrEmpty(known.info.code)) StartJoinCode(known.info.code);
+                else { ipText = addText.Trim(); portText = NetSync.DefaultPort.ToString(); StartJoin(); }
             }
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Schliessen", btn, GUILayout.Width(160), GUILayout.Height(38))) { listOpen = false; ServerQuery.StopSearch(); }

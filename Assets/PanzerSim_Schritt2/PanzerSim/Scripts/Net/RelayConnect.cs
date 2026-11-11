@@ -17,6 +17,8 @@ namespace PanzerSim
     {
         const string ConnType = "dtls";   // verschluesselt
 
+        public static Task EnsureSignedIn() => Init();
+
         static async Task Init()
         {
             if (UnityServices.State != ServicesInitializationState.Initialized)

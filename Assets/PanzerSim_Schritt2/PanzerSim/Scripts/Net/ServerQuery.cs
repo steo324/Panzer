@@ -25,6 +25,7 @@ namespace PanzerSim
         public class Info
         {
             public string name = "", map = "", version = "";
+            public string code = "";      // Relay-Beitrittscode (leer = direkt ueber Port verbinden)
             public int players, max, port;
         }
 
@@ -80,6 +81,7 @@ namespace PanzerSim
             public float pingMs = -1f;
             public float lastSeen;        // Time.unscaledTime der letzten Antwort
             public bool manual;           // vom Spieler eingetragen oder aus der Liste
+            public bool internet;         // aus Unity Lobby (oeffentlicher Internet-Server)
         }
 
         static UdpClient asker;

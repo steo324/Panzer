@@ -48,7 +48,8 @@ namespace PanzerSim
         {
             if (!IsServer) return;
             int players = NM.ConnectedClientsIds.Count;   // beim Host zaehlt er selbst mit
-            ServerQuery.SetInfo(new ServerQuery.Info { name = ServerName, map = mapName, version = GameVersion.Current, players = players, max = MaxPlayers, port = port });
+            ServerQuery.SetInfo(new ServerQuery.Info { name = ServerName, map = mapName, version = GameVersion.Current, players = players, max = MaxPlayers, port = port, code = RelayCode });
+            LobbyListing.SetPlayers(players);
         }
 
         public static GameObject TankPrefab, SessionPrefab;
@@ -140,6 +141,20 @@ namespace PanzerSim
             return ok;
         }
 
+        /// <summary>Relay-Beitrittscode des laufenden Servers (leer = direkt ueber Port).</summary>
+        public static string RelayCode = "";
+
+        /// <summary>Dedizierter Server ueber Unity Relay (vorher RelayConnect.Host): kein offener Port noetig.</summary>
+        public static bool StartServerRelay(int mapIndex, string code)
+        {
+            var nm = Ensure(); if (nm == null) return false;
+            MapIndex = mapIndex;
+            Transport.SetRelayServerData(RelayConnect.Data);
+            bool ok = nm.StartServer();
+            if (ok) { RelayCode = code; SpawnSession(); ServerQuery.StartResponder(); } else LastError = "Server (Relay) konnte nicht starten.";
+            return ok;
+        }
+
         public static bool StartServer(int mapIndex, ushort port)
         {
             var nm = Ensure(); if (nm == null) return false;
@@ -163,6 +178,8 @@ namespace PanzerSim
         public static void Stop()
         {
             ServerQuery.StopResponder();
+            LobbyListing.Unpublish();
+            RelayCode = "";
             if (NM != null && NM.IsListening) NM.Shutdown();
             requestedTank.Clear();
         }
