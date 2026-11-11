@@ -38,6 +38,11 @@ WAS SCHON SIMULIERT WIRD
 - Ungefaehre echte Werte: Panzer IV F2, M4A1E9 Sherman, T-34-85
 - Modelle: Tools/Blender/rig_sherman.py und rig_panzer4.py machen aus den Downloads die Spielmodelle
   (Turm, Kanone, Raeder einzeln); Editor/ModelPrefabs.cs baut daraus die Prefabs (laeuft vor jedem Build)
+- Lizenzen (alle CC BY 4.0, Namensnennung Pflicht - steht auch im Hauptmenue):
+    Panzer IV: Greg McKechnie, https://sketchfab.com/3d-models/panzer-iv-098195c920b645e3af7ae7a744caeda2
+    M4A1E9 Sherman: Sem (Sem-Hofstede), https://sketchfab.com/3d-models/m4a1e9-sherman-free-b906b6c5bba14650a54b51b9299b20ae
+    T-34-85: DedRam (heirohindrima); Weizenbueschel: ebmclachlan
+  Aenderungen fuer das Spiel: gerigged (Turm/Kanone/Raeder getrennt), Modellkette entfernt, Texturen verkleinert
 - Federung, Kettenantrieb, Motorleistung, Haftung
 - Turmdrehung und Hoehenrichtung mit echten Geschwindigkeiten, Rohrsenkung/-erhoehung begrenzt
 - Ueberhoehung: die Kanone hebt sich je nach Entfernung

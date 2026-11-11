@@ -271,6 +271,8 @@ namespace PanzerSim
             if (GUI.Button(new Rect(W - 490, 856, 212, 50), "Einstellungen", btn)) settingsOpen = true;
             if (GUI.Button(new Rect(W - 272, 856, 212, 50), "Beenden", btn)) Quit();
 
+            GUI.Label(new Rect(60, H - 128, 1600, 26),
+                "Modelle: Panzer IV von Greg McKechnie (sketchfab.com/mckechniegreg6)  ·  M4A1E9 Sherman von Sem (sketchfab.com/Sem-Hofstede)  ·  beide CC BY 4.0, fuer das Spiel angepasst (gerigged, Kette ersetzt)", small);
             GUI.Label(new Rect(60, H - 102, 1600, 26),
                 "Modelle: T-34-85 von DedRam (sketchfab.com/heirohindrima), CC BY 4.0  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan), CC BY 4.0", small);
             GUI.Label(new Rect(60, H - 76, 1400, 26),
