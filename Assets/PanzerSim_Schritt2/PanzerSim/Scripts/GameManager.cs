@@ -179,7 +179,8 @@ namespace PanzerSim
             if (!NetSync.StartServer(mapIndex, Port)) { Debug.LogError("[Server] " + NetSync.LastError); Application.Quit(1); return; }
             netGame = true;
             state = State.Playing;
-            Debug.Log($"[Server] laeuft: Karte '{map.Name}', Port {Port}. Beenden mit Strg+C.");
+            Debug.Log($"[Server] laeuft: Karte '{map.Name}', Port {Port}, Version {GameVersion.Current}. Beenden mit Strg+C.");
+            gameObject.AddComponent<ServerUpdater>();   // neue Version auf GitHub -> neu starten, sobald leer
         }
 
         public void ServerSpawnTargets()
