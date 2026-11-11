@@ -112,6 +112,15 @@ namespace PanzerSim
             SetupWheels(tc);
             SetupTracks();
 
+            // Anbauteile (Kotfluegel, Kaesten, Tanks ...) herausloesen: zerstoerbar, keine Panzerung
+            ArmorMeshFollower.SetupLayers();
+            if (DestructibleBuilder.Build(tc, model) > 0)
+            {
+                renderers = model.GetComponentsInChildren<Renderer>();
+                foreach (var r in renderers)
+                    if (r is SkinnedMeshRenderer smr) smr.updateWhenOffscreen = true;
+            }
+
             // Panzerung aus der Modellform: die Kisten bleiben nur noch fuer Zusammenstoesse
             if (s.meshArmor)
             {

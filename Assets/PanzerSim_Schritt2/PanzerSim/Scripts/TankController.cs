@@ -255,7 +255,7 @@ namespace PanzerSim
             if (b == null) { b = new TrackBreak { leftSide = left, zy = zy }; trackBreaks.Add(b); }
             float before = b.gap;
             b.damage += damage;
-            b.gap = Mathf.Clamp(0.25f + b.damage * 0.006f, 0.3f, 1.4f);
+            b.gap = Mathf.Max(b.gap, Mathf.Clamp(0.25f + b.damage * 0.006f, 0.3f, 1.4f));   // abgerollte Kette bleibt abgerollt
             if (repairing) { repairing = false; RangeLog.Add($"{spec.name}: Reparatur unterbrochen!"); }
             // Glieder, die neu herausgerissen wurden
             int links = Mathf.Max(1, Mathf.RoundToInt((b.gap - before) / Mathf.Max(spec.trackPitch, 0.05f)));

@@ -139,7 +139,38 @@ namespace PanzerSim
             // ---- Bewegung: unten steht die Kette auf dem Boden, also laeuft sie relativ zum Panzer rueckwaerts ----
             // Eine gerissene Kette laeuft nicht mehr mit.
             float halfTrack = Mathf.Abs(x);
-            float v = broken ? 0f : tank.ForwardSpeed + (left ? 1f : -1f) * tank.YawRate * halfTrack;
+            float vSide = tank.ForwardSpeed + (left ? 1f : -1f) * tank.YawRate * halfTrack;
+            float v = broken ? 0f : vSide;
+
+            // ---- Gerissene Kette rollt ab: je gefahrene Gliedlaenge ein Glied auf den Boden ----
+            var laidList = sideLeft ? laidL : laidR;
+            if (!broken)
+            {
+                if (laidList.Count > 0) laidList.Clear();      // repariert: Besatzung hat die Kette wieder aufgezogen
+                if (sideLeft) shedL = 0f; else shedR = 0f;
+            }
+            else
+            {
+                float acc = (sideLeft ? shedL : shedR) + Mathf.Abs(vSide) * dt;
+                float totalGap = 0f; foreach (float g in breakGap) totalGap += g;
+                TankController.TrackBreak first = null;
+                foreach (var b in tank.trackBreaks) if (b.leftSide == sideLeft) { first = b; break; }
+                while (acc >= spec.trackPitch && first != null && totalGap < length - 1.2f && laidList.Count < 300)
+                {
+                    acc -= spec.trackPitch;
+                    first.gap += spec.trackPitch;
+                    totalGap += spec.trackPitch;
+                    // vorwaerts: hinten am Leitrad ablegen, rueckwaerts: vorne am Antriebsrad
+                    float z = vSide >= 0f ? idler.center.z : sprocket.center.z;
+                    Vector3 above = tank.transform.TransformPoint(new Vector3(x, 1.2f, z));
+                    Vector3 at = above + Vector3.down * 1.2f; Vector3 up = tank.transform.up;
+                    if (tank.RaycastGround(above, Vector3.down, 3f, out RaycastHit gh)) { at = gh.point; up = gh.normal; }
+                    Quaternion rot = Quaternion.LookRotation(Vector3.ProjectOnPlane(tank.transform.forward, up), up);
+                    laidList.Add(Matrix4x4.TRS(at + up * (spec.trackThickness / 2f), rot,
+                        new Vector3(spec.trackShoeWidth, spec.trackThickness, spec.trackPitch * 0.9f)));
+                }
+                if (sideLeft) shedL = acc; else shedR = acc;
+            }
             if (left) travelL += v * dt; else travelR += v * dt;
             float travel = left ? travelL : travelR;
 
@@ -172,7 +203,8 @@ namespace PanzerSim
                 matrices.Add(toWorld * Matrix4x4.TRS(pos - outward * (spec.trackThickness / 2f + hornScale.y / 2f), rot, hornScale));
             }
 
-            if (!visible) return;
+            matrices.AddRange(laidList);   // abgerollte Glieder auf dem Boden (Weltkoordinaten)
+            if (!visible || SuppressDraw) return;
             for (int i = 0; i < matrices.Count; i += 1023)
             {
                 int count = Mathf.Min(1023, matrices.Count - i);
@@ -181,6 +213,10 @@ namespace PanzerSim
         }
 
         readonly List<float> breakS = new List<float>(), breakGap = new List<float>();
+        readonly List<Matrix4x4> laidL = new List<Matrix4x4>(), laidR = new List<Matrix4x4>();   // abgerollte Glieder (Welt)
+        /// <summary>Nur fuer Editor-Tests: rechnen, aber nicht zeichnen (im Editor sammeln sich sonst alle Zeichenaufrufe an).</summary>
+        public static bool SuppressDraw;
+        float shedL, shedR;                                                                       // Fahrstrecke seit dem letzten abgelegten Glied
 
         /// <summary>Bogenlaenge des Kettenweg-Punkts, der der Stelle zy (z, y im Panzer) am naechsten liegt.</summary>
         float NearestArc(Vector2 zy)

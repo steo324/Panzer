@@ -22,6 +22,7 @@ namespace PanzerSim
 
         void Start()
         {
+            Shell.ShowMarkers = true;   // Testgelaende: bunte Trefferkugeln zur Auswertung
             cam = GetComponent<Camera>();
             cam.farClipPlane = 5000f;
             Vector3 e = transform.eulerAngles;

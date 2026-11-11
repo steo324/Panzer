@@ -89,6 +89,36 @@ namespace PanzerSim
                 remaining -= hit.distance;
                 pos = hit.point;
 
+                // Anbauteil (Kotfluegel, Kasten, Tank ...): keine Panzerung, wird abgerissen
+                var part = hit.collider.GetComponentInParent<DestructiblePart>();
+                if (part != null)
+                {
+                    string owner = part.owner != null ? part.owner.spec.name + ": " : "";
+                    report.Add($"{data.name} -> {owner}Anbauteil abgerissen ({Vector3.Distance(origin, pos):0} m)");
+                    if (data.IsHE)
+                    {
+                        Effects.Explosion(pos, data.fillerKg, false);
+                        part.Break(pos, dir, 8f);
+                        DestructiblePart.BlowOff(pos, data.fillerKg);
+                        NearMissTracks(pos);
+                        Finish();
+                        return;
+                    }
+                    if (data.IsHEAT)
+                    {
+                        // Hohlladung zuendet schon am Anbauteil: der Strahl muss den Abstand zur Panzerung ueberbruecken
+                        part.Break(pos, dir, 5f);
+                        var early = new HitResult { outcome = HitOutcome.Penetration, penetrationMm = data.heatPenMm, effectiveArmorMm = 0f };
+                        report.Add("   Hohlladung zuendet am Anbauteil (Abstand zur Panzerung schwaecht den Strahl)");
+                        HitHEAT(pos, hit.normal, dir, early, null, "Anbauteil");
+                        return;
+                    }
+                    part.Break(pos, dir, Mathf.Clamp(velocity.magnitude * data.massKg / 500f, 2f, 9f));
+                    velocity *= 0.96f;            // fliegt fast ungebremst weiter
+                    pos += dir * 0.01f;
+                    continue;
+                }
+
                 var plate = hit.collider.GetComponentInParent<ArmorPlate>();
                 if (plate == null)
                 {
@@ -104,12 +134,31 @@ namespace PanzerSim
                            $"{r.effectiveArmorMm:0} mm effektiv, Winkel {r.impactAngleDeg:0}°, {Vector3.Distance(origin, pos):0} m");
 
                 // Spreng- und Hohlladungsgranaten explodieren beim Aufschlag - eigene Wirkung statt Weiterfliegen
+                if ((data.IsHE || data.IsHEAT && r.outcome != HitOutcome.Ricochet) && !plateName.StartsWith("Kette"))
+                {
+                    // Russfleck, dazu Loch (HE nur bei Durchschlag gross und zerrissen, HEAT immer klein) oder Delle
+                    float soot = 0.35f + 0.5f * Mathf.Pow(Mathf.Max(data.fillerKg, 0.01f), 1f / 3f);
+                    Decals.Add(Decals.Kind.Scorch, pos, hit.normal, dir, data.caliberMm, 0f, hit.collider.transform, soot * (data.IsHE ? 1.4f : 1f));
+                    if (r.outcome == HitOutcome.Penetration)
+                        Decals.Add(data.IsHEAT ? Decals.Kind.SmallHole : Decals.Kind.Hole, pos, hit.normal, dir, data.caliberMm * (data.IsHE ? 1.5f : 1f), r.impactAngleDeg, hit.collider.transform);
+                    else if (data.IsHEAT)
+                        Decals.Add(Decals.Kind.Dent, pos, hit.normal, dir, data.caliberMm * 0.4f, r.impactAngleDeg, hit.collider.transform);   // Strahl-Krater
+                    // HE ohne Durchschlag: nur Russ (Sprenggranaten schlagen keine Delle wie ein Vollgeschoss)
+                }
                 if (data.IsHE) { HitHE(pos, hit.normal, tank, plateMm, plateName, r); return; }
                 if (data.IsHEAT && r.outcome != HitOutcome.Ricochet) { HitHEAT(pos, hit.normal, dir, r, tank, plateName); return; }
 
                 // Panzerbrechende Granate durch die Kette: an dieser Stelle gerissen (geht sie weiter durch die andere Kette: zweite Stelle)
                 if (tank != null && plateName.StartsWith("Kette") && r.outcome != HitOutcome.Ricochet)
                     report.Add("   " + tank.DamageTrack(pos, 30f + data.caliberMm * 0.3f, pos - dir, false));
+
+                // Sichtbare Marke auf der Panzerung (nicht auf der unsichtbaren Ketten-Trefferbox)
+                if (!plateName.StartsWith("Kette"))
+                {
+                    var kind = r.outcome == HitOutcome.Ricochet ? Decals.Kind.Scrape
+                             : r.outcome == HitOutcome.Penetration ? Decals.Kind.Hole : Decals.Kind.Dent;
+                    Decals.Add(kind, pos, hit.normal, dir, data.caliberMm, r.impactAngleDeg, hit.collider.transform);
+                }
 
                 switch (r.outcome)
                 {
@@ -199,7 +248,7 @@ namespace PanzerSim
                     return;
                 }
                 Effects.Crater(pos, hit.normal, radius, hit.collider.transform);
-                if (data.IsHE) NearMissTracks(pos);
+                if (data.IsHE) { NearMissTracks(pos); DestructiblePart.BlowOff(pos, data.fillerKg); }
             }
 
             if (!data.HasFiller) Effects.Impact(pos, hit.normal, dir, data.caliberMm, false, false);
@@ -214,6 +263,7 @@ namespace PanzerSim
         {
             Effects.Explosion(pos, data.fillerKg, false);
             Shell.Marker(pos, new Color(1f, 0.55f, 0.1f), 0.3f);
+            DestructiblePart.BlowOff(pos, data.fillerKg);   // Kotfluegel, Kaesten usw. in der Naehe fliegen weg
             if (tank != null && plateName.StartsWith("Kette"))
             {
                 // Sprengtreffer auf die Kette: Glieder fliegen weg, grosse Luecke
@@ -378,8 +428,12 @@ namespace PanzerSim
             Destroy(gameObject);
         }
 
+        /// <summary>Bunte Trefferkugeln (gelb = Abpraller, gruen = Durchschlag, rot = kein Durchschlag): nur Testgelaende/Entwickler.</summary>
+        public static bool ShowMarkers;
+
         public static void Marker(Vector3 pos, Color c, float size)
         {
+            if (!ShowMarkers) return;
             var m = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             m.name = "Treffer";
             DestroyImmediate(m.GetComponent<Collider>()); // sofort weg, damit keine Granate daran haengen bleibt

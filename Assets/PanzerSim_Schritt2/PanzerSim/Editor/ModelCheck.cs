@@ -68,6 +68,30 @@ namespace PanzerSim.EditorTools
 
         static TankVisual current;   // Laufwerk + Kettenglieder vor der Aufnahme einmal berechnen (laeuft sonst nur im Spiel)
 
+        /// <summary>Bild von einer freien Kameraposition auf einen Punkt (ohne Laufwerk-Aktualisierung).</summary>
+        public static void RenderAt(Vector3 camPos, Vector3 lookAt, float fov, string fileName)
+        {
+            string outDir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "ModelCheck"));
+            Directory.CreateDirectory(outDir);
+            var sun = new GameObject("Sonne").AddComponent<Light>();
+            sun.type = LightType.Directional; sun.intensity = 1.3f;
+            sun.transform.rotation = Quaternion.Euler(45f, -30f, 0f);
+            var cam = new GameObject("Kamera").AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0.55f, 0.65f, 0.75f);
+            cam.fieldOfView = fov;
+            cam.nearClipPlane = 0.05f;
+            var holder = new GameObject("Ziel"); holder.transform.position = lookAt - (lookAt - camPos).normalized * 0f;
+            cam.transform.position = camPos; cam.transform.LookAt(lookAt);
+            var rt = new RenderTexture(1280, 720, 24);
+            cam.targetTexture = rt; cam.Render(); RenderTexture.active = rt;
+            var tex = new Texture2D(1280, 720, TextureFormat.RGB24, false);
+            tex.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0); tex.Apply();
+            File.WriteAllBytes(Path.Combine(outDir, fileName), tex.EncodeToPNG());
+            cam.targetTexture = null; RenderTexture.active = null;
+            Object.DestroyImmediate(rt); Object.DestroyImmediate(tex); Object.DestroyImmediate(holder);
+            Object.DestroyImmediate(cam.gameObject); Object.DestroyImmediate(sun.gameObject);
+        }
+
         /// <summary>Ein Bild eines Panzers von der Seite (fuer andere Tests, z. B. Kettenschaden).</summary>
         public static void Render(TankController tc, Vector3 offset, float fov, string fileName)
         {

@@ -39,6 +39,10 @@ WAS SCHON SIMULIERT WIRD
 - Munition (Taste 1/2/3): panzerbrechend (AP/APC/APCBC/APHE), Sprenggranate (HE: Druckwelle schlaegt nur duenne
   Platten durch, sonst Abplatzer/Kanonenschaden) und Hohlladung (HEAT: fester Durchschlag auf jede Entfernung,
   Strahl max. 2,5 m, Luftspalte schwaechen ihn). Tests im Editor: Panzer/Munitions-Test, Panzer/Panzerungs-Check
+- Schaden sichtbar: Einschussloecher, Dellen, Abpraller-Schleifspuren, Russ (Decals.cs); Anbauteile (Kotfluegel,
+  Kaesten, Tanks ...) werden beim Laden aus dem Modell geloest und fliegen bei Treffern weg (DestructibleParts.cs);
+  Ketten reissen an der Trefferstelle, rollen beim Fahren ab, Reparatur mit G (max. 40 s).
+  Bilder-Test: Panzer/Schadens-Check (Bilder)
 - Modelle: Tools/Blender/rig_sherman.py und rig_panzer4.py machen aus den Downloads die Spielmodelle
   (Turm, Kanone, Raeder einzeln); Editor/ModelPrefabs.cs baut daraus die Prefabs (laeuft vor jedem Build)
 - Lizenzen (alle CC BY 4.0, Namensnennung Pflicht - steht auch im Hauptmenue):
