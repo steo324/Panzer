@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using UnityEditor;
 using UnityEngine;
 
@@ -15,8 +15,8 @@ namespace PanzerSim.EditorTools
         {
             string outDir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "ModelCheck"));
             Directory.CreateDirectory(outDir);
-            M4A1E9Setup.Run();
-            var specs = new[] { TankLibrary.Sherman };
+            ModelPrefabs.RunAll();
+            var specs = new[] { TankLibrary.Sherman, TankLibrary.PanzerIV };
             foreach (var s in specs)
             {
                 var tc = TankBuilder.Build(s, Vector3.zero, Quaternion.identity, false);

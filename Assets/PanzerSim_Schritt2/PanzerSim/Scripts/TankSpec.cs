@@ -119,19 +119,36 @@ namespace PanzerSim
             trackPitch = 0.13f, trackShoeWidth = 0.725f, trackThickness = 0.05f, trackSag = 0.06f
         };
 
+        /// <summary>
+        /// Panzer IV Ausf. F2 (Sd.Kfz. 161/1, 1942): erste Version mit der langen 7,5 cm KwK 40 L/43
+        /// (Kugel-Muendungsbremse), noch ohne Zusatzpanzerung und Schuerzen. Modell: Tools/Blender/rig_panzer4.py.
+        /// </summary>
         public static TankSpec PanzerIV => new TankSpec
         {
-            name = "Panzer IV Ausf. H",
-            massT = 25f, powerPS = 300f, maxSpeedKmh = 38f, reverseKmh = 8f, turnRateDegS = 35f,
-            hullLength = 5.9f, hullWidth = 2.0f, hullHeight = 1.25f,
-            hullFront = new Armor(80, 10), hullRear = new Armor(20, 10), hullSide = new Armor(30, 0),
+            name = "Panzer IV Ausf. F2",
+            // Maybach HL 120 TRM, 300 PS; 23,6 t; 40 km/h
+            massT = 23.6f, powerPS = 300f, maxSpeedKmh = 40f, reverseKmh = 8f, turnRateDegS = 35f,
+            hullLength = 5.76f, hullWidth = 2.4f, hullHeight = 1.31f, clearance = 0.40f,
+            trackWidth = 0.40f, trackInset = 0.39f,     // Kettenmitte auf den Laufrollen des Modells (x = 1,21 m)
+            hullFront = new Armor(50, 10), hullRear = new Armor(20, 10), hullSide = new Armor(30, 0),
             hullRoof = new Armor(12, 0), hullBottom = new Armor(10, 0),
-            turretLength = 2.1f, turretWidth = 1.75f, turretHeight = 0.8f, turretOffsetZ = 0.1f,
-            turretFront = new Armor(50, 10), turretSide = new Armor(30, 25), turretRear = new Armor(30, 15),
+            meshArmor = true,
+            hullFrontLower = new Armor(50, 12),          // Bugplatte unten
+            hullGlacis = new Armor(20, 72),              // Bugschraegplatte zwischen Bug und Aufbau
+            hullLowerSide = new Armor(30, 0),
+            turretLength = 1.77f, turretWidth = 1.8f, turretHeight = 0.58f, turretOffsetZ = -0.25f,
+            turretFront = new Armor(50, 11), turretSide = new Armor(30, 25), turretRear = new Armor(30, 15),
             turretRoof = new Armor(10, 0), mantlet = new Armor(50, 0),
-            traverseDegS = 14f, elevationDegS = 5f, minElevation = -8f, maxElevation = 20f,
-            ammoIndex = 0, ammo = new[] { 0 }, reloadS = 6.5f, barrelLength = 3.6f, muzzleBrake = true,
-            sightType = SightType.German, sightFov = 25f, sightName = "TZF 5f"
+            traverseDegS = 14f, elevationDegS = 5f, minElevation = -8f, maxElevation = 20f,   // elektrischer Turmantrieb
+            ammoIndex = 8, ammo = new[] { 8 }, reloadS = 6.5f, barrelLength = 2.73f, muzzleBrake = true,   // sichtbarer Teil ab Schildzapfen
+            // Turmzielfernrohr TZF 5f: 2,5-fach, 25 Grad Sehfeld
+            sightType = SightType.German, sightFov = 25f, sightMag = 2.5f, sightName = "TZF 5f",
+            modelResource = "Modelle/PanzerIV_F2", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            // Leitrad hinten (radL0), 8 Laufrollen (470 mm, Blattfeder-Drehgestelle), Antriebsrad vorne (radL9)
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 10, wheelRadius = 0.23f,
+            linkTracks = true, idlerRadius = 0.30f, sprocketRadius = 0.37f,
+            trackPitch = 0.12f, trackShoeWidth = 0.40f, trackThickness = 0.04f, trackSag = 0.04f   // Kette Kgs 61/400/120
         };
 
         /// <summary>

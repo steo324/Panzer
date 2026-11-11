@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.IO.Compression;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
@@ -19,7 +19,7 @@ namespace PanzerSim.EditorTools
             string outDir = Path.Combine(root, "Builds", "BallistikStudios");
             string zip = Path.Combine(root, "Builds", "BallistikStudios.zip");
             ShaderIncludes.Ensure();   // Laufzeit-Shader (URP Lit, Terrain) muessen mit in den Build, sonst wird alles pink
-            M4A1E9Setup.Run();         // Sherman-Prefab aus Geometrie + komprimierten Texturen
+            ModelPrefabs.RunAll();     // Modell-Prefabs (Sherman, Panzer IV) aus Geometrie + komprimierten Texturen
 
             // Nur den Inhalt leeren: der Ordner selbst kann gesperrt sein (Explorer, Terminal ...)
             Directory.CreateDirectory(outDir);

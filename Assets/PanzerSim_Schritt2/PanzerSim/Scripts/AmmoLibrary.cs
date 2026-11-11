@@ -57,6 +57,7 @@ namespace PanzerSim
             new ShellData("APCBC Mk8", "17-Pfuender (Firefly)",           ShellType.APCBC,  76.2f, 7.65f, 883f, 0.0f),
             new ShellData("M72 AP",    "75 mm M3 (Sherman)",              ShellType.AP,     75f,  6.32f, 619f, 0.0f),
             new ShellData("BR-365K",   "85 mm ZiS-S-53 (T-34-85)",        ShellType.APHE,   85f,  9.20f, 792f, 0.048f),
+            new ShellData("PzGr. 39",  "7,5 cm KwK 40 L/43 (Panzer IV F2)", ShellType.APCBC, 75f,  6.80f, 740f, 0.018f),   // 8: kuerzeres Rohr -> 740 statt 790 m/s
         };
     }
 }
