@@ -70,6 +70,7 @@ namespace PanzerSim
                 var b = gameObject.AddComponent<Benchmark>();
                 b.outDir = Arg("-bench");
                 b.preset = int.TryParse(Arg("-preset"), out int bp) ? Mathf.Clamp(bp, 0, 3) : -1;
+                TankController.BenchDrive = Has("-benchdrive");
                 if (float.TryParse(Arg("-benchyaw"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float by)) BenchYaw = by;
                 return;
             }
@@ -90,6 +91,7 @@ namespace PanzerSim
             map = maps[index];
             mapRoot = new GameObject("Karte: " + map.Name).transform;
             map.Build(mapRoot);
+            GroundTracks.Create(mapRoot, map);   // Kettenspuren je nach Untergrund
             RenderSettings.fog = map.Fog && !NetSync.Headless;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = new Color(0.72f, 0.78f, 0.84f);
@@ -260,6 +262,7 @@ namespace PanzerSim
         }
 
         public void BenchStart() => StartGame();
+        public TankController BenchPlayer => player;
         /// <summary>Leistungstest: Panzer um diesen Winkel gedreht starten (-benchyaw), fuer andere Blickrichtungen.</summary>
         public static float BenchYaw;
 

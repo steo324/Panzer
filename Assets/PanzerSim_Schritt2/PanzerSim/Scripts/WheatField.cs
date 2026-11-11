@@ -54,7 +54,13 @@ namespace PanzerSim
             public bool active;
             public ChunkData chunk; public int index;
         }
-        class ChunkData { public Plant[] plants; public bool touched, dirty; public int slot = -1; public int seen; public int cx, cz; }
+        class ChunkData { public Plant[] plants; public bool touched, dirty, grass; public int slot = -1; public int seen; public int cx, cz; }
+        float GrassRange => grassDist + 14f;   // nur so nah an der Kamera wird Gras erzeugt (spart CPU beim Fahren)
+        bool NearCam(int cx, int cz)
+        {
+            float dx = (cx + 0.5f) * Chunk - lastStreamPos.x, dz = (cz + 0.5f) * Chunk - lastStreamPos.z;
+            return dx * dx + dz * dz < GrassRange * GrassRange;
+        }
         class FarTile { public int slot = -1; public int seen; }
 
         readonly Dictionary<long, ChunkData> chunks = new Dictionary<long, ChunkData>();
@@ -87,7 +93,7 @@ namespace PanzerSim
 
         // fuer die Entwickler-Anzeige (F3) - Zahlen kommen verzoegert von der GPU zurueck
         public static int StatPlants, StatBillboards, StatActive, StatChunks, StatTiles, StatTris;
-        static readonly int[] TrisPerKind = { 720, 720, 360, 1362, 1428, 2, 6 };
+        static readonly int[] TrisPerKind = { 720, 720, 360, 1362, 1428, 2, 45 };
         float statTimer; bool statPending;
 
         public static WheatField Create(Transform parent, System.Func<float, float, bool> grows,
@@ -131,16 +137,14 @@ namespace PanzerSim
             }
 
             Vegetation.EnsureInit();
-            // Gras fuer die Wiesen (aus Modelle/Pflanzen.glb)
-            var plants = this.grassGrows != null && grassGrowsSet ? Resources.Load<GameObject>("Modelle/Pflanzen") : null;
-            var gt = plants != null ? FindDeep(plants.transform, "Gras") : null;
-            if (gt != null)
+            // Gras fuer die Wiesen: schlankes, im Code erzeugtes Bueschel (9 Halme, 45 Dreiecke) - sehr guenstig
+            if (grassGrowsSet)
             {
-                meshes[4] = gt.GetComponent<MeshFilter>().sharedMesh;
+                meshes[4] = GrassMesh();
                 var gm = new Material(plantShader);
-                gm.SetTexture("_BaseMap", BaseTexture(gt.GetComponent<MeshRenderer>().sharedMaterial));
-                gm.SetFloat("_Cutoff", 0.45f); gm.SetFloat("_Height", 0.55f);
-                gm.SetColor("_Tint", new Color(0.9f, 0.95f, 0.85f));
+                gm.SetTexture("_BaseMap", GrassTexture());
+                gm.SetFloat("_Cutoff", 0.5f); gm.SetFloat("_Height", GrassHeight);
+                gm.SetColor("_Tint", Color.white);
                 mats[4] = gm;
             }
             else grassGrows = (x, z) => false;
@@ -183,6 +187,63 @@ namespace PanzerSim
                 tipTable[a] = tip.x * Mathf.Cos(rigid) - tip.y * Mathf.Sin(rigid);
             }
             ready = true;
+        }
+
+        const float GrassHeight = 0.45f;
+
+        /// <summary>Grasbueschel: 9 schmale, leicht nach aussen gebogene Halme (je 5 Dreiecke).</summary>
+        static Mesh GrassMesh()
+        {
+            var rnd = new System.Random(5);
+            float R() => (float)rnd.NextDouble();
+            var v = new List<Vector3>(); var n = new List<Vector3>(); var uv = new List<Vector2>(); var t = new List<int>();
+            for (int b = 0; b < 9; b++)
+            {
+                float ang = (b / 9f + R() * 0.1f) * Mathf.PI * 2f;
+                Vector3 outDir = new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang));
+                Vector3 side = new Vector3(-outDir.z, 0f, outDir.x);
+                Vector3 basePos = outDir * (0.03f + R() * 0.12f);
+                float h = GrassHeight * (0.55f + R() * 0.45f), w = 0.028f + R() * 0.014f, lean = 0.08f + R() * 0.16f;
+                float col = (b % 6 + 0.5f) / 6f;   // Spalte in der Textur = Farbton dieses Halms
+                Vector3 faceN = Vector3.Cross(side, Vector3.up).normalized;
+                Vector3 nrm = Vector3.Lerp(faceN, Vector3.up, 0.6f).normalized;   // weicheres Licht
+                int i0 = v.Count;
+                for (int s = 0; s <= 2; s++)
+                {
+                    float f = s / 2f;
+                    Vector3 c = basePos + Vector3.up * (h * f) + outDir * (lean * f * f);
+                    float ww = w * (1f - f * 0.85f);
+                    v.Add(c - side * ww); v.Add(c + side * ww);
+                    uv.Add(new Vector2(col - 0.04f, f * 0.98f)); uv.Add(new Vector2(col + 0.04f, f * 0.98f));
+                    n.Add(nrm); n.Add(nrm);
+                }
+                v.Add(basePos + Vector3.up * (h * 1.18f) + outDir * (lean * 1.4f)); uv.Add(new Vector2(col, 1f)); n.Add(nrm);   // Spitze
+                t.AddRange(new[] { i0, i0 + 2, i0 + 1, i0 + 1, i0 + 2, i0 + 3, i0 + 2, i0 + 4, i0 + 3, i0 + 3, i0 + 4, i0 + 5, i0 + 4, i0 + 6, i0 + 5 });
+            }
+            var m = new Mesh { name = "Grasbueschel" };
+            m.SetVertices(v); m.SetNormals(n); m.SetUVs(0, uv); m.SetTriangles(t, 0);
+            m.RecalculateBounds();
+            return m;
+        }
+
+        /// <summary>Farbverlauf der Halme: unten dunkel (Schatten im Bewuchs), oben heller; jede Spalte ein anderer Gruenton.</summary>
+        static Texture2D GrassTexture()
+        {
+            const int W = 6, H = 32;
+            var tex = new Texture2D(W, H, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear, name = "Gras" };
+            Color[] tips = { new Color(0.36f, 0.46f, 0.15f), new Color(0.31f, 0.43f, 0.13f), new Color(0.42f, 0.49f, 0.18f),
+                             new Color(0.28f, 0.40f, 0.12f), new Color(0.46f, 0.48f, 0.20f), new Color(0.34f, 0.45f, 0.14f) };
+            var px = new Color[W * H];
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    float f = y / (float)(H - 1);
+                    var c = Color.Lerp(new Color(0.14f, 0.19f, 0.07f), tips[x], Mathf.SmoothStep(0f, 1f, Mathf.Pow(f, 0.7f)));
+                    c.a = 1f;
+                    px[y * W + x] = c;
+                }
+            tex.SetPixels(px); tex.Apply(true);
+            return tex;
         }
 
         // Ausgabeliste -> Mesh: 0/1 Bueschel, 2 Bueschel vereinfacht, 3/4 Einzelhalme
@@ -285,13 +346,19 @@ namespace PanzerSim
             long key = Key(cx, cz);
             if (chunks.TryGetValue(key, out var c)) return c;
             c = new ChunkData { cx = cx, cz = cz };
-            c.plants = Generate(cx, cz);
-            for (int i = 0; i < c.plants.Length; i++) { c.plants[i].chunk = c; c.plants[i].index = i; }
+            Fill(c, NearCam(cx, cz));
             chunks[key] = c;
             return c;
         }
 
-        Plant[] Generate(int cx, int cz)
+        void Fill(ChunkData c, bool withGrass)
+        {
+            c.grass = withGrass;
+            c.plants = Generate(c.cx, c.cz, withGrass);
+            for (int i = 0; i < c.plants.Length; i++) { c.plants[i].chunk = c; c.plants[i].index = i; }
+        }
+
+        Plant[] Generate(int cx, int cz, bool withGrass)
         {
             float x0 = cx * Chunk, z0 = cz * Chunk;
             var rnd = new System.Random(cx * 92821 ^ cz * 68917 ^ 1944);
@@ -299,7 +366,7 @@ namespace PanzerSim
             var list = new List<Plant>();
             float mx = x0 + Chunk / 2f, mz = z0 + Chunk / 2f;
             bool anyWheat = grows(mx, mz) || grows(x0, z0) || grows(x0 + Chunk, z0 + Chunk) || grows(x0, z0 + Chunk) || grows(x0 + Chunk, z0);
-            bool anyGrass = grassGrows(mx, mz) || grassGrows(x0, z0) || grassGrows(x0 + Chunk, z0 + Chunk) || grassGrows(x0, z0 + Chunk) || grassGrows(x0 + Chunk, z0);
+            bool anyGrass = withGrass && (grassGrows(mx, mz) || grassGrows(x0, z0) || grassGrows(x0 + Chunk, z0 + Chunk) || grassGrows(x0, z0 + Chunk) || grassGrows(x0 + Chunk, z0));
             if (!anyWheat && !anyGrass) return System.Array.Empty<Plant>();
             bool alongX = rowsAlongX(mx, mz);
             if (!anyWheat) goto Grass;
@@ -333,14 +400,14 @@ namespace PanzerSim
             // Gras auf den Wiesen: ungeordnet, Flecken mit hoeherem und niedrigerem Bewuchs
             if (anyGrass)
             {
-                int n = Mathf.RoundToInt(Chunk * Chunk * 2.6f);
+                int n = Mathf.RoundToInt(Chunk * Chunk * 5.5f);
                 for (int i = 0; i < n; i++)
                 {
                     float x = x0 + R() * Chunk, z = z0 + R() * Chunk, r1 = R(), r2 = R(), r3 = R();
                     if (!grassGrows(x, z)) continue;
                     float patch = Mathf.PerlinNoise(x * 0.07f + 50f, z * 0.07f + 90f);
                     if (r1 < 0.35f - patch * 0.4f) continue;
-                    list.Add(NewPlant(3, x, z, (0.6f + patch * 0.7f) * (0.85f + r2 * 0.3f), r3, R()));
+                    list.Add(NewPlant(3, x, z, (0.55f + patch * 0.6f) * (0.85f + r2 * 0.3f), r3, R()));
                 }
             }
             if (list.Count > PerChunk) list.RemoveRange(PerChunk, list.Count - PerChunk);
@@ -401,7 +468,17 @@ namespace PanzerSim
                     float dx = (cx + 0.5f) * Chunk - cp.x, dz = (cz + 0.5f) * Chunk - cp.z;
                     float d = Mathf.Sqrt(dx * dx + dz * dz);
                     if (d > farDist + 8f) continue;
-                    if (chunks.TryGetValue(Key(cx, cz), out var c)) { c.seen = frame; if (c.slot >= 0 || c.plants.Length == 0) continue; }
+                    if (chunks.TryGetValue(Key(cx, cz), out var c))
+                    {
+                        c.seen = frame;
+                        // frueher ohne Gras erzeugt, jetzt nah genug: mit Gras neu erzeugen (unberuehrte Kacheln)
+                        if (!c.grass && !c.touched && grassGrowsSet && NearCam(cx, cz))
+                        {
+                            Fill(c, true);
+                            if (c.slot >= 0) { if (c.plants.Length > 0) UploadChunk(c); else ReleaseChunkSlot(c); continue; }
+                        }
+                        if (c.slot >= 0 || c.plants.Length == 0) continue;
+                    }
                     missing.Add((d, cx, cz));
                 }
             missing.Sort((a, b) => a.d.CompareTo(b.d));
@@ -627,12 +704,12 @@ namespace PanzerSim
             cull.SetFloat("_ShadowDist", shadowDist); cull.SetFloat("_StalkDist", stalkDist);
             cull.SetFloat("_BillStart", billboardStart); cull.SetFloat("_Density", GameSettings.WheatDensity); cull.SetFloat("_BillDist", billboardDist); cull.SetFloat("_BillFull", billboardFull);
 
-            for (int i = 0; i < 6; i++) outBufs[i].SetCounterValue(0);
+            for (int i = 0; i < 7; i++) outBufs[i].SetCounterValue(0);   // alle 7 Listen, auch Gras (6)
             cull.SetBuffer(kPlants, "_Plants", plantBuf);
             cull.SetBuffer(kPlants, "_Out0", outBufs[0]); cull.SetBuffer(kPlants, "_Out1", outBufs[1]);
             cull.SetBuffer(kPlants, "_Out2", outBufs[2]); cull.SetBuffer(kPlants, "_Out3", outBufs[3]);
             cull.SetBuffer(kPlants, "_Out4", outBufs[4]); cull.SetBuffer(kPlants, "_OutG", outBufs[6]);
-            cull.SetFloat("_GrassDist", meshes[4] != null ? grassDist * Mathf.Lerp(0.6f, 1f, GameSettings.WheatDensity) : 0f);
+            cull.SetFloat("_GrassDist", meshes[4] != null ? grassDist * Mathf.Lerp(0.6f, 1f, GameSettings.WheatDensity) * (GameSettings.Effects == 0 ? 0.6f : 1f) : 0f);
             cull.SetInt("_Count", ChunkSlots * PerChunk);
             cull.Dispatch(kPlants, ChunkSlots * PerChunk / 64, 1, 1);
             if (billMat != null)

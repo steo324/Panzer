@@ -33,6 +33,20 @@ namespace PanzerSim.EditorTools
                 m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
                 m.renderQueue = 3000;
             });
+            Make("LitTransparentNormal", "Universal Render Pipeline/Lit", m =>
+            {
+                // wie GroundTracks (Kettenspuren): durchsichtig mit Normal Map
+                m.SetFloat("_Surface", 1f);
+                m.SetFloat("_Blend", 0f);
+                m.SetOverrideTag("RenderType", "Transparent");
+                m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                m.SetInt("_ZWrite", 0);
+                m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                m.EnableKeyword("_NORMALMAP");
+                m.SetTexture("_BumpMap", Texture2D.normalTexture);
+                m.renderQueue = 2990;
+            });
             Make("TerrainLit", "Universal Render Pipeline/Terrain/Lit", null);
             // Gelaende mit Fototexturen: Normal Map, Maske, Hoehen-Uebergaenge (Varianten muessen mit in den Build)
             Make("TerrainLitHD", "Universal Render Pipeline/Terrain/Lit", m => PanzerSim.PlainsMap.SetTerrainDetail(m, true));

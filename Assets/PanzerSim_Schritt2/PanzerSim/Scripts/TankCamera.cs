@@ -15,6 +15,8 @@ namespace PanzerSim
         public float distance = 11f;
 
         float yaw, pitch = 5f;
+        /// <summary>Blickrichtung setzen (Leistungstest: Bilder in andere Richtungen).</summary>
+        public void SetView(float newYaw, float newPitch) { yaw = newYaw; pitch = newPitch; }
         bool sightMode;
         bool autoRange = true;
         float manualRange = 500f;

@@ -154,6 +154,7 @@ namespace PanzerSim
                 throttle = (Inp.Held(KeyCode.W) ? 1f : 0f) - (Inp.Held(KeyCode.S) ? 1f : 0f);
                 steer = (Inp.Held(KeyCode.D) ? 1f : 0f) - (Inp.Held(KeyCode.A) ? 1f : 0f);
                 brake = Inp.Held(KeyCode.Space);
+                if (BenchDrive) { throttle = 0.6f; steer = Mathf.Sin(Time.time * 0.5f) * 0.5f; }   // Leistungstest: fahren
 
                 // Nur die Granaten dieser Kanone: Taste 1 = erste Sorte, 2 = zweite ...
                 int[] loadout = AmmoLoadout;
@@ -226,6 +227,8 @@ namespace PanzerSim
 
         // ---- Test: automatisch auf den naechsten Panzer schiessen (Startparameter -autofire) ----
         public bool autoFire;
+        /// <summary>Leistungstest (-benchdrive): Spielerpanzer faehrt Schlangenlinien.</summary>
+        public static bool BenchDrive;
         TankController autoTarget;
         float autoSearch;
         void AutoFireUpdate(float dt)

@@ -145,6 +145,8 @@ namespace PanzerSim
                 SetProp(urp, "mainLightShadowmapResolution", Shadows switch { 1 => 1024, _ => 2048 });
                 // GPU-Occlusion-Culling aus: mit sehr vielen Objekten (Baeume) unter DX11 nicht stabil genug
                 SetPropObj(urp, "gpuResidentDrawerEnableOcclusionCullingInCameras", false);
+                // 64-Bit-Farbpuffer ab "Hoch": sonst Farbstufen im Himmel (32 Bit hat im Blau zu wenig Genauigkeit)
+                SetProp(urp, "hdrColorBufferPrecision", Effects >= 2 ? 1 : 0);
                 SetProp(urp, "gpuResidentDrawerMode", 0);   // GPU Resident Drawer aus (DX11-Absturz mit vielen Objekten)
             }
             ApplyCamera(Camera.main);
@@ -159,6 +161,7 @@ namespace PanzerSim
             data.antialiasing = AntiAliasing == 0 ? AntialiasingMode.None
                 : AntiAliasing == 1 ? AntialiasingMode.FastApproximateAntialiasing : AntialiasingMode.SubpixelMorphologicalAntiAliasing;
             data.antialiasingQuality = AntialiasingQuality.High;
+            data.dithering = true;   // feines Rauschen gegen Farbstufen im Himmel (Banding)
             data.renderShadows = Shadows > 0;
             cam.allowMSAA = AntiAliasing == 3;
         }

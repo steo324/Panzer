@@ -30,6 +30,9 @@ namespace PanzerSim
             return 0f;
         }
 
+        /// <summary>Untergrund fuer Kettenspuren (GroundTracks.Wiese/Acker/Weg/Hart).</summary>
+        public virtual int SurfaceAt(float x, float z) => GroundTracks.Hart;
+
         protected static GameObject Block(Transform root, string name, Vector3 pos, Vector3 scale, Vector3 euler, Color? color = null)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -146,7 +149,7 @@ namespace PanzerSim
             BuildTreeLines(root);
             BuildFarms(root);
             BuildHay(root);
-            WheatField.Create(root, WheatGrows, GroundY, RowsAlongX);   // Gras (GrassGrows) vorerst aus
+            WheatField.Create(root, WheatGrows, GroundY, RowsAlongX, GrassGrows);   // Weizen auf den Aeckern, Gras auf den Wiesen
         }
 
         // Bereiche ohne Weizen (Waelder, Hoefe): x, z, Radius
@@ -257,6 +260,7 @@ namespace PanzerSim
                     a[iz, ix, 0] = w0 / sum; a[iz, ix, 1] = w1 / sum; a[iz, ix, 2] = w2 / sum; a[iz, ix, 3] = w3 / sum;
                 }
             td.SetAlphamaps(0, 0, a);
+            alpha = a;
 
             var tgo = Terrain.CreateTerrainGameObject(td);
             tgo.name = "Gelaende";
@@ -272,6 +276,18 @@ namespace PanzerSim
             }
             terrain.basemapDistance = 1500f;
             Physics.SyncTransforms();
+        }
+
+        float[,,] alpha;   // Bodenarten-Gewichte (0 Wiese, 1 Acker, 2 Weg, 3 dunkle Wiese)
+
+        public override int SurfaceAt(float x, float z)
+        {
+            if (alpha == null) return GroundTracks.Wiese;
+            int ix = Mathf.Clamp(Mathf.RoundToInt((x + Size / 2f) / Size * (AlphaRes - 1)), 0, AlphaRes - 1);
+            int iz = Mathf.Clamp(Mathf.RoundToInt((z + Size / 2f) / Size * (AlphaRes - 1)), 0, AlphaRes - 1);
+            float wiese = alpha[iz, ix, 0] + alpha[iz, ix, 3], acker = alpha[iz, ix, 1], weg = alpha[iz, ix, 2];
+            if (weg >= wiese && weg >= acker) return GroundTracks.Weg;
+            return acker > wiese ? GroundTracks.Acker : GroundTracks.Wiese;
         }
 
         static int FieldHash(float wx, float wz)

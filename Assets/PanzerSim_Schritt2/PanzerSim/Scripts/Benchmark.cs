@@ -46,6 +46,16 @@ namespace PanzerSim
                 System.IO.Directory.CreateDirectory(outDir);
                 ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, $"bench_{preset}.png"));
                 yield return new WaitForSeconds(0.5f);
+                // zweites Bild: zurueckschauen (Spuren, Wiese hinter dem Panzer)
+                var p = GameManager.Instance.BenchPlayer;
+                if (cam != null && p != null)
+                {
+                    TankController.BenchDrive = false;
+                    cam.SetView(p.transform.eulerAngles.y + 180f, 18f);
+                    yield return new WaitForSeconds(1.5f);
+                    ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, $"bench_{preset}_zurueck.png"));
+                    yield return new WaitForSeconds(0.5f);
+                }
             }
             Application.Quit();
         }
