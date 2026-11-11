@@ -80,8 +80,15 @@ namespace PanzerSim.EditorTools
 
         static bool HitsArmor(Vector3 from, Vector3 dir)
         {
-            if (!Physics.Raycast(from, dir, out RaycastHit hit, 40f, ArmorPlate.ShotMask, QueryTriggerInteraction.Ignore)) return false;
-            return hit.collider.GetComponentInParent<ArmorPlate>() != null;
+            // Anbauteile ueberspringen: die Granate reisst sie ab und fliegt weiter
+            var hits = Physics.RaycastAll(from, dir, 40f, ArmorPlate.ShotMask, QueryTriggerInteraction.Ignore);
+            System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+            foreach (var h in hits)
+            {
+                if (h.collider.GetComponentInParent<DestructiblePart>() != null) continue;
+                return h.collider.GetComponentInParent<ArmorPlate>() != null;
+            }
+            return false;
         }
     }
 }
