@@ -52,8 +52,11 @@ namespace PanzerSim
             }
         }
 
-        /// <summary>Jedes Bild aufrufen. idler = Leitrad (hinten), sprocket = Antriebsrad (vorne).</summary>
-        public void Draw(float x, WheelInfo idler, WheelInfo sprocket, List<WheelInfo> road, bool left)
+        readonly List<Vector2> supports = new List<Vector2>();   // (z, y) Auflagepunkte des oberen Trums
+
+        /// <summary>Jedes Bild aufrufen. idler = Leitrad (hinten), sprocket = Antriebsrad (vorne),
+        /// returnRollers = Stuetzrollen (optional): das obere Trum liegt auf ihnen auf und haengt nur dazwischen durch.</summary>
+        public void Draw(float x, WheelInfo idler, WheelInfo sprocket, List<WheelInfo> road, bool left, List<WheelInfo> returnRollers = null)
         {
             float dt = Mathf.Max(Time.deltaTime, 0.0001f);
             float half = spec.trackThickness / 2f;
@@ -76,22 +79,36 @@ namespace PanzerSim
                 float a = Mathf.Lerp(-90f, 90f, i / 10f) * Mathf.Deg2Rad;
                 path.Add(new Vector2(sprocket.center.z + Mathf.Cos(a) * rs, sprocket.center.y + Mathf.Sin(a) * rs));
             }
-            // Oben: von vorne nach hinten, haengt durch, liegt aber auf den Laufrollen auf
+            // Oben: von vorne nach hinten wie ein Seil ueber Stuetzen (Antriebsrad, Stuetzrollen, Leitrad).
+            // Zwischen zwei Stuetzen haengt es durch (je laenger das Feld, desto mehr); auf Lauf- und Stuetzrollen liegt es auf.
             float ri = idler.radius + half;
             Vector2 topF = new Vector2(sprocket.center.z, sprocket.center.y + rs);
             Vector2 topR = new Vector2(idler.center.z, idler.center.y + ri);
-            const int topSteps = 28;
+            supports.Clear();
+            supports.Add(topF);
+            if (returnRollers != null)
+            {
+                returnRollers.Sort((a, b) => b.center.z.CompareTo(a.center.z));   // vorne zuerst
+                foreach (var w in returnRollers)
+                    if (w.center.z < topF.x && w.center.z > topR.x)
+                        supports.Add(new Vector2(w.center.z, w.center.y + w.radius + half));
+            }
+            supports.Add(topR);
+            float span = Mathf.Max(topF.x - topR.x, 0.01f);
+            int topSteps = returnRollers != null && returnRollers.Count > 0 ? 48 : 28;
+            int si = 0;
             for (int i = 1; i < topSteps; i++)
             {
                 float t = i / (float)topSteps;
                 float z = Mathf.Lerp(topF.x, topR.x, t);
-                float y = Mathf.Lerp(topF.y, topR.y, t) - sag * Mathf.Sin(t * Mathf.PI);
-                foreach (var w in road)
-                {
-                    float dz = z - w.center.z;
-                    float r = w.radius + half;
-                    if (Mathf.Abs(dz) < r) y = Mathf.Max(y, w.center.y + Mathf.Sqrt(r * r - dz * dz));
-                }
+                while (si < supports.Count - 2 && z < supports[si + 1].x) si++;
+                Vector2 a = supports[si], b = supports[si + 1];
+                float segLen = Mathf.Max(a.x - b.x, 0.001f);
+                float lt = Mathf.Clamp01((a.x - z) / segLen);
+                float segSag = sag * Mathf.Clamp01(segLen / span * 1.6f);   // kurze Felder zwischen Stuetzrollen haengen kaum durch
+                float y = Mathf.Lerp(a.y, b.y, lt) - segSag * Mathf.Sin(lt * Mathf.PI);
+                foreach (var w in road) y = Mathf.Max(y, OnTop(w, z, half));
+                if (returnRollers != null) foreach (var w in returnRollers) y = Mathf.Max(y, OnTop(w, z, half));
                 path.Add(new Vector2(z, y));
             }
             // Hinten: um das Leitrad (von oben ueber hinten nach unten)
@@ -148,6 +165,14 @@ namespace PanzerSim
                 int count = Mathf.Min(1023, matrices.Count - i);
                 Graphics.DrawMeshInstanced(cube, 0, mat, matrices.GetRange(i, count), null, ShadowCastingMode.On, true);
             }
+        }
+
+        /// <summary>Hoehe der Kettenmitte, wenn sie bei z oben auf dem Rad w aufliegt (sonst sehr tief).</summary>
+        static float OnTop(WheelInfo w, float z, float half)
+        {
+            float dz = z - w.center.z;
+            float r = w.radius + half;
+            return Mathf.Abs(dz) < r ? w.center.y + Mathf.Sqrt(r * r - dz * dz) : float.MinValue;
         }
 
         /// <summary>Lose Kette: Durchhang schwingt bei Anfahren, Bremsen und Stoessen. Einmal pro Bild vor Draw aufrufen.</summary>

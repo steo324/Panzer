@@ -45,8 +45,14 @@ namespace PanzerSim.EditorTools
                 var cam = new GameObject("Kamera").AddComponent<Camera>();
                 cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0.55f, 0.65f, 0.75f);
                 cam.fieldOfView = 30f;
+                current = tc.visual;
                 Shot(cam, root, new Vector3(-14f, 2f, 0f), Path.Combine(outDir, $"{s.name}_seite.png"));
                 Shot(cam, root, new Vector3(-9f, 4f, 10f), Path.Combine(outDir, $"{s.name}_vorne.png"));
+                // Laufwerk von nah (Kette ueber Stuetzrollen?)
+                cam.fieldOfView = 18f;
+                Shot(cam, root, new Vector3(-9f, -0.6f, 0f), Path.Combine(outDir, $"{s.name}_laufwerk.png"));
+                cam.fieldOfView = 30f;
+                current = null;
                 TankController.ViewMode = 1; tc.ApplyXray();
                 Shot(cam, root, new Vector3(-9f, 5f, -9f), Path.Combine(outDir, $"{s.name}_roentgen.png"));
                 TankController.ViewMode = 0;
@@ -56,11 +62,16 @@ namespace PanzerSim.EditorTools
             Debug.Log("CHECK fertig: " + outDir);
         }
 
+        static TankVisual current;   // Laufwerk + Kettenglieder vor der Aufnahme einmal berechnen (laeuft sonst nur im Spiel)
+
         static void Shot(Camera cam, Transform target, Vector3 offset, string path)
         {
             Vector3 c = target.position + Vector3.up * 1.4f;
             cam.transform.position = c + offset;
             cam.transform.LookAt(c);
+            if (current != null)
+                typeof(TankVisual).GetMethod("LateUpdate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                    ?.Invoke(current, null);   // zeichnet die Kette per Graphics.DrawMeshInstanced fuer die naechste Kamera
             var rt = new RenderTexture(1280, 720, 24);
             cam.targetTexture = rt;
             cam.Render();

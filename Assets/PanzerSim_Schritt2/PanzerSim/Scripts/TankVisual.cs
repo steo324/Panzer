@@ -26,6 +26,12 @@ namespace PanzerSim
             public float lift;               // aktuelle Einfederung
         }
         readonly System.Collections.Generic.List<Wheel> wheels = new System.Collections.Generic.List<Wheel>();
+        // Stuetzrollen: fest an der Wanne, die Kette laeuft oben darueber; drehen sich gegenlaeufig zu den Laufrollen
+        class Roller { public Transform bone; public bool left; public Vector3 restLocal; public Quaternion restRot; }
+        readonly System.Collections.Generic.List<Roller> rollers = new System.Collections.Generic.List<Roller>();
+        readonly System.Collections.Generic.List<TankTracks.WheelInfo> topL = new System.Collections.Generic.List<TankTracks.WheelInfo>();
+        readonly System.Collections.Generic.List<TankTracks.WheelInfo> topR = new System.Collections.Generic.List<TankTracks.WheelInfo>();
+        float rollSpinL, rollSpinR;
         Material trackL, trackR;
         TankTracks tracks;
         ArmorMeshFollower meshArmor;
@@ -148,6 +154,20 @@ namespace PanzerSim
                     }
                 }
             if (points.Count >= 8) tc.SetWheelPoints(points, ends, endHeights); // Physik federt an den echten Laufrollen
+
+            if (!string.IsNullOrEmpty(s.returnRollerLeft))
+                for (int side = 0; side < 2; side++)
+                    for (int i = 0; i <= s.returnRollerCount; i++)   // Zaehlung ab 0 oder ab 1 erlaubt
+                    {
+                        var bone = Find(model, (side == 0 ? s.returnRollerLeft : s.returnRollerRight) + i);
+                        if (bone == null) continue;
+                        rollers.Add(new Roller
+                        {
+                            bone = bone, left = side == 0,
+                            restLocal = root.InverseTransformPoint(bone.position),
+                            restRot = Quaternion.Inverse(root.rotation) * bone.rotation
+                        });
+                    }
             if (s.linkTracks && wheels.Count >= 6) tracks = new TankTracks(tc);
         }
 
@@ -202,6 +222,17 @@ namespace PanzerSim
                     wh.arm.SetPositionAndRotation(root.TransformPoint(local), root.rotation * wh.armRestRot);
             }
 
+            if (rollers.Count > 0)
+            {
+                // Oberes Trum laeuft relativ zur Wanne vorwaerts -> Stuetzrollen drehen gegenlaeufig
+                float rr = Mathf.Max(s.returnRollerRadius * scale, 0.03f);
+                rollSpinL -= vL * dt / rr * Mathf.Rad2Deg;
+                rollSpinR -= vR * dt / rr * Mathf.Rad2Deg;
+                foreach (var ro in rollers)
+                    ro.bone.SetPositionAndRotation(root.TransformPoint(ro.restLocal),
+                        root.rotation * Quaternion.AngleAxis(ro.left ? rollSpinL : rollSpinR, Vector3.right) * ro.restRot);
+            }
+
             if (tracks != null) DrawLinkTracks(radius);
 
             float perUV = Mathf.Max(s.trackMetersPerUV * scale, 0.01f);
@@ -240,7 +271,11 @@ namespace PanzerSim
                 if (road.Count < 2 || idler == null || sprocket == null || idler == sprocket) continue;
                 var idl = new TankTracks.WheelInfo { center = idler.restLocal, radius = s.idlerRadius * scale };
                 var spr = new TankTracks.WheelInfo { center = sprocket.restLocal, radius = s.sprocketRadius * scale };
-                tracks.Draw(xSum / road.Count, idl, spr, road, left);
+                var top = left ? topL : topR;
+                top.Clear();
+                foreach (var ro in rollers)
+                    if (ro.left == left) top.Add(new TankTracks.WheelInfo { center = ro.restLocal, radius = s.returnRollerRadius * scale });
+                tracks.Draw(xSum / road.Count, idl, spr, road, left, top);
             }
         }
 

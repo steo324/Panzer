@@ -234,6 +234,7 @@ namespace PanzerSim
                 if (mesh == null) continue;
                 string n = mf.name;
                 if (!string.IsNullOrEmpty(s.wheelBoneLeft) && (n.StartsWith(s.wheelBoneLeft) || n.StartsWith(s.wheelBoneRight) || n.StartsWith("arm"))) continue; // Laufrollen sind keine Panzerung
+                if (!string.IsNullOrEmpty(s.returnRollerLeft) && (n.StartsWith(s.returnRollerLeft) || n.StartsWith(s.returnRollerRight))) continue; // Stuetzrollen auch nicht
                 if (!mesh.isReadable) { Debug.LogWarning("Mesh-Panzerung: " + n + " ist nicht lesbar."); continue; }
 
                 int part = gunT != null && (mf.transform == gunT || mf.transform.IsChildOf(gunT)) ? 2

@@ -78,6 +78,10 @@ namespace PanzerSim
         public string trackMaterialRight;
         public float trackMetersPerUV = 1.15f; // Modell-Einheiten pro Texturlaenge
         public float trackScrollSign = 1f;   // falls die Kette falsch herum laeuft: -1
+        // Stuetzrollen (optional): Kette laeuft oben darueber; Teile heissen z. B. rollL1 ... rollL4
+        public string returnRollerLeft, returnRollerRight;
+        public int returnRollerCount;
+        public float returnRollerRadius = 0.13f;   // Modell-Einheiten (wie wheelRadius)
 
         // Eigene Kette aus Gliedern (ersetzt die Kette des Modells)
         public bool linkTracks;
@@ -148,7 +152,8 @@ namespace PanzerSim
             // Leitrad hinten (radL0), 8 Laufrollen (470 mm, Blattfeder-Drehgestelle), Antriebsrad vorne (radL9)
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 10, wheelRadius = 0.23f,
             linkTracks = true, idlerRadius = 0.30f, sprocketRadius = 0.37f,
-            trackPitch = 0.12f, trackShoeWidth = 0.40f, trackThickness = 0.04f, trackSag = 0.04f   // Kette Kgs 61/400/120
+            trackPitch = 0.12f, trackShoeWidth = 0.40f, trackThickness = 0.04f, trackSag = 0.04f,  // Kette Kgs 61/400/120
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 4, returnRollerRadius = 0.129f
         };
 
         /// <summary>

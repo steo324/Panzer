@@ -2,7 +2,8 @@
 Riggt das Sketchfab-Modell "panzer_iv.glb" (Panzer IV Ausf. F2) fuer PanzerSim (Aufbau wie T34_85.glb):
   hull, turret (Drehpunkt Turmring) > cannon (Drehpunkt Schildzapfen),
   radL0..radL9 / radR0..radR9 (0 = Leitrad hinten, 1-8 Laufrollen, 9 = Antriebsrad vorne),
-  armL/armR = Laufrollenschwingen (federn mit), armFest = Stuetzrollen, Kotfluegel, Auspuff usw. (keine Panzerung).
+  armL/armR = Laufrollenschwingen (federn mit), rollL1..4/rollR1..4 = Stuetzrollen (Kette laeuft oben darueber),
+  armFest = Rollenhalter, Kotfluegel, Auspuff usw. (keine Panzerung).
 Vorne = Blender -Y (in Unity +Z). Das Modell ist bereits in Metern.
 Texturen landen neben der .glb (BaseColor, Normal, MetallicSmoothness), das Prefab baut Unity
 (Editor/ModelPrefabs.cs, Menue "Panzer/Modell-Prefabs einrichten").
@@ -173,13 +174,21 @@ print(f"RIG turret pivot=({tpiv.x:.3f},{tpiv.y:.3f},{tpiv.z:.3f}) gun pivot=({gp
 # ---- Wanne (Panzerung) und Anbauteile (keine Panzerung) ----
 hullParts = [obj("hull_low"), obj("hatch_001"), obj("machineGun_001"), obj("sideVent"),
              obj("window_001"), obj("window_002")] + objs("fuelDoor") + objs("hinge_")
+# Stuetzrollen: je Seite einzeln (rollL1..4 / rollR1..4, Ursprung = Mitte), die Kette laeuft oben darueber
+rollers = sorted(objs("roller_"), key=lambda o: o.name)
+for k, ro in enumerate(rollers):
+    rL, rR = split_sides(ro)
+    for side, ps in (("L", rL), ("R", rR)):
+        c, r = wheel_center(ps)
+        o = join(ps, f"roll{side}{k + 1}"); set_origin(o, c)
+        print(f"RIG roll{side}{k + 1} c=({c.x:.3f},{c.y:.3f},{c.z:.3f}) r={r:.3f}")
 fixParts = [obj("fender_low"), obj("fenderStop"), obj("muffler"), obj("rearFrame"), obj("towBracket"),
-            obj("driveSprocket_002"), obj("rearIdler_hub")] + objs("trackHolder") + objs("track_00") + objs("roller_") + objs("returnRoller")
+            obj("driveSprocket_002"), obj("rearIdler_hub")] + objs("trackHolder") + objs("track_00") + objs("returnRoller")
 hull = join(hullParts, "hull")
 fix = join([o for o in fixParts if o is not None and o.name in bpy.data.objects and o not in (hull,)], "armFest")
 hmn, hmx = bbox(hull)
 print(f"RIG hull min=({hmn.x:.3f},{hmn.y:.3f},{hmn.z:.3f}) max=({hmx.x:.3f},{hmx.y:.3f},{hmx.z:.3f})")
-rest = [o.name for o in meshes() if not (o.name in ("hull", "turret", "cannon", "armFest") or o.name.startswith("rad") or o.name.startswith("arm"))]
+rest = [o.name for o in meshes() if not (o.name in ("hull", "turret", "cannon", "armFest") or o.name.startswith(("rad", "arm", "roll")))]
 print("RIG nicht zugeordnet:", rest)
 
 # ---- Wurzel und Export (ohne Bilder) ----
