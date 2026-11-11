@@ -78,6 +78,17 @@ namespace PanzerSim
 
         void ReportDamage(TankModule m, string msg) { damage[m] = msg; }
 
+        /// <summary>Leuchtsatz im Heck: brennt ca. 3 s (reicht fuer etwa 2 km), danach fliegt die Granate unsichtbar weiter.</summary>
+        const float TracerBurn = 3f;
+
+        void Update()
+        {
+            if (finished || stuck || body == null || life > TracerBurn) return;
+            Vector3 p = transform.position;
+            float len = Mathf.Min(velocity.magnitude * 0.011f, Vector3.Distance(origin, p));   // Schweif nicht hinter die Muendung
+            if (len > 0.2f) Tracers.Streak(p, velocity, len, 0.06f, Tracers.Shell);
+        }
+
         void FixedUpdate()
         {
             if (finished) return;

@@ -147,6 +147,12 @@ namespace PanzerSim
             if (isPlayer && !destroyed && Inp.Down(KeyCode.G)) StartRepair();
             if (reloadLeft > 0f && seats.Count > 0) reloadLeft -= dt / ReloadMultiplier();
 
+            // Turm-MG: rechte Maustaste (eigener Panzer), fremde Panzer zeigen das uebertragene Feuer
+            bool mgFire = false;
+            if (isPlayer) { mgFire = !destroyed && (Inp.MgHeld || BenchMg) && Cursor.lockState == CursorLockMode.Locked && Working(ModuleType.Gunner); net?.SetMg(mgFire); }
+            else if (net != null) mgFire = !destroyed && net.MgFiring;
+            MachineGun.Tick(this, mgFire, dt);
+
             if (destroyed) { throttle = 0f; steer = 0f; brake = true; return; }
 
             if (isPlayer)
@@ -229,6 +235,8 @@ namespace PanzerSim
         public bool autoFire;
         /// <summary>Leistungstest (-benchdrive): Spielerpanzer faehrt Schlangenlinien.</summary>
         public static bool BenchDrive;
+        /// <summary>Leistungstest (-benchmg): MG feuert dauernd.</summary>
+        public static bool BenchMg;
         TankController autoTarget;
         float autoSearch;
         void AutoFireUpdate(float dt)

@@ -71,6 +71,8 @@ namespace PanzerSim
                 b.outDir = Arg("-bench");
                 b.preset = int.TryParse(Arg("-preset"), out int bp) ? Mathf.Clamp(bp, 0, 3) : -1;
                 TankController.BenchDrive = Has("-benchdrive");
+                TankController.BenchMg = Has("-benchmg");
+                TankCamera.BenchSight = Has("-benchsight");
                 if (float.TryParse(Arg("-benchyaw"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float by)) BenchYaw = by;
                 return;
             }
@@ -313,6 +315,7 @@ namespace PanzerSim
             Vector2 p = map.PlayerXZ;
             var pos = new Vector3(p.x, map.GroundY(p.x, p.y) + 0.4f, p.y);
             player = TankBuilder.Build(Tanks[tankIndex](), pos, Quaternion.Euler(0f, map.PlayerYaw + BenchYaw, 0f), true);
+            player.autoFire = autoFire;
             tankCam.target = player;
         }
 
@@ -580,7 +583,7 @@ namespace PanzerSim
             GUI.Label(new Rect(60, H - 76, 1400, 26),
                 "Weizenhalme: ffish.asia / floraZia.com, CC0  ·  Bodentexturen: ambientCG.com, CC0", small);
             GUI.Label(new Rect(60, H - 50, 900, 30),
-                "Im Spiel: Esc = Pause  ·  W/A/S/D fahren  ·  Maus zielen  ·  Linksklick feuern  ·  Shift Visier  ·  X Ansicht  ·  G Kette reparieren  ·  F3 Dev-Anzeige", small);
+                "Im Spiel: Esc = Pause  ·  W/A/S/D fahren  ·  Maus zielen  ·  Linksklick Kanone  ·  Rechtsklick MG  ·  Shift Visier  ·  X Ansicht  ·  G Kette reparieren  ·  F3 Dev-Anzeige", small);
         }
 
         // ================= Serverliste =================

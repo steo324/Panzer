@@ -18,6 +18,8 @@ namespace PanzerSim
         /// <summary>Blickrichtung setzen (Leistungstest: Bilder in andere Richtungen).</summary>
         public void SetView(float newYaw, float newPitch) { yaw = newYaw; pitch = newPitch; }
         bool sightMode;
+        /// <summary>Leistungstest (-benchsight): im Zielfernrohr starten.</summary>
+        public static bool BenchSight;
         bool autoRange = true;
         float manualRange = 500f;
         Camera cam;
@@ -42,6 +44,7 @@ namespace PanzerSim
         {
             if (target == null) return;
             if (target != lastTarget) { lastTarget = target; yaw = target.transform.eulerAngles.y; pitch = 5f; sightMode = false; zoomLevel = 0; }
+            if (BenchSight && !sightMode) { sightMode = true; if (target.visual != null) target.visual.SetVisible(false); }
 
             if (Inp.Down(KeyCode.LeftShift))
             {
@@ -212,7 +215,7 @@ namespace PanzerSim
 
             if (!inSight) GUI.Box(new Rect(SW - 330, 10, 320, 150),
                 "W/S: fahren   A/D: lenken   Leertaste: bremsen\n" +
-                "Maus: zielen   Linksklick: feuern\n" +
+                "Maus: zielen   Linksklick: Kanone   Rechtsklick halten: MG\n" +
                 "Shift: Visier an/aus\n" +
                 "Mausrad: Zoom (Visier: nur wenn umschaltbar)   Q/E: Entfernung   R: auto\n" +
                 "1-7: Munition wechseln\n" +
@@ -321,7 +324,135 @@ namespace PanzerSim
             return sp.z > 0f;
         }
 
-        GUIStyle sightText;
+        GUIStyle sightText, dialText;
+
+        // ---------------- TZF-Entfernungstrommel ----------------
+        // Wie im echten Turmzielfernrohr: alle Entfernungsskalen sitzen auf EINER drehbaren Scheibe. Der Drehwinkel
+        // entspricht der Rohrerhoehung - darum hat jede Munitionssorte ihre eigene Skala (Abstaende aus der Flugbahn).
+        // Eingestellte Entfernung = Zahl unter dem festen Zeiger oben (Sprenggranate: unten, Skala steht auf dem Kopf).
+        static readonly System.Collections.Generic.Dictionary<ShellData, float[]> elevTable = new System.Collections.Generic.Dictionary<ShellData, float[]>();
+
+        /// <summary>Ueberhoehung in Strich (1/6400 Vollkreis) fuer diese Munition auf r Meter (Tabelle alle 100 m, bis 4 km).</summary>
+        static float ElevMil(ShellData s, float r)
+        {
+            if (!elevTable.TryGetValue(s, out var a))
+            {
+                a = new float[41];
+                for (int i = 1; i < a.Length; i++)
+                {
+                    Ballistics.SimulateFlat(s, i * 100f, out _, out float drop, out _);
+                    a[i] = Mathf.Atan2(drop, i * 100f) * 6400f / (2f * Mathf.PI);
+                }
+                elevTable[s] = a;
+            }
+            float f = Mathf.Clamp(r / 100f, 0f, 40f);
+            int i0 = Mathf.Min(Mathf.FloorToInt(f), 39);
+            return Mathf.Lerp(a[i0], a[i0 + 1], f - i0);
+        }
+
+        static string ScaleName(ShellData s)
+        {
+            int cm = s.gun.IndexOf(" cm");
+            string cal = cm > 0 ? s.gun.Substring(0, cm + 3) : $"{s.caliberMm:0} mm";
+            return $"{cal} {s.name.Replace("PzGr.", "Pzgr").Replace("Sprgr.", "Sprgr")}";
+        }
+
+        const float Window = 78f;   // jeder Bogen zeigt nur seine Haelfte der Scheibe (oben/unten)
+
+        void DrawTzfDial(float cx, float cy, float size, float lw, Color ink)
+        {
+            if (dialText == null) dialText = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Normal, clipping = TextClipping.Overflow };
+            dialText.normal.textColor = ink;
+
+            // Skalen verteilen: oben bis zu zwei Panzergranaten, unten Spreng-/Hohlladungsgranate, innen MG
+            ShellData upper1 = null, upper2 = null, lower = null;
+            foreach (int idx in target.AmmoLoadout)
+            {
+                var s = AmmoLibrary.All[idx];
+                if (s.IsHE || s.IsHEAT) { if (lower == null) lower = s; }
+                else if (upper1 == null) upper1 = s;
+                else if (upper2 == null && s != upper1) upper2 = s;
+            }
+            if (upper1 == null) { upper1 = lower; lower = null; }
+            var cur = target.Ammo;
+            float gain = 150f / Mathf.Max(ElevMil(upper1, 4000f), 1f);   // Grad Scheibendrehung pro Strich: 0-4 km = 150 Grad
+            float drum = ElevMil(cur, target.sightRange);
+            var pivot = new Vector2(cx, cy);
+
+            float R1 = size * 0.31f, R2 = size * 0.262f, R3 = size * 0.225f;
+            DrawScale(upper1, R1, 4000f, 0f, true, drum, gain, size, lw, ink, pivot, cur == upper1);
+            if (upper2 != null) DrawScale(upper2, R2, 4000f, 0f, false, drum, gain, size, lw, ink, pivot, cur == upper2);
+            DrawScale(MachineGun.Round, R3, 1200f, 0f, false, drum, gain, size, lw, ink, pivot, false, "MG");
+            if (lower != null) DrawScale(lower, R1, 4000f, 180f, true, drum, gain, size, lw, ink, pivot, cur == lower);
+
+            // fester Zeiger oben: langer schwarzer Keil von oben bis an die aeussere Skala
+            float wedgeW = size * 0.022f, wedgeTop = cy - size * 0.47f, wedgeBot = cy - R1 + size * 0.004f;
+            var m0 = GUI.matrix;
+            GUIUtility.RotateAroundPivot(180f, new Vector2(cx, (wedgeTop + wedgeBot) / 2f));
+            GUI.color = ink;
+            GUI.DrawTexture(new Rect(cx - wedgeW / 2f, wedgeTop, wedgeW, wedgeBot - wedgeTop), tri);
+            GUI.color = Color.white;
+            GUI.matrix = m0;
+            // unten: senkrechter Strich vom Zielstachel bis zur unteren Skala, kleiner Zeiger daran
+            float mil = Screen.height / cam.fieldOfView * 0.05625f;
+            FillRect(cx - lw * 0.35f, cy + 3f * mil, lw * 0.7f, R1 - 3f * mil - size * 0.02f, ink);
+            GUI.color = ink;
+            GUI.DrawTexture(new Rect(cx - size * 0.009f, cy + R1 - size * 0.024f, size * 0.018f, size * 0.016f), tri);
+            GUI.color = Color.white;
+        }
+
+        /// <summary>Eine Skala auf der Trommel: Punkte alle 100 m, Strich + Zahl (in 100 m) alle 500 m, Name daneben.</summary>
+        void DrawScale(ShellData s, float radius, float maxR, float baseAngle, bool outside, float drum, float gain,
+                       float size, float lw, Color ink, Vector2 pivot, bool active, string label = null)
+        {
+            var m0 = GUI.matrix;
+            float cx = pivot.x, cy = pivot.y;
+            float dot = Mathf.Max(1.5f, lw * 1.1f);
+            float fs = size * (outside ? 0.021f : 0.016f);
+            dialText.fontSize = Mathf.RoundToInt(fs);
+            dialText.fontStyle = active ? FontStyle.Bold : FontStyle.Normal;
+            float lastShown = -1f;
+            for (float r = 0f; r <= maxR + 1f; r += 100f)
+            {
+                float a = baseAngle + (ElevMil(s, r) - drum) * gain;
+                if (Mathf.Abs(Mathf.DeltaAngle(baseAngle, a)) > Window) continue;   // nur der sichtbare Teil der Trommel
+                lastShown = r;
+                bool major = Mathf.RoundToInt(r) % 500 == 0;
+                GUIUtility.RotateAroundPivot(a, pivot);
+                if (major)
+                {
+                    float len = size * 0.014f;
+                    FillRect(cx - lw / 2f, outside ? cy - radius - len : cy - radius, lw, len, ink);
+                    float ly = outside ? cy - radius - len - fs * 0.9f : cy - radius + len + fs * 0.6f;
+                    GUI.Label(new Rect(cx - fs * 2f, ly - fs * 0.6f, fs * 4f, fs * 1.2f), Mathf.RoundToInt(r / 100f).ToString(), dialText);
+                }
+                else FillRect(cx - dot / 2f, cy - radius - dot / 2f, dot, dot, ink);
+                GUI.matrix = m0;
+            }
+            // Zwischenpunkte (gepunkteter Bogen) alle 50 m
+            for (float r = 50f; r <= maxR; r += 100f)
+            {
+                float a = baseAngle + (ElevMil(s, r) - drum) * gain;
+                if (Mathf.Abs(Mathf.DeltaAngle(baseAngle, a)) > Window) continue;
+                GUIUtility.RotateAroundPivot(a, pivot);
+                FillRect(cx - dot * 0.35f, cy - radius - dot * 0.35f, dot * 0.7f, dot * 0.7f, ink);
+                GUI.matrix = m0;
+            }
+            // Name der Skala hinter dem letzten sichtbaren Wert, entlang des Bogens
+            if (lastShown >= 0f)
+            {
+                float a = baseAngle + (ElevMil(s, Mathf.Min(lastShown, maxR)) - drum) * gain + 9f;
+                if (Mathf.Abs(Mathf.DeltaAngle(baseAngle, a)) < Window + 12f)
+                {
+                    GUIUtility.RotateAroundPivot(a + 8f, pivot);
+                    dialText.fontSize = Mathf.RoundToInt(size * 0.019f);
+                    float ny = outside ? cy - radius - size * 0.03f : cy - radius + size * 0.012f;
+                    GUI.Label(new Rect(cx - size * 0.15f, ny - size * 0.012f, size * 0.3f, size * 0.024f), label ?? ScaleName(s), dialText);
+                    GUI.matrix = m0;
+                }
+            }
+            dialText.fontStyle = FontStyle.Normal;
+        }
 
         void DrawSight(float cx, float cy)
         {
@@ -359,6 +490,7 @@ namespace PanzerSim
                             GUI.DrawTexture(new Rect(x - 1f * mil, cy, 2f * mil, 1.5f * mil), tri);
                         }
                     GUI.color = Color.white;
+                    DrawTzfDial(cx, cy, size, lw, ink);
                     break;
 
                 case SightType.US:
@@ -394,25 +526,34 @@ namespace PanzerSim
                     break;
             }
 
-            // Entfernungsskala oben (in 100 m), Zeiger in der Mitte = eingestellte Entfernung
             float range = target.sightRange;
-            float y0 = top + size * 0.13f;
-            float pxPer100 = size * 0.035f;
             sightText.normal.textColor = ink;
             sightText.fontSize = Mathf.RoundToInt(Screen.height / 55f);
-            for (int r = 0; r <= 3000; r += 100)
+            if (spec.sightType != SightType.German)
             {
-                float x = cx + (r - range) / 100f * pxPer100;
-                if (Mathf.Abs(x - cx) > size * 0.28f) continue;
-                bool major = r % 200 == 0;
-                FillRect(x - lw / 2f, y0, lw, major ? size * 0.018f : size * 0.010f, ink);
-                if (major) GUI.Label(new Rect(x - 20f, y0 - size * 0.035f, 40f, size * 0.03f), (r / 100).ToString(), sightText);
+                // Entfernungsskala oben (in 100 m), Zeiger in der Mitte = eingestellte Entfernung
+                float y0 = top + size * 0.13f;
+                float pxPer100 = size * 0.035f;
+                for (int r = 0; r <= 3000; r += 100)
+                {
+                    float x = cx + (r - range) / 100f * pxPer100;
+                    if (Mathf.Abs(x - cx) > size * 0.28f) continue;
+                    bool major = r % 200 == 0;
+                    FillRect(x - lw / 2f, y0, lw, major ? size * 0.018f : size * 0.010f, ink);
+                    if (major) GUI.Label(new Rect(x - 20f, y0 - size * 0.035f, 40f, size * 0.03f), (r / 100).ToString(), sightText);
+                }
+                GUI.color = ink;
+                GUI.DrawTexture(new Rect(cx - size * 0.008f, y0 + size * 0.022f, size * 0.016f, size * 0.014f), tri); // Zeiger
+                GUI.color = Color.white;
+                GUI.Label(new Rect(cx - 150f, y0 + size * 0.04f, 300f, size * 0.03f), $"{range:0} m {(autoRange ? "(auto)" : "")}", sightText);
             }
-            GUI.color = ink;
-            GUI.DrawTexture(new Rect(cx - size * 0.008f, y0 + size * 0.022f, size * 0.016f, size * 0.014f), tri); // Zeiger
-            GUI.color = Color.white;
-            GUI.Label(new Rect(cx - 150f, y0 + size * 0.04f, 300f, size * 0.03f),
-                $"{range:0} m {(autoRange ? "(auto)" : "")}", sightText);
+            else
+            {
+                // Beim TZF gibt es keine Ziffernanzeige - klein am Rand, damit man es trotzdem weiss
+                sightText.normal.textColor = new Color(0f, 0f, 0f, 0.5f);
+                GUI.Label(new Rect(cx - 200f, top + size * 0.79f, 400f, size * 0.03f), $"{range:0} m {(autoRange ? "(auto)" : "(Q/E)")}", sightText);
+                sightText.normal.textColor = ink;
+            }
 
             // Wohin du mit der Maus willst (der Turm dreht hinterher)
             Vector3 ap = cam.WorldToScreenPoint(target.aimPoint);

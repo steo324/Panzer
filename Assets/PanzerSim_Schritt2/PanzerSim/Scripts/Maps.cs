@@ -41,7 +41,8 @@ namespace PanzerSim
             go.transform.position = pos;
             go.transform.localScale = scale;
             go.transform.rotation = Quaternion.Euler(euler);
-            if (color.HasValue) go.GetComponent<Renderer>().sharedMaterial = Mat(color.Value);
+            // immer eigenes Material: das Standardmaterial von CreatePrimitive ist im Build pink
+            go.GetComponent<Renderer>().sharedMaterial = Mat(color ?? new Color(0.55f, 0.53f, 0.50f));
             return go;
         }
 
@@ -84,6 +85,7 @@ namespace PanzerSim
             ground.transform.SetParent(root, false);
             ground.transform.position = new Vector3(0f, 0f, 500f);
             ground.transform.localScale = new Vector3(300f, 1f, 300f);
+            ground.GetComponent<Renderer>().sharedMaterial = Mat(new Color(0.42f, 0.40f, 0.33f));   // sonst pink im Build
 
             Block(root, "Rampe", new Vector3(-25f, 0.9f, 40f), new Vector3(10f, 1f, 22f), new Vector3(-9f, 0f, 0f));
             Block(root, "Rampe runter", new Vector3(-25f, 0.9f, 62f), new Vector3(10f, 1f, 22f), new Vector3(9f, 0f, 0f));

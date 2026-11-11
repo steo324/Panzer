@@ -164,6 +164,27 @@ namespace PanzerSim
             }
         }
 
+        /// <summary>MG-Kugel: auf Stahl ein paar Funken (prallt ab), im Boden ein kleiner Staubspritzer. Bewusst sparsam (15 Schuss/s).</summary>
+        public static void BulletHit(Vector3 pos, Vector3 normal, Vector3 dir, bool armor)
+        {
+            if (!Ensure()) return;
+            if (armor)
+            {
+                Vector3 refl = Vector3.Reflect(dir.normalized, normal);
+                for (int i = 0; i < 6; i++)
+                {
+                    Vector3 v = (Vector3.Lerp(normal, refl, 0.7f) + Random.insideUnitSphere * 0.7f).normalized * Random.Range(6f, 20f);
+                    EmitOne(sparks, pos, v, Random.Range(0.02f, 0.05f), Random.Range(0.1f, 0.35f), new Color(1f, Random.Range(0.6f, 0.9f), 0.35f, 1f));
+                }
+                EmitOne(flash, pos + normal * 0.05f, Vector3.zero, 0.25f, 0.03f, new Color(1f, 0.9f, 0.7f, 1f));
+            }
+            else
+            {
+                for (int i = 0; i < 3; i++)
+                    EmitOne(smoke, pos + normal * 0.1f, (normal * Random.Range(1f, 3f) + Random.insideUnitSphere * 0.6f), Random.Range(0.25f, 0.45f), Random.Range(0.6f, 1.2f), new Color(0.42f, 0.36f, 0.27f, 0.8f));
+            }
+        }
+
         /// <summary>Sprengladung: Feuerball, Rauchpilz, Erde (am Boden), Funken, Licht, Druckwelle.</summary>
         public static void Explosion(Vector3 pos, float fillerKg, bool onGround)
         {

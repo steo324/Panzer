@@ -23,6 +23,8 @@ namespace PanzerSim
             GameManager.Instance.BenchStart();
             yield return new WaitForSeconds(6f);   // Karte laden, Shader aufwaermen
             var cam = Camera.main.GetComponent<TankCamera>();
+            var pl = GameManager.Instance.BenchPlayer;
+            if (cam != null && pl != null) cam.SetView(pl.transform.eulerAngles.y, -0.4f);   // zum Horizont schauen (Ziele in der Ferne)
 
             var frames = new List<float>();
             float t = 0f;
@@ -39,6 +41,7 @@ namespace PanzerSim
             float worst = 0f; for (int i = frames.Count - n1; i < frames.Count; i++) worst += frames[i];
             float low1 = n1 / worst;
             string name = preset >= 0 ? GameSettings.PresetNames[preset] : "aktuell";
+            Debug.Log($"BENCH-MG: {MachineGun.ShotsFired} Schuss, {MachineGun.Hits} Einschlaege, Leuchtspur-Bilder gemeldet {Tracers.AddedTotal}, gezeichnet {Tracers.DrawnTotal}, MG-Leuchtspuren {MachineGun.TracerFrames}");
             Debug.Log($"BENCH: Stufe {name}  {Screen.width}x{Screen.height}  Schnitt {avg:0} FPS  1%-Tief {low1:0} FPS  ({SystemInfo.graphicsDeviceName})");
 
             if (!string.IsNullOrEmpty(outDir))
@@ -46,6 +49,11 @@ namespace PanzerSim
                 System.IO.Directory.CreateDirectory(outDir);
                 ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, $"bench_{preset}.png"));
                 yield return new WaitForSeconds(0.5f);
+                for (int i = 0; i < 3; i++)   // ein paar Bilder kurz nacheinander (Leuchtspuren sind nur kurz sichtbar)
+                {
+                    ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, $"bench_{preset}_{i}.png"));
+                    yield return new WaitForSeconds(0.35f);
+                }
                 // zweites Bild: zurueckschauen (Spuren, Wiese hinter dem Panzer)
                 var p = GameManager.Instance.BenchPlayer;
                 if (cam != null && p != null)

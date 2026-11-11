@@ -24,6 +24,11 @@ namespace PanzerSim
         public static void GroundHit(Vector3 pos) =>
             Play(Clip(ref ground, 0.8f, 0.002f, 0.2f, 70f, 0.7f, 37), pos, 1f, 0.6f, 12f);
 
+        /// <summary>Einzelschuss des MG (kurzer, trockener Knall).</summary>
+        public static void MG(Vector3 pos) =>
+            Play(Clip(ref mg, 0.16f, 0.0008f, 0.045f, 260f, 0.85f, 61), pos, 1f, 0.35f, 8f);
+        static AudioClip mg;
+
         public static void Explosion(Vector3 pos, float fillerKg) =>
             Play(Clip(ref blast, 2.5f, 0.003f, 0.7f, 38f, 0.95f, 51), pos, Mathf.Clamp(0.7f + fillerKg * 4f, 0.7f, 1.3f), 1f, 25f + fillerKg * 200f);
 

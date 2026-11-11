@@ -22,6 +22,11 @@ namespace PanzerSim
         readonly NetworkVariable<float> netYaw = new NetworkVariable<float>(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         readonly NetworkVariable<float> netElev = new NetworkVariable<float>(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
+        readonly NetworkVariable<bool> netMg = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        /// <summary>Turm-MG feuert gerade (fuer die Optik bei allen anderen).</summary>
+        public bool MgFiring => netMg.Value;
+        public void SetMg(bool on) { if (IsOwner && IsSpawned && netMg.Value != on) netMg.Value = on; }
+
         public TankController tc;
         /// <summary>Lokaler Spielerpanzer (wir fahren ihn).</summary>
         public bool IsLocalPlayer => IsOwner && !isTarget.Value && !NetSync.Headless;
