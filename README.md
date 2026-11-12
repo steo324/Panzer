@@ -11,7 +11,9 @@ Panzer-Simulation von Ballistik Studios mit echter Ballistik: Durchschlag, Split
 Das Spiel aktualisiert sich danach von selbst, wenn es eine neue Version gibt.
 Alle Versionen: [Releases](https://github.com/steo324/Panzer/releases)
 
-> Der Button **„Code → Download ZIP“** enthält nur den Quellcode (Unity-Projekt), **nicht das fertige Spiel**.
+**Schon „Code → Download ZIP“ geladen?** Darin ist nur der Quellcode – das fertige Spiel (150 MB) ist für das Repo zu groß.
+Einfach im entpackten Ordner **`Spiel starten.bat`** doppelklicken: Sie lädt das Spiel herunter, legt eine Verknüpfung
+auf den Desktop und startet es. (Windows fragt evtl. nach: *Weitere Informationen → Trotzdem ausführen*.)
 
 ## Mit Freunden spielen
 
