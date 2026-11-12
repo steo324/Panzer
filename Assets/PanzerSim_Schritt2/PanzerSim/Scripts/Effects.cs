@@ -173,6 +173,13 @@ namespace PanzerSim
                         size * Random.Range(0.8f, 1.2f), life * Random.Range(0.8f, 1.2f), Gray(0.72f, 0.82f));
         }
 
+        /// <summary>Ein Rauchball mit Farbe/Auftrieb (Wrack-Rauchsaeule, Auspuff).</summary>
+        public static void SmokeOne(Vector3 pos, Vector3 vel, float size, float life, float gray, float alpha)
+        {
+            if (!Ensure()) return;
+            EmitOne(smoke, pos, vel, size, life, Gray(gray, alpha));
+        }
+
         /// <summary>MG-Kugel: auf Stahl ein paar Funken (prallt ab), im Boden ein kleiner Staubspritzer. Bewusst sparsam (15 Schuss/s).</summary>
         public static void BulletHit(Vector3 pos, Vector3 normal, Vector3 dir, bool armor)
         {

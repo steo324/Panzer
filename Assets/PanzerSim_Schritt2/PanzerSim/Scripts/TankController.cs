@@ -158,6 +158,7 @@ namespace PanzerSim
             if (isPlayer) { mgFire = !destroyed && !spec.noGun && !spec.noMg && (Inp.MgHeld || BenchMg) && Cursor.lockState == CursorLockMode.Locked && Working(ModuleType.Gunner) && SeatActive(ModuleType.Gunner); net?.SetMg(mgFire); }
             else if (net != null) mgFire = !destroyed && net.MgFiring;
             MachineGun.Tick(this, mgFire, dt);
+            UpdateExhaust(dt);
 
             if (destroyed) { throttle = 0f; steer = 0f; brake = true; return; }
 
@@ -193,6 +194,25 @@ namespace PanzerSim
             {
                 throttle = 0f; steer = 0f; brake = true;
             }
+        }
+
+        // Auspuff: laufender Motor qualmt leicht (mehr beim Gasgeben); ausgeschaltete Panzer nicht mehr - man sieht, dass der Motor aus ist
+        float exhaustAcc, lastSpeed;
+        void UpdateExhaust(float dt)
+        {
+            if (NetSync.Headless || destroyed || !Working(ModuleType.Engine)) return;
+            float v = Velocity.magnitude;
+            float load = Mathf.Clamp01(Mathf.Abs(throttle) + Mathf.Max(0f, v - lastSpeed) / Mathf.Max(dt, 0.001f) * 0.4f + v / 15f);
+            lastSpeed = v;
+            exhaustAcc += dt;
+            float interval = Mathf.Lerp(0.3f, 0.09f, load);
+            if (exhaustAcc < interval) return;
+            exhaustAcc = 0f;
+            if (Camera.main != null && (Camera.main.transform.position - transform.position).sqrMagnitude > 600f * 600f) return;   // weit weg: spart Partikel
+            float side = Random.value < 0.5f ? -1f : 1f;
+            Vector3 p = transform.TransformPoint(new Vector3(side * spec.hullWidth * 0.25f, spec.clearance + spec.hullHeight * 0.85f, -spec.hullLength * 0.5f));
+            Vector3 vel = -transform.forward * (0.8f + load) + Vector3.up * 0.7f + (rb != null ? rb.linearVelocity * 0.3f : Vector3.zero);
+            Effects.SmokeOne(p, vel, 0.3f + 0.5f * load, Random.Range(1.4f, 2.4f), 0.3f - 0.12f * load, 0.12f + 0.3f * load);
         }
 
         void AimTurret(float dt)
@@ -749,8 +769,16 @@ namespace PanzerSim
             destroyed = true;
             destroyedReason = reason;
             if (!NetSync.IsClientOnly) RangeLog.Add($"*** {spec.name} ZERSTOERT: {reason} ***");   // Clients bekommen die Zeile vom Server
-            if (!reason.StartsWith("MUNITION"))
-                Effects.Burn(transform, new Vector3(0f, spec.clearance + spec.hullHeight, -spec.hullLength * 0.3f), 40f, 0.45f);
+            // Nicht jedes Wrack brennt: Flammen nur, wenn Motor oder Kraftstoff schwer getroffen sind (Zustand kommt vom Server)
+            bool ammo = reason.StartsWith("MUNITION");
+            bool flames = ammo || burning;
+            foreach (var m in parts.modules)
+                if (m != null && (m.type == ModuleType.Fuel || m.type == ModuleType.Engine) && m.hp < m.maxHp * 0.5f) flames = true;
+            if (!ammo && flames && !burning)
+                Effects.Burn(transform, new Vector3(0f, spec.clearance + spec.hullHeight, -spec.hullLength * 0.3f), 60f, 0.6f);
+            Wreck.Begin(this, flames);
+            string why = ammo ? "Munition explodiert" : reason == "Besatzung ausgeschaltet" ? "Besatzung ausgefallen" : reason;
+            TankCamera.Notice(isPlayer ? $"DEIN PANZER IST AUSGESCHALTET  ({why})" : $"{spec.name} AUSGESCHALTET  ({why})", isPlayer);
             foreach (var p in parts.plates)
                 if (p != null) p.GetComponent<Renderer>().sharedMaterial = GameMap.Mat(new Color(0.12f, 0.12f, 0.12f));
         }

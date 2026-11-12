@@ -128,6 +128,23 @@ namespace PanzerSim
                     Debug.Log($"BENCH-STUN: {names[s]} -> {tg.spec.name}: {crew}");
                     if (s < 2) yield return new WaitForSeconds(0.1f);
                 }
+                // Wrack ansehen: Rohr abgesackt, Rauch, ausgestiegene Besatzung
+                var wreck = others[Mathf.Min(2, others.Count - 1)];
+                // Besatzung bis auf den Fahrer ausschalten -> Panzer ausgeschaltet, ein Ueberlebender steigt aus
+                foreach (var m in wreck.parts.modules) if (m.IsCrew && m.type != ModuleType.Driver) { m.stun = 0f; m.ApplyDamage(1000f); }
+                foreach (var m in wreck.parts.modules) if (m.type == ModuleType.Driver) m.stun = 0f;
+                // eigenen Panzer daneben stellen, damit man das Wrack aus der Naehe sieht
+                Vector3 near = wreck.transform.position + wreck.transform.right * 16f + wreck.transform.forward * 8f + Vector3.up * 1f;
+                pl.rb.position = near; pl.transform.position = near; pl.rb.linearVelocity = Vector3.zero;
+                for (float w = 0f; w < 9f; w += Time.unscaledDeltaTime)
+                {
+                    Vector3 d = wreck.transform.position + Vector3.up * 1.5f - Camera.main.transform.position;
+                    if (cam != null) cam.SetView(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, -Mathf.Asin(d.normalized.y) * Mathf.Rad2Deg);
+                    if (w > 3f && w - Time.unscaledDeltaTime <= 3f && !string.IsNullOrEmpty(outDir)) { System.IO.Directory.CreateDirectory(outDir); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, "wrack_3s.png")); }
+                    yield return null;
+                }
+                if (!string.IsNullOrEmpty(outDir)) { System.IO.Directory.CreateDirectory(outDir); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, "wrack.png")); }
+                Debug.Log($"BENCH-STUN: Wrack {wreck.spec.name} Rohr {Mathf.DeltaAngle(0f, -wreck.parts.gunPivot.localEulerAngles.x):0.0} Grad (min {wreck.spec.minElevation}), Wreck={wreck.GetComponent<Wreck>() != null}");
                 yield return new WaitForSeconds(1f);
                 for (int i = RangeLog.Lines.Count - 1; i >= 0; i--) Debug.Log("BENCH-STUN Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
             }

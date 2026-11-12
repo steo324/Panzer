@@ -125,7 +125,7 @@ namespace PanzerSim
                 target.aimPoint = hit.point;
                 aimDistance = Vector3.Distance(target.parts.muzzle.position, hit.point);
                 var tank = hit.collider.GetComponentInParent<TankController>();
-                aimedName = tank != null ? tank.spec.name + (tank.destroyed ? " (zerstoert)" : "") : null;
+                aimedName = tank != null ? (tank.destroyed ? $"<color=#ccc>{tank.spec.name}</color> <color=#f96>(ausgeschaltet)</color>" : tank.spec.name) : null;
             }
             else
             {
@@ -159,8 +159,34 @@ namespace PanzerSim
         // ---------------- Anzeige ----------------
         GUIStyle box, small, big;
 
+        // Meldung oben in der Mitte (z. B. "Tiger I AUSGESCHALTET"), 5 s sichtbar
+        static string noticeText; static float noticeTime = -99f; static bool noticeOwn;
+        public static void Notice(string text, bool own)
+        {
+            if (NetSync.Headless) return;
+            noticeText = text; noticeTime = Time.unscaledTime; noticeOwn = own;
+        }
+        GUIStyle noticeStyle;
+        void DrawNotice()
+        {
+            float age = Time.unscaledTime - noticeTime;
+            if (noticeText == null || age > 5f) return;
+            GUI.matrix = Matrix4x4.identity;
+            if (noticeStyle == null) noticeStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, richText = true };
+            float k = GameSettings.UiFactor;
+            noticeStyle.fontSize = Mathf.RoundToInt(22 * k);
+            float a = Mathf.Clamp01(5f - age) * Mathf.Clamp01(age * 4f);
+            Color c = noticeOwn ? new Color(1f, 0.35f, 0.25f, a) : new Color(1f, 0.85f, 0.4f, a);
+            Rect r = new Rect(0, 70 * k, Screen.width, 40 * k);
+            noticeStyle.normal.textColor = new Color(0f, 0f, 0f, a * 0.8f);
+            GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), noticeText, noticeStyle);
+            noticeStyle.normal.textColor = c;
+            GUI.Label(r, noticeText, noticeStyle);
+        }
+
         void OnGUI()
         {
+            if (target != null) DrawNotice();
             if (target == null || ArtilleryMode.Active) return;   // Kartenmodus zeichnet seine eigene Anzeige
             if (box == null)
             {
