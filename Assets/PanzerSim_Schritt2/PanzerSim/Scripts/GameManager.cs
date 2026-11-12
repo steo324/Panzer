@@ -12,7 +12,7 @@ namespace PanzerSim
         State state;
 
         static readonly System.Func<TankSpec>[] Tanks =
-            { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85, () => TankLibrary.Wiesel };
+            { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85, () => TankLibrary.Wiesel, () => TankLibrary.PzH2000 };
         readonly GameMap[] maps = { new PlainsMap(), new TestRangeMap() };
 
         int tankIndex, mapIndex;
@@ -74,6 +74,7 @@ namespace PanzerSim
                 TankController.BenchMg = Has("-benchmg");
                 TankCamera.BenchSight = Has("-benchsight");
                 TankCamera.BenchThermal = Has("-benchthermal");
+                TankCamera.BenchArty = Has("-bencharty");
                 if (float.TryParse(Arg("-benchyaw"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float by)) BenchYaw = by;
                 return;
             }
@@ -583,7 +584,7 @@ namespace PanzerSim
             GUI.Label(new Rect(60, H - 102, 1600, 26),
                 "Modelle: T-34-85 von DedRam (sketchfab.com/heirohindrima), CC BY 4.0  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan), CC BY 4.0", small);
             GUI.Label(new Rect(60, H - 76, 1400, 26),
-                "Weizenhalme: ffish.asia / floraZia.com, CC0  ·  Bodentexturen: ambientCG.com, CC0", small);
+                "Weizenhalme: ffish.asia / floraZia.com, CC0  ·  Bodentexturen: ambientCG.com, CC0  ·  Panzerhaubitze 2000 von gogiart (sketchfab.com/agt14032013), CC BY 4.0, gerigged", small);
             GUI.Label(new Rect(60, H - 50, 900, 30),
                 "Im Spiel: Esc = Pause  ·  W/A/S/D fahren  ·  Maus zielen  ·  Linksklick Kanone  ·  Rechtsklick MG  ·  Shift Visier  ·  X Ansicht  ·  G Kette reparieren  ·  F3 Dev-Anzeige", small);
         }

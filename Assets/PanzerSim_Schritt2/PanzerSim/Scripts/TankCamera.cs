@@ -22,7 +22,10 @@ namespace PanzerSim
         public static bool BenchSight;
         /// <summary>Leistungstest (-benchthermal): Waermebild an.</summary>
         public static bool BenchThermal;
-        bool autoRange = true;
+        /// <summary>Leistungstest (-bencharty): Kartenmodus an.</summary>
+        public static bool BenchArty;
+        bool autoRange;                                     // nur Leistungstests; im Spiel stellt man die Entfernung selbst ein (Q/E) oder lasert (R)
+        float laserTime = -10f, laserRange;                 // letzte Laser-Messung (nur Fahrzeuge mit Entfernungsmesser)
         float manualRange = 500f;
         Camera cam;
         float baseFov;
@@ -46,6 +49,9 @@ namespace PanzerSim
         {
             if (target == null) return;
             if (target != lastTarget) { lastTarget = target; yaw = target.transform.eulerAngles.y; pitch = 5f; sightMode = false; zoomLevel = 0; }
+            // Artillerie: Kartenmodus (die Karte steuert dann die Kamera)
+            if (target.spec.artillery && (Inp.Down(KeyCode.M) || (BenchArty && !ArtilleryMode.Active && Time.timeSinceLevelLoad > 3f))) ArtilleryMode.Toggle(target, cam);
+            if (ArtilleryMode.Active) return;
             if (BenchSight && !sightMode) { sightMode = true; if (target.visual != null) target.visual.SetVisible(false); }
 
             if (Inp.Down(KeyCode.LeftShift))
@@ -54,7 +60,13 @@ namespace PanzerSim
                 // Im Visier das eigene Modell ausblenden (sonst ragt die eigene Kanone ins Bild)
                 if (target.visual != null) target.visual.SetVisible(!sightMode && TankController.ViewMode != 1);
             }
-            if (Inp.Down(KeyCode.R)) autoRange = !autoRange;
+            // R = Laser-Entfernungsmesser: misst bis zum Punkt im Fadenkreuz und stellt das Visier darauf ein.
+            // Fahrzeuge ohne Entfernungsmesser (alle Weltkriegspanzer): Entfernung schaetzen und mit Q/E einstellen.
+            if (Inp.Down(KeyCode.R))
+            {
+                if (target.spec.hasRangefinder) { laserRange = aimDistance; laserTime = Time.time; manualRange = Mathf.Clamp(aimDistance, 50f, 9999f); }
+                else RangeLog.AddLocal($"{target.spec.name}: kein Entfernungsmesser - Entfernung schaetzen und mit Q/E einstellen");
+            }
             // Waermebild (nur Zielgeraete mit WBG, nur im Visier)
             bool canThermal = sightMode && target.spec.hasThermal;
             if (canThermal && Inp.Down(KeyCode.V)) ThermalVision.Set(!ThermalVision.Active);
@@ -69,8 +81,8 @@ namespace PanzerSim
                 else distance = Mathf.Clamp(distance - sc * 1.5f, 5f, 25f);
             }
             // Q / E = Visier-Entfernung einstellen
-            if (Inp.Down(KeyCode.E)) { manualRange = Mathf.Clamp((autoRange ? Mathf.Round(aimDistance / 100f) * 100f : manualRange) + 100f, 100f, 3000f); autoRange = false; }
-            if (Inp.Down(KeyCode.Q)) { manualRange = Mathf.Clamp((autoRange ? Mathf.Round(aimDistance / 100f) * 100f : manualRange) - 100f, 100f, 3000f); autoRange = false; }
+            if (Inp.Down(KeyCode.E)) manualRange = Mathf.Clamp(Mathf.Round(manualRange / 100f) * 100f + 100f, 100f, 4000f);
+            if (Inp.Down(KeyCode.Q)) manualRange = Mathf.Clamp(Mathf.Round(manualRange / 100f) * 100f - 100f, 100f, 4000f);
 
             if (Cursor.lockState == CursorLockMode.Locked)
             {
@@ -121,7 +133,7 @@ namespace PanzerSim
                 aimDistance = 2000f;
                 aimedName = null;
             }
-            target.sightRange = autoRange ? aimDistance : manualRange;
+            if (!target.autoFire) target.sightRange = autoRange ? aimDistance : manualRange;   // Test-Autofeuer stellt selbst ein
 
             // Verwackeln bei Schuss/Explosion (nach dem Zielen, damit das Fadenkreuz-Ziel ruhig bleibt)
             Vector3 shake = CameraShake.Sample(Time.deltaTime);
@@ -142,7 +154,7 @@ namespace PanzerSim
 
         void OnGUI()
         {
-            if (target == null) return;
+            if (target == null || ArtilleryMode.Active) return;   // Kartenmodus zeichnet seine eigene Anzeige
             if (box == null)
             {
                 box = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 14, wordWrap = true, richText = true };
@@ -176,7 +188,9 @@ namespace PanzerSim
             float SW = Screen.width / k, SH = Screen.height / k;
             cx = SW / 2f; cy = SH / 2f;
             if (aimedName != null)
-                GUI.Label(new Rect(cx + 20, cy + 15, 300, 25), $"{aimedName}  {aimDistance:0} m", box);
+                GUI.Label(new Rect(cx + 20, cy + 15, 300, 25), aimedName, box);   // ohne Meterangabe: Entfernung kennt man nur geschaetzt oder gelasert
+            if (t0.spec.hasRangefinder && Time.time - laserTime < 4f)
+                GUI.Label(new Rect(cx + 20, cy + 42, 300, 25), $"<color=#f55>LASER {laserRange:0} m</color>", box);
 
             // Panzer-Status
             var t = target;
@@ -191,7 +205,7 @@ namespace PanzerSim
                        (a.IsHE ? $"Sprenggranate: Druckwelle schlaegt bis {Penetration.FlatPenetration(a, vAt):0} mm durch\n"
                         : a.IsHEAT ? $"Hohlladung: {Penetration.FlatPenetration(a, vAt):0} mm auf jede Entfernung\n"
                         : $"Durchschlag auf {t.sightRange:0} m: {Penetration.FlatPenetration(a, vAt):0} mm\n") +
-                       $"Visier: {t.sightRange:0} m {(autoRange ? "(automatisch)" : "(von Hand, Q/E)")}\n" +
+                       $"Visier: {t.sightRange:0} m {(t.spec.hasRangefinder ? "(R: lasern, Q/E)" : "(geschaetzt, Q/E)")}\n" +
                        $"{reload}\n" +
                        (a.guided ? (t.activeMissile != null ? $"<color=#fd6>Rakete im Flug: {t.activeMissile.Distance:0} m - Fadenkreuz aufs Ziel halten!</color>\n" : "Lenkrakete: fliegt dahin, wohin das Fadenkreuz zeigt\n") : "") +
                        TrackStatus(t) + "\n<b>Besatzung</b>\n";
@@ -226,9 +240,9 @@ namespace PanzerSim
 
             if (!inSight) GUI.Box(new Rect(SW - 330, 10, 320, 150),
                 "W/S: fahren   A/D: lenken   Leertaste: bremsen\n" +
-                "Maus: zielen   Linksklick: Kanone   Rechtsklick halten: MG\n" +
+                "Maus: zielen   Linksklick: " + (t.Ammo.guided ? "Rakete" : "Kanone") + (t.spec.noMg ? "" : "   Rechtsklick halten: MG") + (t.spec.artillery ? "   M: Artillerie-Karte" : "") + "\n" +
                 "Shift: Visier an/aus" + (t.spec.hasThermal ? "   V: Waermebild (im Visier)" : "") + "\n" +
-                "Mausrad: Zoom (Visier: nur wenn umschaltbar)   Q/E: Entfernung   R: auto\n" +
+                "Mausrad: Zoom (Visier: nur wenn umschaltbar)   Q/E: Entfernung" + (t.spec.hasRangefinder ? "   R: lasern" : " (schaetzen)") + "\n" +
                 "1-7: Munition wechseln\n" +
                 "X: Ansicht (normal/Innenteile/Panzerung)   F: Feuer loeschen\n" +
                 "N: neue Ziele   T: aufrichten   B: zur Rampe (Testgelaende)\n" +
@@ -568,6 +582,13 @@ namespace PanzerSim
             }
 
             float range = target.sightRange;
+            bool t0hasRf = spec.hasRangefinder;
+            if (t0hasRf && Time.time - laserTime < 4f)
+            {
+                sightText.normal.textColor = new Color(0.9f, 0.15f, 0.1f);
+                sightText.fontSize = Mathf.RoundToInt(Screen.height / 40f);
+                GUI.Label(new Rect(cx - 200f, top + size * 0.70f, 400f, size * 0.04f), $"LASER  {laserRange:0} m", sightText);
+            }
             sightText.normal.textColor = ink;
             sightText.fontSize = Mathf.RoundToInt(Screen.height / 55f);
             if (spec.sightType == SightType.TOW) { }   // Lenkrakete: keine Entfernungsskala (fliegt der Visierlinie nach)
@@ -587,13 +608,13 @@ namespace PanzerSim
                 GUI.color = ink;
                 GUI.DrawTexture(new Rect(cx - size * 0.008f, y0 + size * 0.022f, size * 0.016f, size * 0.014f), tri); // Zeiger
                 GUI.color = Color.white;
-                GUI.Label(new Rect(cx - 150f, y0 + size * 0.04f, 300f, size * 0.03f), $"{range:0} m {(autoRange ? "(auto)" : "")}", sightText);
+                GUI.Label(new Rect(cx - 150f, y0 + size * 0.04f, 300f, size * 0.03f), $"{range:0} m {(t0hasRf ? "(R: lasern)" : "(Q/E)")}", sightText);
             }
             else
             {
                 // Beim TZF gibt es keine Ziffernanzeige - klein am Rand, damit man es trotzdem weiss
                 sightText.normal.textColor = new Color(0f, 0f, 0f, 0.5f);
-                GUI.Label(new Rect(cx - 200f, top + size * 0.79f, 400f, size * 0.03f), $"{range:0} m {(autoRange ? "(auto)" : "(Q/E)")}", sightText);
+                GUI.Label(new Rect(cx - 200f, top + size * 0.79f, 400f, size * 0.03f), $"{range:0} m (Q/E)", sightText);
                 sightText.normal.textColor = ink;
             }
 

@@ -28,6 +28,8 @@ namespace PanzerSim
                 case KeyCode.T: return kb.tKey;
                 case KeyCode.X: return kb.xKey;
                 case KeyCode.V: return kb.vKey;
+                case KeyCode.M: return kb.mKey;
+                case KeyCode.Tab: return kb.tabKey;
                 case KeyCode.P: return kb.pKey;
                 case KeyCode.B: return kb.bKey;
                 case KeyCode.K: return kb.kKey;
@@ -57,6 +59,8 @@ namespace PanzerSim
         public static bool LookHeld => M != null && M.rightButton.isPressed;
         /// <summary>Turm-MG: rechte Maustaste halten.</summary>
         public static bool MgHeld => M != null && M.rightButton.isPressed;
+        /// <summary>Mausposition in Bildschirm-Pixeln (unten links = 0,0).</summary>
+        public static Vector2 MousePos => M != null ? M.position.ReadValue() : Vector2.zero;
         public static Vector2 MouseDelta => M != null ? M.delta.ReadValue() * 0.1f : Vector2.zero;
         public static float Scroll => M != null ? Mathf.Sign(M.scroll.ReadValue().y) * (Mathf.Abs(M.scroll.ReadValue().y) > 0.01f ? 1f : 0f) : 0f;
 #else
@@ -65,6 +69,7 @@ namespace PanzerSim
         public static bool FireDown => Input.GetMouseButtonDown(0);
         public static bool LookHeld => Input.GetMouseButton(1);
         public static bool MgHeld => Input.GetMouseButton(1);
+        public static Vector2 MousePos => Input.mousePosition;
         public static Vector2 MouseDelta => new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y"));
         public static float Scroll => Mathf.Abs(Input.mouseScrollDelta.y) > 0.01f ? Mathf.Sign(Input.mouseScrollDelta.y) : 0f;
 #endif

@@ -79,6 +79,8 @@ namespace PanzerSim
             // Lenkraketen (Wiesel 1 TOW): 152 mm Hohlladung, drahtgelenkt. Geschwindigkeit hier = Einschlag des Gefechtskopfs.
             new ShellData("BGM-71A TOW",   "TOW-Werfer (Wiesel)",  ShellType.HEAT, 152f, 18.9f, 280f, 2.4f) { heatPenMm = 430f, guided = true, wireRange = 3000f },  // 15
             new ShellData("BGM-71D TOW-2", "TOW-Werfer (Wiesel)",  ShellType.HEAT, 152f, 21.5f, 280f, 3.1f) { heatPenMm = 850f, guided = true, wireRange = 3750f },  // 16
+            // PzH 2000: 155 mm L/52, Sprenggranate DM121 (43,5 kg); Geschwindigkeit = staerkste Treibladung (Zone 6)
+            new ShellData("DM121 Spreng", "155 mm L/52 (PzH 2000)", ShellType.HE, 155f, 43.5f, 900f, 10.0f) { dragCoefficient = 0.25f },  // 17
         };
     }
 }

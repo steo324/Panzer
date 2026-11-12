@@ -101,29 +101,29 @@ namespace PanzerSim
 
         // ================= Schiessen =================
         /// <summary>Vom eigenen Panzer: Schuss beim Server anmelden (Host/Server schiesst direkt).</summary>
-        public void RequestFire(int ammo, Vector3 origin, Vector3 dir)
+        public void RequestFire(int ammo, Vector3 origin, Vector3 dir, float speed = 0f)
         {
-            if (IsServer) ServerFire(ammo, origin, dir);
-            else FireRpc(ammo, origin, dir);
+            if (IsServer) ServerFire(ammo, origin, dir, speed);
+            else FireRpc(ammo, origin, dir, speed);
         }
 
         [Rpc(SendTo.Server)]
-        void FireRpc(int ammo, Vector3 origin, Vector3 dir) => ServerFire(ammo, origin, dir);
+        void FireRpc(int ammo, Vector3 origin, Vector3 dir, float speed) => ServerFire(ammo, origin, dir, speed);
 
-        void ServerFire(int ammo, Vector3 origin, Vector3 dir)
+        void ServerFire(int ammo, Vector3 origin, Vector3 dir, float speed)
         {
             if (ammo < 0 || ammo >= AmmoLibrary.All.Length) return;
-            Shell.Fire(AmmoLibrary.All[ammo], origin, dir);                 // echte Granate (Schaden zaehlt)
+            Shell.Fire(AmmoLibrary.All[ammo], origin, dir, false, speed);   // echte Granate (Schaden zaehlt)
             if (!IsOwner && tc != null && !NetSync.Headless) tc.PlayFireEffects(ammo);   // Host sieht den Schuss des Clients
-            FireVisualRpc(ammo, origin, dir);
+            FireVisualRpc(ammo, origin, dir, speed);
         }
 
         [Rpc(SendTo.NotServer)]
-        void FireVisualRpc(int ammo, Vector3 origin, Vector3 dir)
+        void FireVisualRpc(int ammo, Vector3 origin, Vector3 dir, float speed)
         {
             if (IsOwner) return;                                            // Schuetze hat Muendungsfeuer und Geister-Granate schon
             if (tc != null) tc.PlayFireEffects(ammo);
-            Shell.Fire(AmmoLibrary.All[ammo], origin, dir, true);
+            Shell.Fire(AmmoLibrary.All[ammo], origin, dir, true, speed);
         }
 
         /// <summary>Gefechtskopf einer Lenkrakete: Server startet die echte Hohlladung kurz vor dem Ziel (ohne Muendungsfeuer).</summary>

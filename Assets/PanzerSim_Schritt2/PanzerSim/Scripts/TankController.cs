@@ -155,7 +155,13 @@ namespace PanzerSim
 
             if (destroyed) { throttle = 0f; steer = 0f; brake = true; return; }
 
-            if (isPlayer)
+            if (isPlayer && artilleryAim)
+            {
+                // Kartenmodus: Fahrzeug steht, Turm folgt dem Feuerleitrechner (ArtilleryMode setzt aimPoint), Feuer per Leertaste dort
+                throttle = 0f; steer = 0f; brake = true;
+                AimTurret(dt);
+            }
+            else if (isPlayer)
             {
                 throttle = (Inp.Held(KeyCode.W) ? 1f : 0f) - (Inp.Held(KeyCode.S) ? 1f : 0f);
                 steer = (Inp.Held(KeyCode.D) ? 1f : 0f) - (Inp.Held(KeyCode.A) ? 1f : 0f);
@@ -188,7 +194,7 @@ namespace PanzerSim
             if (parts.turret == null || parts.turret.parent == null) return; // Turm weggeflogen
 
             // Ueberhoehung: Rohr so weit anheben, dass die Granate auf Visier-Entfernung trifft
-            if (Ammo.guided) superElevationDeg = 0f;   // Lenkrakete fliegt der Visierlinie nach
+            if (Ammo.guided || artilleryAim) superElevationDeg = 0f;   // Lenkrakete fliegt der Visierlinie nach; Artillerie: Winkel kommt vom Feuerleitrechner
             else
             {
                 Ballistics.SimulateFlat(Ammo, Mathf.Max(sightRange, 10f), out _, out float drop, out _);
@@ -230,12 +236,13 @@ namespace PanzerSim
             if (!Working(ModuleType.Breech)) { RangeLog.Add("Kanonenverschluss zerstoert!"); return; }
 
             Vector3 origin = parts.muzzle.position, dir = parts.gunPivot.forward;
+            float speed = artilleryAim ? artySpeed : 0f;                         // Artillerie: Treibladung bestimmt die Geschwindigkeit
             if (net != null && NetSync.Active)
             {
-                net.RequestFire(ammoIndex, origin, dir);                       // Server rechnet die echte Granate
-                if (!NetSync.IsServer) Shell.Fire(Ammo, origin, dir, true);     // eigene Geister-Granate sofort sehen
+                net.RequestFire(ammoIndex, origin, dir, speed);                       // Server rechnet die echte Granate
+                if (!NetSync.IsServer) Shell.Fire(Ammo, origin, dir, true, speed);     // eigene Geister-Granate sofort sehen
             }
-            else Shell.Fire(Ammo, origin, dir);
+            else Shell.Fire(Ammo, origin, dir, false, speed);
             // Rueckstoss: Granate + Treibgase (ca. 1,5x Geschossimpuls); die Rohrbremse daempft ihn ueber den Ruecklauf
             rb.AddForceAtPosition(-parts.gunPivot.forward * Ammo.massKg * Ammo.muzzleVelocity * 0.45f,
                                   parts.gunPivot.position, ForceMode.Impulse);
@@ -251,6 +258,13 @@ namespace PanzerSim
         public static bool BenchMg;
         /// <summary>Leistungstest: einen Schuss ausloesen.</summary>
         public void BenchFire() { reloadLeft = 0f; TryFire(); }
+
+        // ---- Artillerie (Kartenmodus): Feuerleitrechner gibt Richtung und Treibladung vor ----
+        [HideInInspector] public bool artilleryAim;
+        [HideInInspector] public float artySpeed;
+        /// <summary>Artillerie: Schuss ausloesen (Leertaste im Kartenmodus).</summary>
+        public void ArtilleryFire() => TryFire();
+        public bool ReadyToFire => reloadLeft <= 0f && activeMissile == null && !destroyed;
         /// <summary>Lenkrakete, die gerade fliegt (nur eine gleichzeitig: sie haengt am Draht).</summary>
         [HideInInspector] public GuidedMissile activeMissile;
         TankController autoTarget;

@@ -45,7 +45,8 @@ namespace PanzerSim
 
         bool ghost;   // Mehrspieler: nur Optik (der Server rechnet die echte Granate)
 
-        public static Shell Fire(ShellData d, Vector3 position, Vector3 direction, bool ghost = false)
+        /// <param name="speed">Muendungsgeschwindigkeit fuer diesen Schuss (Artillerie: je nach Treibladung); 0 = Standard der Munition</param>
+        public static Shell Fire(ShellData d, Vector3 position, Vector3 direction, bool ghost = false, float speed = 0f)
         {
             if (ghost && NetSync.Headless) return null;
             var go = new GameObject((ghost ? "Geist " : "Granate ") + d.name);
@@ -54,7 +55,7 @@ namespace PanzerSim
             var sh = go.AddComponent<Shell>();
             sh.data = d;
             sh.origin = position;
-            sh.velocity = direction.normalized * d.muzzleVelocity;
+            sh.velocity = direction.normalized * (speed > 0f ? speed : d.muzzleVelocity);
             sh.ghost = ghost;
             if (!NetSync.Headless) sh.SetupBody();
             return sh;
@@ -279,7 +280,7 @@ namespace PanzerSim
                     return;
                 }
                 Effects.Crater(pos, hit.normal, radius, hit.collider.transform);
-                if (data.IsHE) { NearMissTracks(pos); DestructiblePart.BlowOff(pos, data.fillerKg); }
+                if (data.IsHE) { NearMissTracks(pos); DestructiblePart.BlowOff(pos, data.fillerKg); LastHEImpact = pos; LastHEImpactTime = Time.time; }
             }
 
             if (!data.HasFiller) Effects.Impact(pos, hit.normal, dir, data.caliberMm, false, false);
@@ -290,8 +291,12 @@ namespace PanzerSim
         /// Sprenggranate trifft Panzerung: Explosion auf der Oberflaeche. Duenne Platte -> Druckwelle und Splitter innen;
         /// dicke Platte -> hoechstens Abplatzer innen; Treffer an Rohr/Blende beschaedigen die Kanone.
         /// </summary>
+        /// <summary>Letzter Einschlag einer Sprenggranate (Tests: Treffgenauigkeit der Artillerie).</summary>
+        public static Vector3 LastHEImpact; public static float LastHEImpactTime = -1f;
+
         void HitHE(Vector3 pos, Vector3 normal, TankController tank, float plateMm, string plateName, HitResult r)
         {
+            LastHEImpact = pos; LastHEImpactTime = Time.time;
             Effects.Explosion(pos, data.fillerKg, false);
             Shell.Marker(pos, new Color(1f, 0.55f, 0.1f), 0.3f);
             DestructiblePart.BlowOff(pos, data.fillerKg);   // Kotfluegel, Kaesten usw. in der Naehe fliegen weg

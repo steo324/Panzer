@@ -69,6 +69,39 @@ namespace PanzerSim
                 }
             }
 
+            // Artillerie-Test (-bencharty): Kartenmodus, Ziel = Panzer am weitesten weg, Steil- und Flachfeuer, Abweichung messen
+            if (System.Array.IndexOf(args, "-bencharty") >= 0 && pl != null)
+            {
+                for (float w = 0f; w < 5f && !ArtilleryMode.Active; w += Time.unscaledDeltaTime) yield return null;
+                TankController tgt = null; float best = 0f;
+                foreach (var other in FindObjectsByType<TankController>(FindObjectsSortMode.None))
+                {
+                    if (other == pl) continue;
+                    float dist = Vector3.Distance(other.transform.position, pl.transform.position);
+                    if (dist > best && dist < 1600f) { best = dist; tgt = other; }
+                }
+                for (int round = 0; round < 2 && tgt != null; round++)
+                {
+                    bool steil = round == 0;
+                    ArtilleryMode.BenchSetTarget(tgt.transform.position, steil);
+                    Debug.Log($"BENCH-ARTY: Ziel {tgt.spec.name}, {(steil ? "Steilfeuer" : "Flachfeuer")}: {ArtilleryMode.BenchInfo}");
+                    for (float w = 0f; w < 25f && !ArtilleryMode.BenchReady; w += Time.unscaledDeltaTime) yield return null;
+                    float t0 = Time.time, tof = ArtilleryMode.BenchTof;
+                    ArtilleryMode.BenchFire();
+                    if (!string.IsNullOrEmpty(outDir)) { System.IO.Directory.CreateDirectory(outDir); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, $"arty_{round}_karte.png")); }
+                    while (Shell.LastHEImpactTime < t0 && Time.time - t0 < tof + 8f) yield return null;
+                    if (!string.IsNullOrEmpty(outDir)) ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, $"arty_{round}_einschlag.png"));
+                    Vector3 miss = Shell.LastHEImpact - tgt.transform.position; miss.y = 0f;
+                    Vector3 fromMe = Shell.LastHEImpact - pl.transform.position; fromMe.y = 0f;
+                    Debug.Log($"BENCH-ARTY: Einschlag bei {Shell.LastHEImpact} ({fromMe.magnitude:0} m vom Geschuetz, Ziel {best:0} m), Rohr {pl.parts.gunPivot.forward}");
+                    Debug.Log(Shell.LastHEImpactTime >= t0
+                        ? $"BENCH-ARTY: Einschlag nach {Shell.LastHEImpactTime - t0:0.0} s (berechnet {tof:0.0} s), Abweichung {miss.magnitude:0.0} m"
+                        : "BENCH-ARTY: kein Einschlag gemessen");
+                    yield return new WaitForSeconds(2f);
+                }
+                for (int i = RangeLog.Lines.Count - 1; i >= 0; i--) Debug.Log("BENCH-ARTY Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
+            }
+
             var frames = new List<float>();
             float t = 0f;
             while (t < 12f)

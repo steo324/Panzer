@@ -56,6 +56,8 @@ namespace PanzerSim
         public ModuleType[] crew;            // Besatzung (null = Kommandant, Richtschuetze, Ladeschuetze, Fahrer, Funker)
         public bool crewInHull;              // Richtschuetze/Kommandant sitzen in der Wanne (kein bemannter Turm)
         public bool hasThermal;              // Zielgeraet mit Waermebild (Taste V im Visier)
+        public bool hasRangefinder;          // Laser-Entfernungsmesser (Taste R); ohne: Entfernung schaetzen (Q/E), keine Meterangabe
+        public bool artillery;               // Artillerie: Kartenmodus (Taste M) fuer indirektes Feuer
         public bool gunPivotFromModel;       // Kanonen-/Werfergelenk an die Stelle des Modell-Gelenks legen (Werfer sitzt nicht vorne am Turm)
         public bool muzzleBrake;             // Muendungsbremse (Gas schiesst seitlich raus)
 
@@ -235,6 +237,36 @@ namespace PanzerSim
             linkTracks = true, idlerRadius = 0.235f, sprocketRadius = 0.14f,
             trackPitch = 0.10f, trackShoeWidth = 0.24f, trackThickness = 0.035f, trackSag = 0.03f,
             returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 1, returnRollerRadius = 0.065f
+        };
+
+        /// <summary>
+        /// Panzerhaubitze 2000 (Bundeswehr, ab 1998): 155 mm L/52, Feuerleitrechner, Laser-Entfernungsmesser.
+        /// Modell: "Panzerhaubitze 2000" von gogiart (sketchfab.com/agt14032013), CC BY 4.0 - gerigged mit Tools/Blender/rig_pzh2000.py.
+        /// Werte ungefaehr: 55,8 t, MTU 881 mit 1000 PS, 67 km/h; Panzerung gegen 14,5 mm und Artilleriesplitter.
+        /// Artillerie-Modus: Taste M (Karte, Ziel anklicken, Leertaste feuert).
+        /// </summary>
+        public static TankSpec PzH2000 => new TankSpec
+        {
+            name = "Panzerhaubitze 2000",
+            massT = 55.8f, powerPS = 1000f, maxSpeedKmh = 67f, reverseKmh = 20f, turnRateDegS = 25f,
+            hullLength = 7.0f, hullWidth = 3.0f, hullHeight = 1.24f, clearance = 0.44f,
+            trackWidth = 0.55f, trackInset = 0.5f,
+            hullFront = new Armor(30, 60), hullRear = new Armor(12, 10), hullSide = new Armor(15, 0),
+            hullRoof = new Armor(15, 0), hullBottom = new Armor(10, 0),
+            turretLength = 4.6f, turretWidth = 3.0f, turretHeight = 1.0f, turretOffsetZ = -1.5f,
+            turretFront = new Armor(25, 20), turretSide = new Armor(15, 10), turretRear = new Armor(12, 0),
+            turretRoof = new Armor(15, 0), mantlet = new Armor(20, 0),
+            traverseDegS = 20f, elevationDegS = 10f, minElevation = -2.5f, maxElevation = 65f,
+            // Ladeautomat: Feuerstoss 3 Schuss in ~10 s
+            ammoIndex = 17, ammo = new[] { 17 }, reloadS = 3.5f, barrelLength = 5.9f, muzzleBrake = true, noMg = true,
+            gunPivotFromModel = true, hasRangefinder = true, artillery = true, devOnly = true,
+            sightType = SightType.US, sightFov = 7f, sightMag = 8f, sightName = "Richtaufsatz (direktes Feuer)",
+            modelResource = "Modelle/PzH2000", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            // Antriebsrad hinten (radL0), 7 Laufrollen, Leitrad vorne (radL8); Kette des Modells (Textur laeuft mit)
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 9, wheelRadius = 0.30f,
+            idlerRadius = 0.28f, sprocketRadius = 0.23f,
+            trackMaterialLeft = "kette_links", trackMaterialRight = "kette_rechts", trackMetersPerUV = 1.0f
         };
 
         public static TankSpec T34_85 => new TankSpec
