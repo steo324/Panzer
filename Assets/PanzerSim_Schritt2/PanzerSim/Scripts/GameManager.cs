@@ -41,11 +41,13 @@ namespace PanzerSim
         string hostCode = "", codeText = "";
 
         void Awake() { Instance = this; }
+        void ApplyTitleLate() => WindowTitle.Apply();
 
         void Start()
         {
             Time.fixedDeltaTime = 0.01f;
             Application.runInBackground = true;   // Mehrspieler: auch ohne Fokus weiterrechnen
+            WindowTitle.Apply(); Invoke(nameof(ApplyTitleLate), 1.5f);   // Spielname im Fenstertitel
             cam = Camera.main;
             tankCam = cam.GetComponent<TankCamera>();
             if (tankCam == null) tankCam = cam.gameObject.AddComponent<TankCamera>();
@@ -527,8 +529,8 @@ namespace PanzerSim
         void DrawMenu(float W, float H)
         {
             if (listOpen) { DrawServerList(W, H); return; }   // sonst nimmt das Menue darunter die Klicks
-            GUI.Label(new Rect(60, 40, 900, 60), "BALLISTIK STUDIOS", title);
-            GUI.Label(new Rect(64, 100, 900, 30), "Panzer  ·  Zweiter Weltkrieg  ·  Echte Ballistik", sub);
+            GUI.Label(new Rect(60, 40, 1100, 60), "BALLISTIK TANK FRONTS", title);
+            GUI.Label(new Rect(64, 100, 1100, 30), "von Ballistik Studios  ·  Panzer im Zweiten Weltkrieg  ·  Echte Ballistik", sub);
 
             // ---- Panzer ----
             var left = new Rect(60, 160, 430, 760);

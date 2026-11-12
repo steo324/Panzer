@@ -1,6 +1,6 @@
 # Credits
 
-Ballistik Studios – Panzer nutzt 3D-Modelle und Texturen anderer Leute. Vielen Dank!
+Ballistik Tank Fronts nutzt 3D-Modelle und Texturen anderer Leute. Vielen Dank!
 Alle unter **CC BY 4.0** stehenden Werke: Lizenz <https://creativecommons.org/licenses/by/4.0/>.
 Änderungen für das Spiel sind jeweils angegeben.
 

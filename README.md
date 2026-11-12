@@ -1,6 +1,6 @@
-# Ballistik Studios – Panzer
+# Ballistik Tank Fronts
 
-Panzer-Simulation mit echter Ballistik: Durchschlag, Splitter, Abpraller, Besatzung, Mehrspieler.
+Panzer-Simulation von Ballistik Studios mit echter Ballistik: Durchschlag, Splitter, Abpraller, Besatzung, Mehrspieler.
 
 ## ▶ Spielen (Windows)
 
