@@ -89,7 +89,7 @@ namespace PanzerSim
                 {
                     if (other == pl) continue;
                     float dist = Vector3.Distance(other.transform.position, pl.transform.position);
-                    if (dist > best && dist < 1600f) { best = dist; tgt = other; }
+                    if (dist > best && dist < 7000f) { best = dist; tgt = other; }
                 }
                 for (int round = 0; round < 2 && tgt != null; round++)
                 {

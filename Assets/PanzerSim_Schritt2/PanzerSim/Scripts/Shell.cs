@@ -105,7 +105,7 @@ namespace PanzerSim
         {
             float dt = Time.fixedDeltaTime;
             life += dt;
-            if (life > 15f) { Finish(); return; }
+            if (life > 180f || transform.position.y < -200f) { Finish(); return; }   // Artillerie fliegt bis ~2 min (Steilfeuer auf 10 km)
 
             velocity += Ballistics.Acceleration(data, velocity) * dt;
 

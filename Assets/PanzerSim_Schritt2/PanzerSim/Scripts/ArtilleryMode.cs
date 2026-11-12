@@ -135,20 +135,61 @@ namespace PanzerSim
             float maxEl = tc.spec.maxElevation, minEl = tc.spec.minElevation;
             if (high && TrySolve(true, minEl, maxEl)) return;
             // Steilfeuer geht nicht (z. B. Ziel zu nah: das Rohr kommt nur bis 65 Grad) -> Flachfeuer
-            if (TrySolve(false, minEl, maxEl)) { if (high) sol.note = "Steilfeuer nicht moeglich (Ziel zu nah) - Flachfeuer"; return; }
+            if (TrySolve(false, minEl, maxEl)) { if (high) sol.note = "Steilfeuer nicht moeglich (Ziel zu nah, unter 4 km) - Flachfeuer" + (sol.note != null ? "\n" + sol.note : ""); return; }
             sol.why = "ausser Reichweite";
         }
 
         bool TrySolve(bool steil, float minEl, float maxEl)
         {
+            // kleinste Ladung zuerst (hoechster Bogen); Ladungen, deren Bahn in einen Huegel/Wald fuehrt, ueberspringen
+            Solution blocked = new Solution();
             for (int z = 0; z < ZoneSpeed.Length; z++)
             {
                 float v = ZoneSpeed[z];
                 float el = steil ? SolveHigh(v, sol.dist, sol.dy, Mathf.Max(45f, minEl), maxEl) : SolveLow(v, sol.dist, sol.dy, minEl, Mathf.Min(45f, maxEl));
                 if (float.IsNaN(el)) continue;
-                sol.ok = true; sol.el = el; sol.speed = v; sol.zone = z + 1; sol.steil = steil;
-                Simulate(v, el, sol.dy, out _, out sol.tof);
+                var s = sol; s.ok = true; s.el = el; s.speed = v; s.zone = z + 1; s.steil = steil;
+                Simulate(v, el, sol.dy, out _, out s.tof);
+                if (PathBlocked(v, el, out float at))
+                {
+                    if (!blocked.ok) { blocked = s; blocked.note = $"Achtung: Huegel/Wald in der Flugbahn ({at:0} m vor dem Geschuetz) - Ziel so nicht erreichbar"; }
+                    continue;
+                }
+                sol = s;
                 return true;
+            }
+            if (blocked.ok && !steil) { sol = blocked; return true; }   // Flachfeuer: trotzdem anzeigen, aber mit Warnung
+            return false;
+        }
+
+        /// <summary>Fliegt die Granate auf dem Weg ins Gelaende oder in Baeume? at = Entfernung des Hindernisses.</summary>
+        bool PathBlocked(float v, float elDeg, out float at)
+        {
+            at = 0f;
+            var d = tc.Ammo;
+            Vector3 o = tc.parts.gunPivot.position;
+            Vector3 hdir = Quaternion.Euler(0f, sol.az, 0f) * Vector3.forward;
+            Vector2 p = Vector2.zero, vel = new Vector2(Mathf.Cos(elDeg * Mathf.Deg2Rad), Mathf.Sin(elDeg * Mathf.Deg2Rad)) * v;
+            float area = Mathf.PI * Mathf.Pow(d.caliberMm / 2000f, 2f), t = 0f, dt = 0.02f;
+            Vector3 last = o + hdir * 8f + Vector3.up * 8f * Mathf.Tan(elDeg * Mathf.Deg2Rad);   // erst ausserhalb des eigenen Fahrzeugs pruefen
+            int step = 0;
+            while (t < 120f)
+            {
+                float sp = vel.magnitude;
+                Vector2 acc = new Vector2(0f, Physics.gravity.y) - vel / sp * (0.5f * Ballistics.AirDensity * sp * sp * d.dragCoefficient * area / d.massKg);
+                p += vel * dt; vel += acc * dt; t += dt;
+                if (p.x < 8f) continue;
+                if (++step % 8 != 0 && !(vel.y < 0f && p.y <= sol.dy)) continue;
+                Vector3 now = o + hdir * p.x + Vector3.up * p.y;
+                Vector3 seg = now - last;
+                if (seg.sqrMagnitude > 0.01f && Physics.Raycast(last, seg.normalized, out RaycastHit hit, seg.magnitude, ~0, QueryTriggerInteraction.Ignore))
+                {
+                    bool own = hit.collider.GetComponentInParent<TankController>() == tc;
+                    bool nearTarget = target.HasValue && Vector3.Distance(hit.point, target.Value) < 30f;
+                    if (!own && !nearTarget) { at = new Vector2(hit.point.x - o.x, hit.point.z - o.z).magnitude; return true; }
+                }
+                last = now;
+                if (vel.y < 0f && p.y <= sol.dy) return false;   // am Ziel angekommen
             }
             return false;
         }
