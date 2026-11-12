@@ -185,7 +185,7 @@ namespace PanzerSim
                     }
 
                 if (Inp.Down(KeyCode.F)) Extinguish();
-                if (Inp.FireDown) TryFire();
+                if (Inp.FireDown && Cursor.lockState == CursorLockMode.Locked) TryFire();   // Klicks in Menues/Karte feuern nicht
                 if (autoFire) AutoFireUpdate(dt);
 
                 AimTurret(dt);

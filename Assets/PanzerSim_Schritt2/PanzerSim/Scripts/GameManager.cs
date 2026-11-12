@@ -13,7 +13,7 @@ namespace PanzerSim
 
         static readonly System.Func<TankSpec>[] Tanks =
             { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85, () => TankLibrary.Wiesel, () => TankLibrary.PzH2000 };
-        readonly GameMap[] maps = { new PlainsMap(), new TestRangeMap() };
+        readonly GameMap[] maps = { new PlainsMap(), new TestRangeMap(), new HillsMap() };   // Reihenfolge = Kartennummer (-map), nicht umsortieren
 
         int tankIndex, mapIndex;
         GameMap map;
@@ -102,8 +102,8 @@ namespace PanzerSim
             RenderSettings.fog = map.Fog && !NetSync.Headless;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = new Color(0.72f, 0.78f, 0.84f);
-            RenderSettings.fogStartDistance = 400f;
-            RenderSettings.fogEndDistance = 2600f;
+            RenderSettings.fogStartDistance = map.FogStart;
+            RenderSettings.fogEndDistance = map.FogEnd;
         }
 
         void EnterPlaying()
@@ -247,6 +247,21 @@ namespace PanzerSim
             player = nt.tc;
             player.autoFire = autoFire;
             tankCam.target = player;
+            if (map != null && map.SpawnSelect) OpenSpawnSelect();
+        }
+
+        /// <summary>Startpunkt auf der Karte waehlen (grosse Karten). Einzelspieler: Welt steht so lange.</summary>
+        void OpenSpawnSelect()
+        {
+            if (map == null || !map.SpawnSelect || map.Overview == null) return;
+            if (!benchSpawnSelect && System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-bench") >= 0) return;   // Leistungstest: keine Auswahl
+            if (!netGame) Time.timeScale = 0f;
+            SpawnSelect.Show(map, (p, yaw) =>
+            {
+                Time.timeScale = 1f;
+                if (player != null && !player.destroyed) player.Teleport(new Vector3(p.x, map.GroundY(p.x, p.y) + 0.6f, p.y), yaw);
+                RangeLog.AddLocal($"Start: {p.x / 1000f:0.0} / {p.y / 1000f:0.0} km");
+            });
         }
 
         public void OnNetTankDespawned(NetTank nt)
@@ -301,6 +316,9 @@ namespace PanzerSim
         }
 
         public void BenchStart() => StartGame();
+        bool benchSpawnSelect;
+        /// <summary>Leistungstest (-benchspawn): Startpunkt-Auswahl oeffnen (fuer ein Bild).</summary>
+        public void BenchSpawnSelect() { benchSpawnSelect = true; OpenSpawnSelect(); benchSpawnSelect = false; }
         public TankController BenchPlayer => player;
         /// <summary>Leistungstest: Panzer um diesen Winkel gedreht starten (-benchyaw), fuer andere Blickrichtungen.</summary>
         public static float BenchYaw;
@@ -311,6 +329,7 @@ namespace PanzerSim
             SpawnPlayer();
             SpawnTargets();
             EnterPlaying();
+            OpenSpawnSelect();
         }
 
         void SpawnPlayer()
@@ -398,6 +417,11 @@ namespace PanzerSim
                 return;
             }
 
+            if (SpawnSelect.IsOpen)
+            {
+                if (Inp.Down(KeyCode.Escape)) { SpawnSelect.Cancel(); Time.timeScale = 1f; }
+                return;
+            }
             if (Inp.Down(KeyCode.Escape))
             {
                 if (settingsOpen) CloseSettings();
@@ -413,9 +437,11 @@ namespace PanzerSim
             }
             else if (Inp.Down(KeyCode.N))
             {
-                if (player == null || player.destroyed) SpawnPlayer();
+                bool fresh = player == null || player.destroyed;
+                if (fresh) SpawnPlayer();
                 SpawnTargets();
                 RangeLog.Lines.Clear();
+                if (fresh) OpenSpawnSelect();
                 foreach (var go in FindObjectsByType<GameObject>(FindObjectsSortMode.None))
                     if (go.name == "Treffer") Destroy(go);
             }
@@ -763,7 +789,12 @@ namespace PanzerSim
             }
             else
             {
-                if (GUILayout.Button("Neu starten (N)", btn, GUILayout.Height(52))) { Pause(false); SpawnPlayer(); SpawnTargets(); RangeLog.Lines.Clear(); }
+                if (GUILayout.Button("Neu starten (N)", btn, GUILayout.Height(52))) { Pause(false); SpawnPlayer(); SpawnTargets(); RangeLog.Lines.Clear(); OpenSpawnSelect(); }
+                if (map != null && map.SpawnSelect)
+                {
+                    GUILayout.Space(6);
+                    if (GUILayout.Button("Startpunkt waehlen", btn, GUILayout.Height(52))) { Pause(false); OpenSpawnSelect(); }
+                }
                 GUILayout.Space(6);
                 if (GUILayout.Button("Hauptmenue (Panzer/Karte wechseln)", btn, GUILayout.Height(52))) ShowMenu();
             }

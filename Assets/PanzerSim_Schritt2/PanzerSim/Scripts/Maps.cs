@@ -9,7 +9,24 @@ namespace PanzerSim
         public abstract string Name { get; }
         public abstract string Description { get; }
         public virtual bool Fog => false;
+        public virtual float FogStart => 400f;
+        public virtual float FogEnd => 2600f;
         public virtual Vector3? RampSpawn => null;   // Taste B (nur Testgelaende)
+
+        // ---- Startpunkt waehlen (grosse Karten) ----
+        public struct SpawnPoint
+        {
+            public string name; public Vector2 xz; public float yaw;
+            public SpawnPoint(string name, float x, float z, float yaw) { this.name = name; xz = new Vector2(x, z); this.yaw = yaw; }
+        }
+        /// <summary>Spieler waehlt beim Start (und nach dem Neustart) den Startpunkt auf einer Karte.</summary>
+        public virtual bool SpawnSelect => false;
+        public virtual List<SpawnPoint> SpawnPoints => null;
+        /// <summary>Draufsicht fuer die Startpunkt-Auswahl (Norden oben); deckt -Extent..+Extent ab.</summary>
+        public virtual Texture2D Overview => null;
+        public virtual float Extent => 1000f;
+        /// <summary>Kann hier ein Panzer stehen (kein Wald, kein Haus, nicht zu steil)?</summary>
+        public virtual bool CanSpawn(float x, float z) => true;
 
         public struct Spawn
         {
@@ -311,7 +328,7 @@ namespace PanzerSim
         }
 
         /// <summary>Fototextur-Bodenart aus Resources/Boden: Farbe, Normal Map (Relief), Maske (Verdeckung, Hoehe, Glaette).</summary>
-        static TerrainLayer HdLayer(string name, float tile, Color tint)
+        internal static TerrainLayer HdLayer(string name, float tile, Color tint)
         {
             return new TerrainLayer
             {
@@ -335,12 +352,12 @@ namespace PanzerSim
             m.SetFloat("_HeightTransition", 0.25f);
         }
 
-        static TerrainLayer Layer(Texture2D tex, float tile)
+        internal static TerrainLayer Layer(Texture2D tex, float tile)
         {
             return new TerrainLayer { diffuseTexture = tex, tileSize = new Vector2(tile, tile), smoothness = 0f, metallic = 0f };
         }
 
-        static Texture2D NoiseTex(Color a, Color b, int seed)
+        internal static Texture2D NoiseTex(Color a, Color b, int seed)
         {
             const int n = 128;
             var tex = new Texture2D(n, n, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Bilinear };

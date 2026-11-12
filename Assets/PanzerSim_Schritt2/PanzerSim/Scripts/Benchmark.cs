@@ -30,6 +30,17 @@ namespace PanzerSim
             if (ci >= 0 && ci + 2 < args.Length) { float.TryParse(args[ci + 1], out camOff); float.TryParse(args[ci + 2], out camPitch); }
             if (cam != null && pl != null) cam.SetView(pl.transform.eulerAngles.y + camOff, camPitch);   // Standard: zum Horizont schauen
 
+            // Startpunkt-Auswahl (-benchspawn): Bild der Karte, dann Startpunkt 3 waehlen (Enter-Weg ueber Abbrechen)
+            if (System.Array.IndexOf(args, "-benchspawn") >= 0)
+            {
+                GameManager.Instance.BenchSpawnSelect();
+                yield return new WaitForSecondsRealtime(1.5f);
+                if (!string.IsNullOrEmpty(outDir)) { System.IO.Directory.CreateDirectory(outDir); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, "startpunkt.png")); }
+                yield return new WaitForSecondsRealtime(0.5f);
+                SpawnSelect.Cancel(); Time.timeScale = 1f;
+                Debug.Log($"BENCH-SPAWN: Auswahl war offen, Panzer bei {pl.transform.position}");
+            }
+
             // Lenkraketen-Test (-benchtow): auf den Panzer, der am weitesten weg ist (bis 1 km), schiessen, Bilder im Flug
             if (System.Array.IndexOf(args, "-benchtow") >= 0 && pl != null && cam != null)
             {

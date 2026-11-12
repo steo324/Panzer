@@ -69,7 +69,7 @@ namespace PanzerSim
 
             // Karte bedienen
             float sc = Inp.Scroll;
-            if (sc != 0f) orthoSize = Mathf.Clamp(orthoSize * (sc > 0f ? 0.8f : 1.25f), 60f, 1400f);
+            if (sc != 0f) orthoSize = Mathf.Clamp(orthoSize * (sc > 0f ? 0.8f : 1.25f), 60f, 6000f);
             if (Inp.LookHeld)
             {
                 Vector2 d = Inp.MouseDelta * 10f;   // Pixel
@@ -212,7 +212,7 @@ namespace PanzerSim
                 white = Texture2D.whiteTexture;
             }
             // Raster: 100 m, alle 500 m kraeftiger mit Beschriftung
-            float step = orthoSize > 700f ? 500f : 100f;
+            float step = orthoSize > 2500f ? 1000f : orthoSize > 700f ? 500f : 100f;
             Vector3 bl = cam.ScreenToWorldPoint(new Vector3(0, 0, 10)), tr = cam.ScreenToWorldPoint(new Vector3(Screen.width, Screen.height, 10));
             for (float x = Mathf.Floor(bl.x / step) * step; x <= tr.x; x += step)
             {
