@@ -580,11 +580,11 @@ namespace PanzerSim
             if (GUI.Button(new Rect(W - 272, 856, 212, 50), "Beenden", btn)) Quit();
 
             GUI.Label(new Rect(60, H - 128, 1600, 26),
-                "Modelle: Panzer IV von Greg McKechnie (sketchfab.com/mckechniegreg6)  ·  M4A1E9 Sherman von Sem (sketchfab.com/Sem-Hofstede)  ·  beide CC BY 4.0, fuer das Spiel angepasst (gerigged, Kette ersetzt)", small);
+                "Modelle (CC BY 4.0): Tiger I von Joanthan To (sketchfab.com/jonathanto99)  ·  Panzer IV von Greg McKechnie (sketchfab.com/mckechniegreg6)  ·  M4A1E9 Sherman von Sem (sketchfab.com/Sem-Hofstede)  ·  T-34-85 von DedRam (sketchfab.com/heirohindrima)", small);
             GUI.Label(new Rect(60, H - 102, 1600, 26),
-                "Modelle: T-34-85 von DedRam (sketchfab.com/heirohindrima), CC BY 4.0  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan), CC BY 4.0", small);
+                "Panzerhaubitze 2000 von gogiart (sketchfab.com/agt14032013)  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan)  ·  alle fuer das Spiel angepasst (gerigged, Kette ersetzt, Tiger bemalt)  ·  Lizenz: creativecommons.org/licenses/by/4.0  ·  Details: CREDITS.md", small);
             GUI.Label(new Rect(60, H - 76, 1400, 26),
-                "Weizenhalme: ffish.asia / floraZia.com, CC0  ·  Bodentexturen: ambientCG.com, CC0  ·  Panzerhaubitze 2000 von gogiart (sketchfab.com/agt14032013), CC BY 4.0, gerigged", small);
+                "CC0: Weizenhalme ffish.asia / floraZia.com  ·  Bodentexturen ambientCG.com", small);
             GUI.Label(new Rect(60, H - 50, 900, 30),
                 "Im Spiel: Esc = Pause  ·  W/A/S/D fahren  ·  Maus zielen  ·  Linksklick Kanone  ·  Rechtsklick MG  ·  Shift Visier  ·  X Ansicht  ·  G Kette reparieren  ·  F3 Dev-Anzeige", small);
         }

@@ -154,6 +154,18 @@ namespace PanzerSim
                 }
                 if (!string.IsNullOrEmpty(outDir)) { System.IO.Directory.CreateDirectory(outDir); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, "wrack.png")); }
                 Debug.Log($"BENCH-STUN: Wrack {wreck.spec.name} Rohr {Mathf.DeltaAngle(0f, -wreck.parts.gunPivot.localEulerAngles.x):0.0} Grad (min {wreck.spec.minElevation}), Wreck={wreck.GetComponent<Wreck>() != null}");
+                // Panzerung des Tigers (Modellform): 76 mm APCBC frontal (soll abprallen) und seitlich auf den Turm
+                var tiger = others.Find(o => o.spec.name == "Tiger I");
+                if (tiger != null)
+                {
+                    Vector3 tp = tiger.parts.turret.position;
+                    Shell.Fire(AmmoLibrary.All[3], tiger.transform.position + Vector3.up * 1.3f + tiger.transform.forward * 30f, -tiger.transform.forward, false);
+                    yield return new WaitForSeconds(0.5f);
+                    Shell.Fire(AmmoLibrary.All[3], tp + Vector3.up * 0.3f + tiger.transform.right * 30f, -tiger.transform.right, false);
+                    yield return new WaitForSeconds(0.5f);
+                    Shell.Fire(AmmoLibrary.All[0], tiger.transform.position + Vector3.up * 1.0f - tiger.transform.right * 30f, tiger.transform.right, false);
+                    yield return new WaitForSeconds(0.5f);
+                }
                 yield return new WaitForSeconds(1f);
                 for (int i = RangeLog.Lines.Count - 1; i >= 0; i--) Debug.Log("BENCH-STUN Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
             }

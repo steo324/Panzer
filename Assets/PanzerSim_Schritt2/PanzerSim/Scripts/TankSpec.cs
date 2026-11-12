@@ -115,23 +115,26 @@ namespace PanzerSim
         {
             name = "Tiger I",
             massT = 57f, powerPS = 700f, maxSpeedKmh = 40f, reverseKmh = 7f, turnRateDegS = 22f,
-            // Masse an das 3D-Modell angepasst (MaÃŸstab 1,2 = echte Tiger-Groesse)
-            hullLength = 6.15f, hullWidth = 3.2f, hullHeight = 1.5f, clearance = 0.35f,
-            trackWidth = 0.725f, trackInset = 0.49f,
+            // Masse aus dem 3D-Modell (Joanthan To, CC BY 4.0; Tools/Blender/rig_tiger.py, auf 6,3 m Wannenlaenge skaliert)
+            hullLength = 6.28f, hullWidth = 3.43f, hullHeight = 1.48f, clearance = 0.29f,
+            trackWidth = 0.725f, trackInset = 0.54f,      // Kettenmitte auf den Laufrollen des Modells (x = 1,54 m)
             hullFront = new Armor(100, 9), hullRear = new Armor(80, 9), hullSide = new Armor(80, 0),
             hullRoof = new Armor(25, 0), hullBottom = new Armor(25, 0),
-            turretLength = 2.75f, turretWidth = 2.1f, turretHeight = 0.86f, turretOffsetZ = 0f,
+            turretLength = 2.75f, turretWidth = 2.3f, turretHeight = 0.86f, turretOffsetZ = -0.2f,
             turretFront = new Armor(100, 0), turretSide = new Armor(80, 0), turretRear = new Armor(80, 0),
             turretRoof = new Armor(25, 0), mantlet = new Armor(110, 0),
             traverseDegS = 7f, elevationDegS = 4f, minElevation = -8f, maxElevation = 15f,
-            ammoIndex = 1, ammo = new[] { 1, 11, 12 }, reloadS = 8.5f, barrelLength = 3.5f, muzzleBrake = true,
+            ammoIndex = 1, ammo = new[] { 1, 11, 12 }, reloadS = 8.5f, barrelLength = 3.9f, muzzleBrake = true, gunPivotFromModel = true,
             sightType = SightType.German, sightFov = 25f, sightMag = 2.5f, sightName = "TZF 9c",
             sightZoomFov = new[] { 25f, 14f }, sightZoomMag = new[] { 2.5f, 5f },
-            modelResource = "Modelle/Tiger", modelScale = 1.2f,
-            meshArmor = true,
+            modelResource = "Modelle/Tiger", modelScale = 1f,
+            modelOffset = new Vector3(0f, 0f, -0.44f),   // Modell ist hinten laenger (Auspuff, Leitrad): Wanne mittig
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            meshArmor = true, meshArmorFixWinding = true,  // Plattenmodell: manche Flaechen zeigen nach innen
             hullFrontLower = new Armor(100, 24), hullGlacis = new Armor(60, 80), hullLowerSide = new Armor(60, 0),
-            wheelBoneLeft = "wheeltrackleft", wheelBoneRight = "wheeltrackright", wheelBoneCount = 10, wheelRadius = 0.33f,
-            linkTracks = true, idlerRadius = 0.256f, sprocketRadius = 0.33f,
+            // Leitrad hinten (radL0), 8 Achsen mit verschachtelten Laufrollen (800 mm), Antriebsrad vorne (radL9)
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 10, wheelRadius = 0.36f,
+            linkTracks = true, idlerRadius = 0.36f, sprocketRadius = 0.456f,
             trackPitch = 0.13f, trackShoeWidth = 0.725f, trackThickness = 0.05f, trackSag = 0.06f
         };
 
