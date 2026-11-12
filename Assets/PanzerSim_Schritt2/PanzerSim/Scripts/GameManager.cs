@@ -20,8 +20,11 @@ namespace PanzerSim
 
         int tankIndex, mapIndex;
         GameMap map;
+        public GameMap CurrentMap => map;
+        public bool InGame => state != State.Menu;
         Transform mapRoot;
         TankController player;
+        public TankController Player => player;
         readonly List<TankController> targets = new List<TankController>();
 
         Camera cam;
@@ -54,6 +57,7 @@ namespace PanzerSim
             cam = Camera.main;
             tankCam = cam.GetComponent<TankCamera>();
             if (tankCam == null) tankCam = cam.gameObject.AddComponent<TankCamera>();
+            if (cam.GetComponent<TeamHud>() == null) cam.gameObject.AddComponent<TeamHud>();   // Minikarte, Namen, Pings
             GameSettings.EnsureLoaded();
             GameSettings.ApplyCamera(cam);
 
@@ -65,6 +69,8 @@ namespace PanzerSim
             if (int.TryParse(Arg("-tank"), out int t)) tankIndex = Mathf.Clamp(t, 0, Tanks.Length - 1);
             if (ushort.TryParse(Arg("-port"), out ushort p)) portText = p.ToString();
             autoFire = Has("-autofire");
+            if (Arg("-playername") != null) GameSettings.NameOverride = Arg("-playername");
+            if (int.TryParse(Arg("-team"), out int tmo)) GameSettings.TeamOverride = Mathf.Clamp(tmo, 0, 1);
             NetSync.ServerName = Arg("-name") ?? $"Ballistik-Server ({System.Environment.MachineName})";
             if (Has("-server") || NetSync.Headless) { StartDedicatedServer(); return; }
             gameObject.AddComponent<GameUpdater>();   // neue Version auf GitHub? -> laden, neu starten
@@ -232,15 +238,25 @@ namespace PanzerSim
         }
 
         /// <summary>Spawnpunkte nebeneinander (14 m Abstand) am Startpunkt der Karte.</summary>
-        public void SpawnPoint(int i, out Vector3 pos, out float yaw)
+        public void SpawnPoint(int i, int team, out Vector3 pos, out float yaw)
         {
-            yaw = map != null ? map.PlayerYaw : 0f;
-            Vector2 p = map != null ? map.PlayerXZ : Vector2.zero;
+            TeamStart(team, out Vector2 p, out yaw);
             Vector3 side = Quaternion.Euler(0f, yaw, 0f) * Vector3.right;
             int slot = i % 8;
             float off = (slot % 2 == 0 ? 1 : -1) * ((slot + 1) / 2) * 14f;
             Vector3 xz = new Vector3(p.x, 0f, p.y) + side * off;
             pos = new Vector3(xz.x, (map != null ? map.GroundY(xz.x, xz.z) : 0f) + 0.4f, xz.z);
+        }
+
+        /// <summary>Startplatz je Team: Blau am Startpunkt der Karte, Rot gegenueber (bzw. am letzten Startpunkt der Karte).</summary>
+        void TeamStart(int team, out Vector2 p, out float yaw)
+        {
+            yaw = map != null ? map.PlayerYaw : 0f;
+            p = map != null ? map.PlayerXZ : Vector2.zero;
+            if (team != 1 || map == null) return;
+            var sp = map.SpawnPoints;
+            if (sp != null && sp.Count > 1) { p = sp[sp.Count - 1].xz; yaw = sp[sp.Count - 1].yaw; }
+            else { p = -p; yaw += 180f; }
         }
 
         public void OnNetTankSpawned(NetTank nt)
@@ -338,9 +354,11 @@ namespace PanzerSim
         void SpawnPlayer()
         {
             if (player != null) Destroy(player.gameObject);
-            Vector2 p = map.PlayerXZ;
+            TeamStart(GameSettings.Team, out Vector2 p, out float yaw0);
             var pos = new Vector3(p.x, map.GroundY(p.x, p.y) + 0.4f, p.y);
-            player = TankBuilder.Build(Tanks[tankIndex](), pos, Quaternion.Euler(0f, map.PlayerYaw + BenchYaw, 0f), true);
+            player = TankBuilder.Build(Tanks[tankIndex](), pos, Quaternion.Euler(0f, yaw0 + BenchYaw, 0f), true);
+            player.team = GameSettings.Team; player.playerName = GameSettings.PlayerName;
+            TankController.LocalTeam = player.team;
             player.autoFire = autoFire;
             tankCam.target = player;
         }
@@ -496,7 +514,7 @@ namespace PanzerSim
             text.normal.textColor = new Color(0.88f, 0.88f, 0.86f);
             small = new GUIStyle(text) { fontSize = 13 };
             small.normal.textColor = new Color(0.65f, 0.65f, 0.63f);
-            btn = new GUIStyle(GUI.skin.button) { fontSize = 17, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(14, 10, 6, 6) };
+            btn = new GUIStyle(GUI.skin.button) { fontSize = 17, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(14, 10, 6, 6), richText = true };
             btn.normal.background = texBtn; btn.hover.background = texBtnHover; btn.active.background = texSel;
             btn.normal.textColor = btn.hover.textColor = btn.active.textColor = Color.white;
             btnSel = new GUIStyle(btn) { fontStyle = FontStyle.Bold };
@@ -598,6 +616,26 @@ namespace PanzerSim
             if (GUILayout.Button("Selbst hosten (Freunde treten mit Code bei)", btn, GUILayout.Height(40))) StartHostGame();
             GUI.enabled = true;
             if (!string.IsNullOrEmpty(netMessage)) GUILayout.Label($"<color=#f77>{netMessage}</color>", text);
+            GUILayout.EndArea();
+
+            // ---- Spieler: Name und Team ----
+            var mid = new Rect(520, 760, Mathf.Max(420f, W - 1040f), 110);
+            GUI.Box(mid, GUIContent.none, panel);
+            GUILayout.BeginArea(new Rect(mid.x + 18, mid.y + 10, mid.width - 36, mid.height - 20));
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("SPIELER", head, GUILayout.Width(150));
+            GUILayout.Label("Name:", text, GUILayout.Width(70));
+            string nn = GUILayout.TextField(GameSettings.PlayerName, 20, GUILayout.Height(36), GUILayout.MinWidth(180));
+            if (nn != GameSettings.PlayerName) GameSettings.PlayerName = nn;
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("", GUILayout.Width(150));
+            for (int tm = 0; tm < 2; tm++)
+            {
+                string col = tm == 0 ? "#6af" : "#f66";
+                if (GUILayout.Button($"<color={col}>{GameSettings.TeamNames[tm]}</color>", tm == GameSettings.Team ? btnSel : btn, GUILayout.Height(38))) GameSettings.Team = tm;
+            }
+            GUILayout.EndHorizontal();
             GUILayout.EndArea();
 
             // Update-Hinweis und Version

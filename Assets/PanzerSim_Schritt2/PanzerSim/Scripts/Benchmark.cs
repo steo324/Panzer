@@ -41,6 +41,40 @@ namespace PanzerSim
                 Debug.Log($"BENCH-SPAWN: Auswahl war offen, Panzer bei {pl.transform.position}");
             }
 
+            // Team-Test (-benchteam): Ping auf den naechsten Zielpanzer, Bild (Namen, Minikarte, Ping), dann J (aussteigen), Bild
+            if (System.Array.IndexOf(args, "-benchteam") >= 0 && pl != null && cam != null)
+            {
+                TankController tgt = null; float best = 1e9f;
+                foreach (var o in FindObjectsByType<TankController>(FindObjectsSortMode.None))
+                {
+                    if (o == pl) continue;
+                    float dd = Vector3.Distance(o.transform.position, pl.transform.position);
+                    if (dd < best) { best = dd; tgt = o; }
+                }
+                if (tgt != null)
+                {
+                    for (float w = 0f; w < 2f; w += Time.unscaledDeltaTime)
+                    {
+                        Vector3 d = tgt.transform.position + Vector3.up * 1.5f - Camera.main.transform.position;
+                        cam.SetView(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, -Mathf.Asin(d.normalized.y) * Mathf.Rad2Deg);
+                        yield return null;
+                    }
+                    Pings.Send(pl, tgt.transform.position + Vector3.up * 1f);
+                    yield return new WaitForSeconds(1f);
+                    if (!string.IsNullOrEmpty(outDir)) { System.IO.Directory.CreateDirectory(outDir); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, "team_ping.png")); }
+                    yield return new WaitForSeconds(0.5f);
+                    pl.Abandon();
+                    for (float w = 0f; w < 5f; w += Time.unscaledDeltaTime)
+                    {
+                        cam.SetView(pl.transform.eulerAngles.y + 120f, 12f);
+                        yield return null;
+                    }
+                    if (!string.IsNullOrEmpty(outDir)) ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, "team_aus.png"));
+                    yield return new WaitForSeconds(0.5f);
+                    Debug.Log($"BENCH-TEAM: Ping-Ziel {tgt.spec.name} in {best:0} m, Pings {Pings.List.Count}, Spieler '{pl.DisplayName}' Team {pl.team}, zerstoert={pl.destroyed} ({pl.destroyedReason})");
+                }
+            }
+
             // Lenkraketen-Test (-benchtow): auf den Panzer, der am weitesten weg ist (bis 1 km), schiessen, Bilder im Flug
             if (System.Array.IndexOf(args, "-benchtow") >= 0 && pl != null && cam != null)
             {

@@ -288,18 +288,19 @@ namespace PanzerSim
                 GUI.Box(new Rect(10, SH - h - 10, w, h), log.TrimEnd('\n'), small);
             }
 
-            if (!inSight) GUI.Box(new Rect(SW - 330, 10, 320, 150),
+            if (!inSight) GUI.Box(new Rect(SW - 330, 10, 320, 166),
                 "W/S: fahren   A/D: lenken   Leertaste: bremsen\n" +
                 "Maus: zielen   Linksklick: " + (t.Ammo.guided ? "Rakete" : "Kanone") + (t.spec.noMg ? "" : "   Rechtsklick halten: MG") + (t.spec.artillery ? "   M: Artillerie-Karte" : "") + "\n" +
                 "Shift: Visier an/aus" + (t.spec.hasThermal ? "   V: Waermebild (im Visier)" : "") + "\n" +
                 "Mausrad: Zoom (Visier: nur wenn umschaltbar)   Q/E: Entfernung" + (t.spec.hasRangefinder ? "   R: lasern" : " (schaetzen)") + "\n" +
                 "1-7: Munition wechseln\n" +
                 "X: Ansicht (normal/Innenteile/Panzerung)   F: Feuer loeschen\n" +
-                "N: neue Ziele   T: aufrichten   B: zur Rampe (Testgelaende)\n" +
+                "N: neue Ziele / neuer Panzer   T: aufrichten   B: zur Rampe (Testgelaende)\n" +
+                "Mittlere Maustaste: Pingen (Team)   J: Besatzung steigt aus\n" +
                 "Esc: Pause / Menue\nMarker: gruen = Durchschlag, rot = nein, gelb = Abpraller", small);
 
             if (t.destroyed)
-                GUI.Label(new Rect(0, cy - 80, SW, 50), $"DU WURDEST ZERSTOERT: {t.destroyedReason}  (N druecken)", big);
+                GUI.Label(new Rect(0, cy - 80, SW, 50), t.destroyedReason == "Besatzung ausgestiegen" ? "BESATZUNG AUSGESTIEGEN  (N: neuer Panzer)" : $"DU WURDEST ZERSTOERT: {t.destroyedReason}  (N: neuer Panzer)", big);
             GUI.matrix = Matrix4x4.identity;
         }
         // ---------------- Zielmarken und Visier ----------------

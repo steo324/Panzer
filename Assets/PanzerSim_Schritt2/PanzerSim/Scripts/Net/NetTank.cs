@@ -15,6 +15,8 @@ namespace PanzerSim
     {
         public readonly NetworkVariable<int> tankType = new NetworkVariable<int>(0);
         public readonly NetworkVariable<bool> isTarget = new NetworkVariable<bool>(false);
+        public readonly NetworkVariable<int> team = new NetworkVariable<int>(TankController.TeamTarget);
+        public readonly NetworkVariable<Unity.Collections.FixedString64Bytes> playerName = new NetworkVariable<Unity.Collections.FixedString64Bytes>(default);
 
         readonly NetworkVariable<Vector3> netPos = new NetworkVariable<Vector3>(default, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         readonly NetworkVariable<Quaternion> netRot = new NetworkVariable<Quaternion>(Quaternion.identity, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
@@ -41,6 +43,10 @@ namespace PanzerSim
             var spec = GameManager.TankSpecByIndex(tankType.Value);
             tc = TankBuilder.Build(spec, transform.position, transform.rotation, IsLocalPlayer);
             tc.net = this;
+            tc.team = isTarget.Value ? TankController.TeamTarget : team.Value;
+            tc.playerName = isTarget.Value ? "" : playerName.Value.ToString();
+            if (IsLocalPlayer) TankController.LocalTeam = tc.team;
+            Debug.Log($"[Netz] Panzer gespawnt: {tc.DisplayName}, Team {tc.team}{(IsLocalPlayer ? " (eigener)" : "")}");
             if (!IsOwner) tc.rb.isKinematic = true;     // fremde Panzer folgen nur der uebertragenen Lage
             else WriteState();
             GameManager.Instance?.OnNetTankSpawned(this);
@@ -211,6 +217,15 @@ namespace PanzerSim
 
         public void ReportRepairDone() { if (IsServer) { tc.NetTrackRepaired(); SendTrackRepaired(); } else RepairDoneRpc(); }
         [Rpc(SendTo.Server)] void RepairDoneRpc() { if (tc != null) { tc.NetTrackRepaired(); SendTrackRepaired(); } }
+
+        // Besatzung steigt aus (Taste J)
+        public void RequestAbandon() { if (IsServer) tc.Abandon(); else AbandonRpc(); }
+        [Rpc(SendTo.Server)] void AbandonRpc() { if (tc != null && !isTarget.Value) tc.Abandon(); }
+
+        // Pingen: an den Server, der schickt es an alle (gezeigt wird es nur dem eigenen Team)
+        public void RequestPing(Vector3 p) => PingRpc(p);
+        [Rpc(SendTo.Server)] void PingRpc(Vector3 p) => PingAllRpc(p, team.Value, playerName.Value);
+        [Rpc(SendTo.ClientsAndHost)] void PingAllRpc(Vector3 p, int fromTeam, Unity.Collections.FixedString64Bytes from) => Pings.Add(p, fromTeam, from.ToString());
 
         public void RequestRespawn() => RespawnRpc();
         [Rpc(SendTo.Server)]

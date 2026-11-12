@@ -34,14 +34,22 @@ namespace PanzerSim
         /// <summary>Name in der Serverliste (Startparameter -name).</summary>
         public static string ServerName = "Ballistik-Server";
 
+        // Anmeldung: [Panzer][0xFE][Team][Namenslaenge][Name UTF-8][Version als Text]
+        const byte PayloadMark = 0xFE;
         static byte[] Payload(int tankIndex)
         {
             var v = System.Text.Encoding.UTF8.GetBytes(GameVersion.Current);
-            var p = new byte[1 + v.Length];
-            p[0] = (byte)tankIndex;
-            System.Array.Copy(v, 0, p, 1, v.Length);
+            var n = System.Text.Encoding.UTF8.GetBytes(GameSettings.PlayerName);
+            if (n.Length > 60) System.Array.Resize(ref n, 60);
+            var p = new byte[4 + n.Length + v.Length];
+            p[0] = (byte)tankIndex; p[1] = PayloadMark; p[2] = (byte)GameSettings.Team; p[3] = (byte)n.Length;
+            System.Array.Copy(n, 0, p, 4, n.Length);
+            System.Array.Copy(v, 0, p, 4 + n.Length, v.Length);
             return p;
         }
+
+        struct PlayerInfo { public int tank, team; public string name; }
+        static readonly Dictionary<ulong, PlayerInfo> players = new Dictionary<ulong, PlayerInfo>();
 
         /// <summary>Angaben fuer die Serverliste aktualisieren (Server/Host, im Hauptthread).</summary>
         public static void UpdateQueryInfo(string mapName, ushort port)
@@ -80,9 +88,18 @@ namespace PanzerSim
             nm.AddNetworkPrefab(SessionPrefab);
             nm.ConnectionApprovalCallback = (req, resp) =>
             {
-                // Anfrage: [Panzer-Nummer][Version als Text]
-                int tank = req.Payload != null && req.Payload.Length > 0 ? req.Payload[0] : 0;
-                string ver = req.Payload != null && req.Payload.Length > 1 ? System.Text.Encoding.UTF8.GetString(req.Payload, 1, req.Payload.Length - 1) : "?";
+                // Anfrage: [Panzer][0xFE][Team][Namenslaenge][Name][Version] (aelter: [Panzer][Version])
+                var pl = req.Payload;
+                int tank = pl != null && pl.Length > 0 ? pl[0] : 0;
+                int team = 0; string pname = ""; string ver = "?";
+                if (pl != null && pl.Length >= 4 && pl[1] == PayloadMark && 4 + pl[3] <= pl.Length)
+                {
+                    team = Mathf.Clamp(pl[2], 0, 1);
+                    pname = System.Text.Encoding.UTF8.GetString(pl, 4, pl[3]);
+                    ver = System.Text.Encoding.UTF8.GetString(pl, 4 + pl[3], pl.Length - 4 - pl[3]);
+                }
+                else if (pl != null && pl.Length > 1) ver = System.Text.Encoding.UTF8.GetString(pl, 1, pl.Length - 1);
+                players[req.ClientNetworkId] = new PlayerInfo { tank = tank, team = team, name = string.IsNullOrWhiteSpace(pname) ? $"Spieler {req.ClientNetworkId}" : pname };
                 resp.CreatePlayerObject = false;
                 bool self = req.ClientNetworkId == NetworkManager.ServerClientId;   // Host selbst
                 if (!self && ver != GameVersion.Current && !GameVersion.IsDev)
@@ -181,7 +198,7 @@ namespace PanzerSim
             LobbyListing.Unpublish();
             RelayCode = "";
             if (NM != null && NM.IsListening) NM.Shutdown();
-            requestedTank.Clear();
+            requestedTank.Clear(); players.Clear();
         }
 
         static void SpawnSession()
@@ -224,13 +241,23 @@ namespace PanzerSim
         public static void SpawnPlayerTank(ulong clientId, int tankIndex)
         {
             var gm = GameManager.Instance;
+            players.TryGetValue(clientId, out var info);
             Vector3 pos; float yaw;
-            gm.SpawnPoint(spawnCounter++, out pos, out yaw);
+            gm.SpawnPoint(spawnCounter++, info.team, out pos, out yaw);
             var go = Object.Instantiate(TankPrefab, pos, Quaternion.Euler(0f, yaw, 0f));
             var nt = go.GetComponent<NetTank>();
             nt.tankType.Value = tankIndex;
             nt.isTarget.Value = false;
+            nt.team.Value = info.team;
+            nt.playerName.Value = new Unity.Collections.FixedString64Bytes(Trunc(info.name ?? "Spieler"));
             go.GetComponent<NetworkObject>().SpawnWithOwnership(clientId, true);
+        }
+
+        /// <summary>Name fuer FixedString64 kuerzen (hoechstens 61 Bytes UTF-8).</summary>
+        static string Trunc(string s)
+        {
+            while (System.Text.Encoding.UTF8.GetByteCount(s) > 60) s = s.Substring(0, s.Length - 1);
+            return s;
         }
 
         public static void SpawnTargetTank(int tankIndex, Vector3 pos, float yaw)

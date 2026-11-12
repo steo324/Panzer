@@ -12,6 +12,23 @@ namespace PanzerSim
         public TankSpec spec;
         public bool isPlayer;
 
+        // Teams: 0 Blau, 1 Rot, 2 Zielpanzer (fuer alle Gegner). Name steht ueber dem Panzer.
+        public const int TeamTarget = 2;
+        public int team = TeamTarget;
+        public string playerName = "";
+        /// <summary>Team des eigenen Spielers (fuer Farben: blau = eigenes Team, rot = Gegner).</summary>
+        public static int LocalTeam = 0;
+        public bool IsFriendly => team != TeamTarget && team == LocalTeam;
+        public string DisplayName => string.IsNullOrEmpty(playerName) ? spec.name : playerName;
+
+        /// <summary>Besatzung steigt aus (Taste J): Panzer gilt als ausgeschaltet, die Leute rennen weg. Danach neu spawnen (N).</summary>
+        public void Abandon()
+        {
+            if (destroyed) return;
+            if (NetSync.IsClientOnly) { net?.RequestAbandon(); return; }   // Mehrspieler: Server entscheidet
+            SetDestroyed("Besatzung ausgestiegen");
+        }
+
         // Von der Kamera gesetzt
         [HideInInspector] public Vector3 aimPoint;
         [HideInInspector] public float sightRange = 500f;
@@ -151,6 +168,11 @@ namespace PanzerSim
             UpdateRecoil(dt);
             UpdateRepair(dt);
             if (isPlayer && !destroyed && Inp.Down(KeyCode.G)) StartRepair();
+            if (isPlayer && !destroyed && Inp.Down(KeyCode.J) && Cursor.lockState == CursorLockMode.Locked)
+            {
+                Abandon();
+                RangeLog.AddLocal("Besatzung steigt aus - mit N neuen Panzer holen");
+            }
             if (reloadLeft > 0f && seats.Count > 0) reloadLeft -= dt / ReloadMultiplier();
 
             // Turm-MG: rechte Maustaste (eigener Panzer), fremde Panzer zeigen das uebertragene Feuer
@@ -778,7 +800,10 @@ namespace PanzerSim
                 Effects.Burn(transform, new Vector3(0f, spec.clearance + spec.hullHeight, -spec.hullLength * 0.3f), 60f, 0.6f);
             Wreck.Begin(this, flames);
             string why = ammo ? "Munition explodiert" : reason == "Besatzung ausgeschaltet" ? "Besatzung ausgefallen" : reason;
-            TankCamera.Notice(isPlayer ? $"DEIN PANZER IST AUSGESCHALTET  ({why})" : $"{spec.name} AUSGESCHALTET  ({why})", isPlayer);
+            if (reason == "Besatzung ausgestiegen")
+                TankCamera.Notice(isPlayer ? "BESATZUNG AUSGESTIEGEN  -  N: neuer Panzer" : $"{DisplayName}: Besatzung ausgestiegen", isPlayer);
+            else
+                TankCamera.Notice(isPlayer ? $"DEIN PANZER IST AUSGESCHALTET  ({why})  -  N: neuer Panzer" : $"{DisplayName} AUSGESCHALTET  ({why})", isPlayer);
             foreach (var p in parts.plates)
                 if (p != null) p.GetComponent<Renderer>().sharedMaterial = GameMap.Mat(new Color(0.12f, 0.12f, 0.12f));
         }

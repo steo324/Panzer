@@ -78,6 +78,33 @@ namespace PanzerSim
             Apply(true);
         }
 
+        // ---- Spieler: Name (ueber dem Panzer) und Team (0 Blau, 1 Rot), sofort gespeichert ----
+        static string playerName;
+        /// <summary>Nur fuer diesen Start (Startparameter -playername / -team, z. B. zum Testen mit zwei Fenstern), wird nicht gespeichert.</summary>
+        public static string NameOverride; public static int TeamOverride = -1;
+        public static string PlayerName
+        {
+            get
+            {
+                if (!string.IsNullOrEmpty(NameOverride)) return NameOverride;
+                if (playerName == null) playerName = PlayerPrefs.GetString("p.name", "");
+                if (string.IsNullOrWhiteSpace(playerName)) { playerName = "Panzer" + Random.Range(100, 999); PlayerPrefs.SetString("p.name", playerName); }
+                return playerName;
+            }
+            set
+            {
+                string v = (value ?? "").Replace("|", "").Trim();
+                if (v.Length > 20) v = v.Substring(0, 20);
+                playerName = v; PlayerPrefs.SetString("p.name", v); PlayerPrefs.Save();
+            }
+        }
+        public static int Team
+        {
+            get => TeamOverride >= 0 ? TeamOverride : Mathf.Clamp(PlayerPrefs.GetInt("p.team", 0), 0, 1);
+            set { PlayerPrefs.SetInt("p.team", Mathf.Clamp(value, 0, 1)); PlayerPrefs.Save(); }
+        }
+        public static readonly string[] TeamNames = { "Team Blau", "Team Rot" };
+
         public static void Save()
         {
             PlayerPrefs.SetInt("s.version", 2);
