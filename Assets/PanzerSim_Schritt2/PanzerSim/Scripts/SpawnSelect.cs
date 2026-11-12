@@ -110,11 +110,12 @@ namespace PanzerSim
             GUI.Label(new Rect(mr.x + 4, mr.yMax - 20, 300, 20), "<color=#222>Gitter: 1 km   Norden oben</color>", small);
 
             // Ortsnamen
-            if (map is HillsMap hm)
-                foreach (var (nm, c) in hm.Places())
+            IEnumerable<(string, Vector2)> names = map is HillsMap hm ? hm.Places() : map is RealMap rm ? rm.Places() : null;
+            if (names != null)
+                foreach (var (nm, c) in names)
                 {
                     Vector2 s = ToScreen(mr, c);
-                    GUI.Label(new Rect(s.x - 70, s.y - 26, 140, 18), nm, mapName);
+                    GUI.Label(new Rect(s.x - 90, s.y - 26, 180, 18), nm, mapName);
                 }
 
             // Startpunkte

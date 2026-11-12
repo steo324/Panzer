@@ -13,7 +13,10 @@ namespace PanzerSim
 
         static readonly System.Func<TankSpec>[] Tanks =
             { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85, () => TankLibrary.Wiesel, () => TankLibrary.PzH2000 };
-        readonly GameMap[] maps = { new PlainsMap(), new TestRangeMap(), new HillsMap() };   // Reihenfolge = Kartennummer (-map), nicht umsortieren
+        readonly GameMap[] maps = { new PlainsMap(), new TestRangeMap(), new HillsMap(),   // Reihenfolge = Kartennummer (-map), nicht umsortieren
+            new RealMap("HornBadMeinberg", "Horn-Bad Meinberg",
+                "Echte Gegend, 5 x 5 km: Horn und Bad Meinberg mit Externsteinen am Teutoburger Wald. Gelaende aus dem amtlichen Hoehenmodell NRW (1 m genau), Strassen, Gebaeude, Waelder und Felder aus OpenStreetMap.",
+                ("Externsteine", -2254f, -1358f)) };
 
         int tankIndex, mapIndex;
         GameMap map;
@@ -612,7 +615,7 @@ namespace PanzerSim
             GUI.Label(new Rect(60, H - 102, 1600, 26),
                 "Panzerhaubitze 2000 von gogiart (sketchfab.com/agt14032013)  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan)  ·  alle fuer das Spiel angepasst (gerigged, Kette ersetzt, Tiger bemalt)  ·  Lizenz: creativecommons.org/licenses/by/4.0  ·  Details: CREDITS.md", small);
             GUI.Label(new Rect(60, H - 76, 1400, 26),
-                "CC0: Weizenhalme ffish.asia / floraZia.com  ·  Bodentexturen ambientCG.com", small);
+                "CC0: Weizenhalme ffish.asia / floraZia.com  ·  Bodentexturen ambientCG.com  ·  Kartendaten (c) OpenStreetMap-Mitwirkende (ODbL)  ·  Gelaende: Geobasis NRW (dl-de/zero-2-0)", small);
             GUI.Label(new Rect(60, H - 50, 900, 30),
                 "Im Spiel: Esc = Pause  ·  W/A/S/D fahren  ·  Maus zielen  ·  Linksklick Kanone  ·  Rechtsklick MG  ·  Shift Visier  ·  X Ansicht  ·  G Kette reparieren  ·  F3 Dev-Anzeige", small);
         }

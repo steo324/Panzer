@@ -15,6 +15,11 @@ Alle unter **CC BY 4.0** stehenden Werke: Lizenz <https://creativecommons.org/li
 | „Panzerhaubitze 2000“ | gogiart ([sketchfab.com/agt14032013](https://sketchfab.com/agt14032013)) | [Sketchfab](https://sketchfab.com/3d-models/panzerhaubitze-2000-16fd81fed1c445a6a608a14847ae44d1) | gerigged, Teile umsortiert, abstehende Flächen entfernt |
 | Weizenbüschel | ebmclachlan ([sketchfab.com/ebmclachlan](https://sketchfab.com/ebmclachlan)) | Sketchfab | für Felder vervielfältigt |
 
+## Kartendaten (Karte „Horn-Bad Meinberg“)
+
+- Straßen, Gebäude, Wälder, Felder, Gewässer, Ortsnamen: © [OpenStreetMap](https://www.openstreetmap.org/copyright)-Mitwirkende, Lizenz [ODbL](https://opendatacommons.org/licenses/odbl/) – umgewandelt mit `Tools/RealMap/fetch_map.py`
+- Geländehöhen: Digitales Geländemodell (DGM1) © Geobasis NRW, [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0), auf 3,9 m Raster umgerechnet
+
 ## CC0 (Nennung freiwillig)
 
 - Weizenhalme: ffish.asia / floraZia.com
