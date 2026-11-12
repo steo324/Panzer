@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Richtet den Panzer-Server auf Linux (z. B. CachyOS/Arch) ein: laedt die neueste Version, legt einen
 # systemd-Dienst an (startet beim Hochfahren, aktualisiert sich selbst), oeffnet die Firewall-Ports.
-# Aufruf:  bash install.sh "Name in der Serverliste" [Karte: 0 = Weite Ebene, 1 = Testgelaende]
+# Aufruf:  bash install.sh "Name in der Serverliste" [Karte: 0 = Weite Ebene, 1 = Testgelaende, 2 = Huegelland (Standard)]
 set -euo pipefail
 NAME="${1:-Ballistik-Server}"
-MAP="${2:-0}"
+MAP="${2:-2}"
 DIR="$HOME/panzer-server"
 RAW="https://raw.githubusercontent.com/steo324/Panzer/main/Tools/Server"
 
