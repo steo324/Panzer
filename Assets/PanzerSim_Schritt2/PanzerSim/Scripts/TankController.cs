@@ -313,7 +313,7 @@ namespace PanzerSim
             float d = 0f;
             foreach (var b in trackBreaks) d += b.damage;
             float t = 4f + d * 0.2f;
-            if (!SeatOk(ModuleType.Loader)) t *= 1.25f;   // weniger Haende
+            if (HasSeat(ModuleType.Loader) && !SeatOk(ModuleType.Loader)) t *= 1.25f;   // weniger Haende
             return Mathf.Clamp(t, 8f, MaxRepairS);
         }
 
@@ -345,7 +345,7 @@ namespace PanzerSim
         void StartRepair()
         {
             if (trackBreaks.Count == 0 || repairing || destroyed) return;
-            if (!SeatOk(ModuleType.Driver) && !SeatOk(ModuleType.Loader) && !SeatOk(ModuleType.RadioOperator))
+            if (!SeatOk(ModuleType.Driver) && !SeatOk(ModuleType.Loader) && !SeatOk(ModuleType.RadioOperator) && !SeatOk(ModuleType.Commander))
             { RangeLog.Add("Niemand da, der die Kette reparieren kann!"); return; }
             repairing = true;
             repairLeft = RepairTimeNeeded();
@@ -405,7 +405,8 @@ namespace PanzerSim
 
         public float ReloadMultiplier()
         {
-            // Ohne Ladeschuetze laedt der Richtschuetze selbst
+            // Ohne Ladeschuetze laedt der Richtschuetze selbst (Fahrzeuge ohne Ladeschuetzen-Platz: schon in der Ladezeit enthalten)
+            if (!HasSeat(ModuleType.Loader)) return 1f;
             return SeatOk(ModuleType.Loader) ? 1f : 2.5f;
         }
 
@@ -619,6 +620,9 @@ namespace PanzerSim
 
         int Priority(ModuleType role) => System.Array.IndexOf(SeatPriority, role);
 
+        /// <summary>Gibt es diesen Platz in diesem Fahrzeug? (Wiesel: kein Ladeschuetze, kein Funker)</summary>
+        public bool HasSeat(ModuleType role) => spec.crew == null || System.Array.IndexOf(spec.crew, role) >= 0;
+
         void UpdateCrew(float dt)
         {
             if (destroyed) return;
@@ -640,7 +644,7 @@ namespace PanzerSim
             for (int r = 0; r < 3; r++)
             {
                 ModuleType role = SeatPriority[r];
-                if (SeatOk(role)) continue;
+                if (SeatOk(role) || !HasSeat(role)) continue;
                 // Spender: jemand auf einem weniger wichtigen Platz
                 for (int d = SeatPriority.Length - 1; d > r; d--)
                 {

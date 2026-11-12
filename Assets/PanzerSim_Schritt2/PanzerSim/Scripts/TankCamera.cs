@@ -197,6 +197,7 @@ namespace PanzerSim
                        TrackStatus(t) + "\n<b>Besatzung</b>\n";
             foreach (ModuleType role in new[] { ModuleType.Commander, ModuleType.Gunner, ModuleType.Loader, ModuleType.Driver, ModuleType.RadioOperator })
             {
+                if (t.spec.crew != null && System.Array.IndexOf(t.spec.crew, role) < 0) continue;   // gibt es in diesem Fahrzeug nicht
                 t.seats.TryGetValue(role, out var m);
                 string who = m == null ? "<color=#f66>leer</color>"
                            : m.Destroyed ? "<color=#f66>tot</color>"

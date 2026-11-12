@@ -354,7 +354,10 @@ namespace PanzerSim
             }
             Shell.Marker(pos, Color.green, 0.25f);
             float reserve = r.penetrationMm - r.effectiveArmorMm;
-            float reach = 2.5f;
+            // Grosse Gefechtskoepfe (Lenkraketen, ab 120 mm): Strahl reicht durchs ganze Fahrzeug,
+            // dazu ein breiter Splitterregen und Ueberdruck im Kampfraum - meist das Ende fuer Besatzung und Munition.
+            bool heavy = data.caliberMm >= 120f;
+            float reach = heavy ? 5f : 2.5f;
             Vector3 exit = pos + dir * 0.01f;
             for (int i = 0; i < 6; i++)
             {
@@ -383,8 +386,13 @@ namespace PanzerSim
             }
             // Innenwirkung: der Strahl selbst + schmaler Kegel aus Splittern (stoppt an der naechsten Panzerung)
             float len = Mathf.Max(reach, 0.3f);
-            Damage.Fragments(exit, dir, 1, 0f, 140f, len, ReportDamage);
-            Damage.Fragments(exit, dir, 10, 9f, 35f + reserve * 0.3f, len, ReportDamage);
+            Damage.Fragments(exit, dir, 1, 0f, heavy ? 400f : 140f, len, ReportDamage);
+            Damage.Fragments(exit, dir, heavy ? 45 : 10, heavy ? 24f : 9f, 35f + reserve * 0.3f, len, ReportDamage);
+            if (heavy && reserve > 0f)
+            {
+                report.Add("   Schwerer Gefechtskopf: Splitterregen und Ueberdruck im Innenraum");
+                Damage.Explosion(exit + dir * 0.5f, data.fillerKg * 0.4f, ReportDamage);
+            }
             Finish();
         }
 

@@ -92,8 +92,10 @@ namespace PanzerSim
             float crewH = Mathf.Min(0.8f, H * 0.75f);
             float dz = Mathf.Min(L * 0.30f, frontZ(crewH) - 0.25f);
             float dx = Mathf.Min(W * 0.22f, sideX(crewH) - 0.25f);
+            bool Crew(ModuleType t) => s.crew == null || System.Array.IndexOf(s.crew, t) >= 0;   // Besatzung laut Fahrzeug (Standard: 5 Mann)
             Module(hull, ModuleType.Driver, new Vector3(-dx, y0 + crewH / 2f + 0.05f, dz), new Vector3(0.45f, crewH, 0.45f), 100, 0.05f, root, parts);
-            Module(hull, ModuleType.RadioOperator, new Vector3(dx, y0 + crewH / 2f + 0.05f, dz), new Vector3(0.45f, crewH, 0.45f), 100, 0.05f, root, parts);
+            if (Crew(ModuleType.RadioOperator))
+                Module(hull, ModuleType.RadioOperator, new Vector3(dx, y0 + crewH / 2f + 0.05f, dz), new Vector3(0.45f, crewH, 0.45f), 100, 0.05f, root, parts);
             Module(hull, ModuleType.Transmission, new Vector3(0f, y0 + 0.3f, Mathf.Min(L * 0.42f, frontZ(0.5f) - 0.3f)), new Vector3(W * 0.3f, 0.5f, 0.5f), 100, 0.3f, root, parts);
             Module(hull, ModuleType.Engine, new Vector3(0f, y0 + H * 0.4f, -L * 0.33f), new Vector3(W * 0.5f, H * 0.6f, L * 0.22f), 120, 0.5f, root, parts);
             Module(hull, ModuleType.Fuel, new Vector3(0f, y0 + 0.2f, -L * 0.13f), new Vector3(W * 0.6f, 0.3f, 0.6f), 60, 0.1f, root, parts);
@@ -102,9 +104,19 @@ namespace PanzerSim
             Module(hull, ModuleType.Ammo, new Vector3(ax, y0 + H * 0.35f, 0f), new Vector3(0.35f, H * 0.45f, 0.9f), 40, 0.1f, root, parts, "Munition rechts");
 
             // Im Turm (Besatzung sitzt teils unter dem Turmring)
-            Module(turret, ModuleType.Gunner, new Vector3(-Wt * 0.25f, 0.05f, Lt * 0.1f), new Vector3(0.45f, 0.8f, 0.45f), 100, 0.05f, root, parts);
-            Module(turret, ModuleType.Loader, new Vector3(Wt * 0.25f, 0.05f, Lt * 0.05f), new Vector3(0.45f, 0.8f, 0.45f), 100, 0.05f, root, parts);
-            Module(turret, ModuleType.Commander, new Vector3(0f, 0.15f, -Lt * 0.28f), new Vector3(0.45f, 0.8f, 0.45f), 100, 0.05f, root, parts);
+            if (s.crewInHull)
+            {
+                // kein bemannter Turm (z. B. Wiesel: Werfer auf einer Saeule) - Richtschuetze und Kommandant sitzen hinten in der Wanne
+                Module(hull, ModuleType.Gunner, new Vector3(dx, y0 + crewH / 2f + 0.05f, s.turretOffsetZ), new Vector3(0.45f, crewH, 0.45f), 100, 0.05f, root, parts);
+                Module(hull, ModuleType.Commander, new Vector3(-dx, y0 + crewH / 2f + 0.05f, s.turretOffsetZ - 0.45f), new Vector3(0.45f, crewH, 0.45f), 100, 0.05f, root, parts);
+            }
+            else
+            {
+                Module(turret, ModuleType.Gunner, new Vector3(-Wt * 0.25f, 0.05f, Lt * 0.1f), new Vector3(0.45f, 0.8f, 0.45f), 100, 0.05f, root, parts);
+                if (Crew(ModuleType.Loader))
+                    Module(turret, ModuleType.Loader, new Vector3(Wt * 0.25f, 0.05f, Lt * 0.05f), new Vector3(0.45f, 0.8f, 0.45f), 100, 0.05f, root, parts);
+                Module(turret, ModuleType.Commander, new Vector3(0f, 0.15f, -Lt * 0.28f), new Vector3(0.45f, 0.8f, 0.45f), 100, 0.05f, root, parts);
+            }
             Module(turret, ModuleType.Breech, new Vector3(0f, Ht * 0.45f, Lt * 0.15f), new Vector3(0.3f, 0.3f, 0.8f), 150, 0.3f, root, parts);
             Module(turret, ModuleType.TurretDrive, new Vector3(-Wt * 0.32f, 0.1f, Lt * 0.3f), new Vector3(0.25f, 0.25f, 0.25f), 60, 0.1f, root, parts);
 

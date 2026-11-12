@@ -53,6 +53,8 @@ namespace PanzerSim
         public bool noGun;                   // (noch) keine Hauptwaffe: Feuern und MG aus (Wiesel: TOW-Lenkrakete folgt)
         public bool devOnly;                 // nur im Entwickler-Modus waehlbar (Fahrzeug in Arbeit)
         public bool noMg;                    // kein Turm-MG
+        public ModuleType[] crew;            // Besatzung (null = Kommandant, Richtschuetze, Ladeschuetze, Fahrer, Funker)
+        public bool crewInHull;              // Richtschuetze/Kommandant sitzen in der Wanne (kein bemannter Turm)
         public bool hasThermal;              // Zielgeraet mit Waermebild (Taste V im Visier)
         public bool gunPivotFromModel;       // Kanonen-/Werfergelenk an die Stelle des Modell-Gelenks legen (Werfer sitzt nicht vorne am Turm)
         public bool muzzleBrake;             // Muendungsbremse (Gas schiesst seitlich raus)
@@ -220,6 +222,8 @@ namespace PanzerSim
             traverseDegS = 30f, elevationDegS = 15f, minElevation = -10f, maxElevation = 25f,
             // TOW-2 und TOW; Nachladen von Hand durch die Luke (~20 s), nur eine Rakete gleichzeitig im Flug (Draht)
             ammoIndex = 16, ammo = new[] { 16, 15 }, reloadS = 20f, barrelLength = 0.85f, devOnly = true, noMg = true,
+            // 3 Mann: Fahrer (vorne links), Richtschuetze (hinten rechts unter dem Werfer), Kommandant (hinten links)
+            crew = new[] { ModuleType.Driver, ModuleType.Gunner, ModuleType.Commander }, crewInHull = true,
             gunPivotFromModel = true,
             // TOW-Zielgeraet: Tagkanal 13-fach, Waermebild (Taste V) mit weitem Feld 4-fach
             sightType = SightType.TOW, sightFov = 4.5f, sightMag = 13f, sightName = "TOW-Zielgeraet",
