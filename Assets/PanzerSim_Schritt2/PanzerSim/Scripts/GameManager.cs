@@ -775,6 +775,21 @@ namespace PanzerSim
         // ================= Einstellungen =================
         bool settingsOpen;
         int settingsTab;
+
+        // ---- Entwickler-Modus: nur mit Code. Gespeichert ist nur die SHA-256-Pruefsumme (Repo ist oeffentlich).
+        // Neuen Code setzen: Pruefsumme des neuen Codes (kleingeschrieben, ohne Leerzeichen) hier eintragen.
+        const string DevCodeHash = "b28846fde2d25cef5b384ad1494877ee871c84b19a29ad8e022095c3707165cf";
+        string devCode = "", devCodeMsg = "";
+        static bool DevCodeOk(string code)
+        {
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            {
+                byte[] h = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes((code ?? "").Trim().ToLowerInvariant()));
+                var sb = new System.Text.StringBuilder();
+                foreach (byte b in h) sb.Append(b.ToString("x2"));
+                return sb.ToString() == DevCodeHash;
+            }
+        }
         Vector2 settingsScroll;
         GUIStyle rowLabel, valueLabel, tabBtn, tabSel, note;
 
@@ -868,10 +883,30 @@ namespace PanzerSim
                 GUILayout.Space(10);
                 bool dev = DevMetrics.Visible;
                 if (Toggle("Entwickler-Anzeige (F3)", ref dev)) DevMetrics.Visible = dev;
-                if (Toggle("Entwickler-Modus (Test-Fahrzeuge, z. B. Wiesel)", ref GameSettings.DevMode))
+                if (GameSettings.DevMode)
                 {
-                    changed = true;
-                    if (!GameSettings.DevMode && Tanks[tankIndex]().devOnly) { tankIndex = 0; BuildPreview(); }
+                    // eingeschaltet: einfach wieder ausschalten
+                    bool on = true;
+                    if (Toggle("Entwickler-Modus (Test-Fahrzeuge, z. B. Wiesel)", ref on) && !on)
+                    {
+                        GameSettings.DevMode = false; changed = true;
+                        if (Tanks[tankIndex]().devOnly) { tankIndex = 0; BuildPreview(); }
+                    }
+                }
+                else
+                {
+                    // einschalten nur mit Code
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("Entwickler-Modus - Code:", rowLabel ?? text, GUILayout.Width(260));
+                    devCode = GUILayout.PasswordField(devCode, '*', 32, GUILayout.Width(200), GUILayout.Height(34));
+                    if (GUILayout.Button("Freischalten", btn, GUILayout.Width(170), GUILayout.Height(38)))
+                    {
+                        if (DevCodeOk(devCode)) { GameSettings.DevMode = true; changed = true; devCodeMsg = "Entwickler-Modus an."; }
+                        else devCodeMsg = "Falscher Code.";
+                        devCode = "";
+                    }
+                    GUILayout.EndHorizontal();
+                    if (devCodeMsg.Length > 0) GUILayout.Label(devCodeMsg, note);
                 }
                 GUILayout.Label("Zeigt Fahrzeuge, die noch in Arbeit sind, in der Panzerauswahl.", note);
             }
