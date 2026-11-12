@@ -293,6 +293,9 @@ namespace PanzerSim
 
         static void AddLight(Vector3 pos, Color c, float intensity, float range, float duration)
         {
+            if (root == null) return;
+            for (int i = lights.Count - 1; i >= 0; i--)   // geloeschte Lichter austragen
+                if (lights[i] == null) { lights.RemoveAt(i); lightEnd.RemoveAt(i); lightPeak.RemoveAt(i); lightLen.RemoveAt(i); }
             Light l = null;
             int idx = -1;
             for (int i = 0; i < lights.Count; i++) if (!lights[i].enabled) { l = lights[i]; idx = i; break; }
@@ -320,6 +323,7 @@ namespace PanzerSim
             if (NetSync.Headless) return false;   // Server ohne Grafik: keine Effekte
             if (root != null && spall != null && smoke != null && dust != null && dirt != null && fire != null && sparks != null && flash != null && embers != null) return true;
             if (root != null) { Object.Destroy(root); root = null; }   // ein Partikelsystem ist weg: alles neu aufbauen
+            lights.Clear(); lightEnd.Clear(); lightPeak.Clear(); lightLen.Clear();   // die Lichter hingen am alten Objekt
             var sh = Shader.Find("PanzerSim/Partikel");
             if (sh == null) sh = Resources.Load<Shader>("Shaders/Partikel");
             if (sh == null) { Debug.LogWarning("Effekte: Partikel-Shader fehlt."); return false; }
@@ -346,7 +350,7 @@ namespace PanzerSim
             sparks.GetComponent<ParticleSystemRenderer>().lengthScale = 1f;
             flash = Make("Blitz", add(star), 200, 0f, 0f, Curve(0f, 0.6f, 1f, 1.2f), FadeInOut(0.01f, 0.4f), 0f);
             embers = Make("Glut", add(glow), 2000, -0.12f, 0.6f, Curve(0f, 1f, 1f, 0.3f), FadeInOut(0.1f, 0.5f), 0.8f);
-            spall = Make("Splitter", alpha(chunk, 0.3f), 3000, 0.3f, 0f, Curve(0f, 1f, 1f, 1f), FadeInOut(0.01f, 0.95f), 0f);
+            spall = Make("Splitter-Partikel",alpha(chunk, 0.3f), 3000, 0.3f, 0f, Curve(0f, 1f, 1f, 1f), FadeInOut(0.01f, 0.95f), 0f);
             craterMat = alpha(Texture2D.whiteTexture, 0.85f);
             craterMat.renderQueue = 2990;   // vor Rauch/Staub zeichnen
             craters.Clear();
@@ -493,7 +497,7 @@ namespace PanzerSim
                 for (int i = 0; i < lights.Count; i++)
                 {
                     var l = lights[i];
-                    if (!l.enabled) continue;
+                    if (l == null || !l.enabled) continue;
                     float left = lightEnd[i] - now;
                     if (left <= 0f) { l.enabled = false; continue; }
                     float f = left / Mathf.Max(lightLen[i], 0.001f);

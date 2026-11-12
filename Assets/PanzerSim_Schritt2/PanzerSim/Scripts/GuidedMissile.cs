@@ -45,7 +45,7 @@ namespace PanzerSim
             m.speed = EjectSpeed;
             m.vel = dir * EjectSpeed + (tc.rb != null ? tc.rb.linearVelocity : Vector3.zero);
             m.Setup();
-            LaunchEffects(tc);
+            try { LaunchEffects(tc); } catch (System.Exception e) { Debug.LogException(e); }
             return m;
         }
 
@@ -58,7 +58,7 @@ namespace PanzerSim
             go.transform.position = pos; m.ghostTarget = pos;
             m.launchPos = tc != null && tc.parts.muzzle != null ? tc.parts.muzzle.position : pos;
             m.Setup();
-            if (tc != null) LaunchEffects(tc);
+            if (tc != null) { try { LaunchEffects(tc); } catch (System.Exception e) { Debug.LogException(e); } }
             return m;
         }
 

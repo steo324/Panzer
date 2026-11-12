@@ -256,12 +256,13 @@ namespace PanzerSim
             if (!SeatActive(ModuleType.Gunner)) { RangeLog.Add(SeatOk(ModuleType.Gunner) ? "Richtschuetze bewusstlos!" : "Kein Richtschuetze!"); return; }
             if (Ammo.guided)
             {
-                activeMissile = GuidedMissile.Launch(this, ammoIndex);
                 reloadLeft = spec.reloadS;
+                activeMissile = GuidedMissile.Launch(this, ammoIndex);
                 return;
             }
             if (!Working(ModuleType.Breech)) { RangeLog.Add("Kanonenverschluss zerstoert!"); return; }
 
+            reloadLeft = spec.reloadS;   // zuerst: auch wenn danach ein Effekt scheitert, wird nachgeladen
             Vector3 origin = parts.muzzle.position, dir = parts.gunPivot.forward;
             float speed = artilleryAim ? artySpeed : 0f;                         // Artillerie: Treibladung bestimmt die Geschwindigkeit
             if (net != null && NetSync.Active)
@@ -273,8 +274,7 @@ namespace PanzerSim
             // Rueckstoss: Granate + Treibgase (ca. 1,5x Geschossimpuls); die Rohrbremse daempft ihn ueber den Ruecklauf
             rb.AddForceAtPosition(-parts.gunPivot.forward * Ammo.massKg * Ammo.muzzleVelocity * 0.45f,
                                   parts.gunPivot.position, ForceMode.Impulse);
-            PlayFireEffects(ammoIndex);
-            reloadLeft = spec.reloadS;
+            try { PlayFireEffects(ammoIndex); } catch (System.Exception e) { Debug.LogException(e); }
         }
 
         // ---- Test: automatisch auf den naechsten Panzer schiessen (Startparameter -autofire) ----

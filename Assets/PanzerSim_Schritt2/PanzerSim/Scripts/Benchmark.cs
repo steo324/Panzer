@@ -105,6 +105,15 @@ namespace PanzerSim
             // Erschuetterungs-Test (-benchstun): Granaten auf/neben fremde Panzer setzen, Besatzungszustand protokollieren
             if (System.Array.IndexOf(args, "-benchstun") >= 0 && pl != null)
             {
+                // wie nach dem Verlassen einer Runde: ein Effekt-Partikelsystem ist weg (Effekte muessen sich neu aufbauen)
+                pl.BenchFire();
+                yield return new WaitForSeconds(0.5f);
+                var fx = GameObject.Find("Splitter-Partikel");
+                if (fx != null) Destroy(fx.transform.parent.gameObject);
+                yield return null;
+                pl.BenchFire();
+                yield return null;
+                Debug.Log($"BENCH-STUN: nach Effekt-Verlust Nachladen {pl.reloadLeft:0.0} s (soll {pl.spec.reloadS})");
                 var others = new List<TankController>();
                 foreach (var other in FindObjectsByType<TankController>(FindObjectsSortMode.None)) if (other != pl) others.Add(other);
                 others.Sort((x, y) => Vector3.Distance(x.transform.position, pl.transform.position).CompareTo(Vector3.Distance(y.transform.position, pl.transform.position)));
