@@ -20,6 +20,8 @@ namespace PanzerSim
         bool sightMode;
         /// <summary>Leistungstest (-benchsight): im Zielfernrohr starten.</summary>
         public static bool BenchSight;
+        /// <summary>Leistungstest (-benchthermal): Waermebild an.</summary>
+        public static bool BenchThermal;
         bool autoRange = true;
         float manualRange = 500f;
         Camera cam;
@@ -53,6 +55,11 @@ namespace PanzerSim
                 if (target.visual != null) target.visual.SetVisible(!sightMode && TankController.ViewMode != 1);
             }
             if (Inp.Down(KeyCode.R)) autoRange = !autoRange;
+            // Waermebild (nur Zielgeraete mit WBG, nur im Visier)
+            bool canThermal = sightMode && target.spec.hasThermal;
+            if (canThermal && Inp.Down(KeyCode.V)) ThermalVision.Set(!ThermalVision.Active);
+            if (!canThermal && ThermalVision.Active) ThermalVision.Set(false);
+            if (BenchThermal && canThermal && !ThermalVision.Active) ThermalVision.Set(true);
             if (Inp.Down(KeyCode.X)) SetViewMode((TankController.ViewMode + 1) % 3);
             // Mausrad = Zoom (Visier) bzw. Kameraabstand (Aussenansicht)
             float sc = Inp.Scroll;
@@ -185,7 +192,9 @@ namespace PanzerSim
                         : a.IsHEAT ? $"Hohlladung: {Penetration.FlatPenetration(a, vAt):0} mm auf jede Entfernung\n"
                         : $"Durchschlag auf {t.sightRange:0} m: {Penetration.FlatPenetration(a, vAt):0} mm\n") +
                        $"Visier: {t.sightRange:0} m {(autoRange ? "(automatisch)" : "(von Hand, Q/E)")}\n" +
-                       $"{reload}\n" + TrackStatus(t) + "\n<b>Besatzung</b>\n";
+                       $"{reload}\n" +
+                       (a.guided ? (t.activeMissile != null ? $"<color=#fd6>Rakete im Flug: {t.activeMissile.Distance:0} m - Fadenkreuz aufs Ziel halten!</color>\n" : "Lenkrakete: fliegt dahin, wohin das Fadenkreuz zeigt\n") : "") +
+                       TrackStatus(t) + "\n<b>Besatzung</b>\n";
             foreach (ModuleType role in new[] { ModuleType.Commander, ModuleType.Gunner, ModuleType.Loader, ModuleType.Driver, ModuleType.RadioOperator })
             {
                 t.seats.TryGetValue(role, out var m);
@@ -217,7 +226,7 @@ namespace PanzerSim
             if (!inSight) GUI.Box(new Rect(SW - 330, 10, 320, 150),
                 "W/S: fahren   A/D: lenken   Leertaste: bremsen\n" +
                 "Maus: zielen   Linksklick: Kanone   Rechtsklick halten: MG\n" +
-                "Shift: Visier an/aus\n" +
+                "Shift: Visier an/aus" + (t.spec.hasThermal ? "   V: Waermebild (im Visier)" : "") + "\n" +
                 "Mausrad: Zoom (Visier: nur wenn umschaltbar)   Q/E: Entfernung   R: auto\n" +
                 "1-7: Munition wechseln\n" +
                 "X: Ansicht (normal/Innenteile/Panzerung)   F: Feuer loeschen\n" +
@@ -494,6 +503,36 @@ namespace PanzerSim
                     DrawTzfDial(cx, cy, size, lw, ink);
                     break;
 
+                case SightType.TOW:
+                {
+                    // TOW-Zielgeraet: feines Fadenkreuz mit Luecke, dicke Balken aussen (links, rechts, unten),
+                    // kleines Zielquadrat in der Mitte, Strichmarken alle 5 Strich zum Vorhalten.
+                    // Im Waermebild hell gezeichnet (auf dunklem Bild besser zu sehen).
+                    Color rc = ThermalVision.Active ? new Color(0.92f, 0.96f, 0.92f, 0.9f) : ink;
+                    float R = size * 0.5f, gap = 2.2f * mil, thin = Mathf.Max(1f, lw * 0.6f), thick = lw * 3.5f, inner = R * 0.55f;
+                    FillRect(cx - R, cy - thin / 2f, R - gap, thin, rc); FillRect(cx + gap, cy - thin / 2f, R - gap, thin, rc);
+                    FillRect(cx - thin / 2f, cy - R, thin, R - gap, rc); FillRect(cx - thin / 2f, cy + gap, thin, R - gap, rc);
+                    FillRect(cx - R, cy - thick / 2f, R - inner, thick, rc); FillRect(cx + inner, cy - thick / 2f, R - inner, thick, rc);
+                    FillRect(cx - thick / 2f, cy + inner, thick, R - inner, rc);
+                    float b = 1.1f * mil;
+                    FillRect(cx - b, cy - b, 2f * b, thin, rc); FillRect(cx - b, cy + b - thin, 2f * b, thin, rc);
+                    FillRect(cx - b, cy - b, thin, 2f * b, rc); FillRect(cx + b - thin, cy - b, thin, 2f * b, rc);
+                    for (int k = 1; k <= 8; k++)
+                    {
+                        float h = (k % 2 == 0 ? 1.6f : 0.9f) * mil;
+                        if (k * 5f * mil > inner) break;
+                        FillRect(cx + k * 5f * mil - thin / 2f, cy - h, thin, h, rc);
+                        FillRect(cx - k * 5f * mil - thin / 2f, cy - h, thin, h, rc);
+                    }
+                    if (ThermalVision.Active)
+                    {
+                        sightText.normal.textColor = rc;
+                        sightText.fontSize = Mathf.RoundToInt(Screen.height / 50f);
+                        GUI.Label(new Rect(cx + size * 0.10f, top + size * 0.16f, size * 0.3f, 40f), "WBG  WEISS-HEISS", sightText);
+                    }
+                    break;
+                }
+
                 case SightType.US:
                     // M70: Fadenkreuz mit Strichskala alle 5 Strich
                     float len = 45f * mil;
@@ -530,7 +569,8 @@ namespace PanzerSim
             float range = target.sightRange;
             sightText.normal.textColor = ink;
             sightText.fontSize = Mathf.RoundToInt(Screen.height / 55f);
-            if (spec.sightType != SightType.German)
+            if (spec.sightType == SightType.TOW) { }   // Lenkrakete: keine Entfernungsskala (fliegt der Visierlinie nach)
+            else if (spec.sightType != SightType.German)
             {
                 // Entfernungsskala oben (in 100 m), Zeiger in der Mitte = eingestellte Entfernung
                 float y0 = top + size * 0.13f;
@@ -561,9 +601,12 @@ namespace PanzerSim
             if (ap.z > 0f) Draw(ring, ap.x, Screen.height - ap.y, size * 0.03f, new Color(1f, 0.55f, 0.1f, 0.85f));
 
             // Unten: Name des Visiers und Ladezustand
-            string state = target.reloadLeft > 0f ? $"Laedt {target.reloadLeft * target.ReloadMultiplier():0.0} s" : "GELADEN";
-            sightText.normal.textColor = target.reloadLeft > 0f ? new Color(0.6f, 0.1f, 0.05f) : new Color(0.05f, 0.35f, 0.05f);
-            GUI.Label(new Rect(cx - 200f, top + size * 0.83f, 400f, size * 0.03f), state, sightText);
+            var msl = target.activeMissile;
+            string state = msl != null ? (msl.Guided ? $"RAKETE {msl.Distance:0} m  {msl.flightTime:0.0} s - ZIEL HALTEN" : "DRAHT GERISSEN - Rakete ungelenkt")
+                         : target.reloadLeft > 0f ? $"Laedt {target.reloadLeft * target.ReloadMultiplier():0.0} s" : "GELADEN";
+            sightText.normal.textColor = msl != null ? new Color(0.75f, 0.45f, 0.05f) : target.reloadLeft > 0f ? new Color(0.6f, 0.1f, 0.05f) : new Color(0.05f, 0.35f, 0.05f);
+            if (ThermalVision.Active) sightText.normal.textColor = Color.Lerp(sightText.normal.textColor, Color.white, 0.6f);
+            GUI.Label(new Rect(cx - 400f, top + size * 0.83f, 800f, size * 0.03f), state, sightText);
             sightText.normal.textColor = new Color(0f, 0f, 0f, 0.55f);
             GUI.Label(new Rect(cx - 200f, top + size * 0.87f, 400f, size * 0.03f), $"{spec.sightName}   {SightMag:0.#}x", sightText);
         }

@@ -105,6 +105,7 @@ namespace PanzerSim
             }
             else Debug.LogWarning($"Turmgelenk '{s.modelTurretBone}' im Modell nicht gefunden.");
 
+            if (gunBone != null && s.gunPivotFromModel) parts.gunPivot.position = gunBone.position;   // Werfer sitzt nicht vorne am Turm
             if (gunBone != null)
                 gunOffset = Quaternion.Inverse(parts.gunPivot.rotation) * gunBone.rotation;
             else Debug.LogWarning($"Kanonengelenk '{s.modelGunBone}' im Modell nicht gefunden.");
@@ -130,6 +131,9 @@ namespace PanzerSim
                         if (p != null && !p.name.StartsWith("Kette")) p.gameObject.layer = ArmorPlate.PhysicsOnlyLayer;
             }
         }
+
+        /// <summary>Alle sichtbaren Teile des Modells (z. B. fuers Waermebild).</summary>
+        public Renderer[] Renderers => renderers;
 
         public void SetArmorView(bool on) { if (meshArmor != null) meshArmor.SetView(on); }
 

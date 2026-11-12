@@ -27,6 +27,11 @@ namespace PanzerSim
         public bool MgFiring => netMg.Value;
         public void SetMg(bool on) { if (IsOwner && IsSpawned && netMg.Value != on) netMg.Value = on; }
 
+        // Lenkrakete im Flug (der Schuetze lenkt, alle anderen sehen sie an dieser Stelle)
+        readonly NetworkVariable<bool> netMissileOn = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        readonly NetworkVariable<Vector3> netMissilePos = new NetworkVariable<Vector3>(default, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        GuidedMissile ghostMissile;
+
         public TankController tc;
         /// <summary>Lokaler Spielerpanzer (wir fahren ihn).</summary>
         public bool IsLocalPlayer => IsOwner && !isTarget.Value && !NetSync.Headless;
@@ -44,13 +49,28 @@ namespace PanzerSim
         public override void OnNetworkDespawn()
         {
             GameManager.Instance?.OnNetTankDespawned(this);
+            if (ghostMissile != null) { ghostMissile.Remove(); ghostMissile = null; }
             if (tc != null) Destroy(tc.gameObject);
         }
 
         void Update()
         {
             if (tc == null || !IsSpawned) return;
-            if (IsOwner) { WriteState(); return; }
+            if (IsOwner)
+            {
+                WriteState();
+                var m = tc.activeMissile;
+                if ((m != null) != netMissileOn.Value) netMissileOn.Value = m != null;
+                if (m != null) netMissilePos.Value = m.transform.position;
+                return;
+            }
+            // fremde Lenkrakete anzeigen
+            if (netMissileOn.Value && !NetSync.Headless)
+            {
+                if (ghostMissile == null) ghostMissile = GuidedMissile.CreateGhost(tc, netMissilePos.Value);
+                else ghostMissile.SetGhostTarget(netMissilePos.Value);
+            }
+            else if (ghostMissile != null) { ghostMissile.Remove(); ghostMissile = null; }
 
             // Fremder Panzer: weich zur uebertragenen Lage (bei grossem Sprung direkt)
             float k = 1f - Mathf.Exp(-14f * Time.deltaTime);
@@ -103,6 +123,26 @@ namespace PanzerSim
         {
             if (IsOwner) return;                                            // Schuetze hat Muendungsfeuer und Geister-Granate schon
             if (tc != null) tc.PlayFireEffects(ammo);
+            Shell.Fire(AmmoLibrary.All[ammo], origin, dir, true);
+        }
+
+        /// <summary>Gefechtskopf einer Lenkrakete: Server startet die echte Hohlladung kurz vor dem Ziel (ohne Muendungsfeuer).</summary>
+        public void RequestWarhead(int ammo, Vector3 origin, Vector3 dir)
+        {
+            if (IsServer) ServerWarhead(ammo, origin, dir);
+            else { WarheadRpc(ammo, origin, dir); Shell.Fire(AmmoLibrary.All[ammo], origin, dir, true); }   // eigene Anzeige sofort
+        }
+        [Rpc(SendTo.Server)] void WarheadRpc(int ammo, Vector3 origin, Vector3 dir) => ServerWarhead(ammo, origin, dir);
+        void ServerWarhead(int ammo, Vector3 origin, Vector3 dir)
+        {
+            if (ammo < 0 || ammo >= AmmoLibrary.All.Length) return;
+            Shell.Fire(AmmoLibrary.All[ammo], origin, dir);
+            WarheadVisualRpc(ammo, origin, dir);
+        }
+        [Rpc(SendTo.NotServer)]
+        void WarheadVisualRpc(int ammo, Vector3 origin, Vector3 dir)
+        {
+            if (IsOwner) return;
             Shell.Fire(AmmoLibrary.All[ammo], origin, dir, true);
         }
 

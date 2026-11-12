@@ -73,6 +73,7 @@ namespace PanzerSim
                 TankController.BenchDrive = Has("-benchdrive");
                 TankController.BenchMg = Has("-benchmg");
                 TankCamera.BenchSight = Has("-benchsight");
+                TankCamera.BenchThermal = Has("-benchthermal");
                 if (float.TryParse(Arg("-benchyaw"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float by)) BenchYaw = by;
                 return;
             }

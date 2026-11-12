@@ -149,7 +149,7 @@ namespace PanzerSim
 
             // Turm-MG: rechte Maustaste (eigener Panzer), fremde Panzer zeigen das uebertragene Feuer
             bool mgFire = false;
-            if (isPlayer) { mgFire = !destroyed && !spec.noGun && (Inp.MgHeld || BenchMg) && Cursor.lockState == CursorLockMode.Locked && Working(ModuleType.Gunner); net?.SetMg(mgFire); }
+            if (isPlayer) { mgFire = !destroyed && !spec.noGun && !spec.noMg && (Inp.MgHeld || BenchMg) && Cursor.lockState == CursorLockMode.Locked && Working(ModuleType.Gunner); net?.SetMg(mgFire); }
             else if (net != null) mgFire = !destroyed && net.MgFiring;
             MachineGun.Tick(this, mgFire, dt);
 
@@ -188,8 +188,12 @@ namespace PanzerSim
             if (parts.turret == null || parts.turret.parent == null) return; // Turm weggeflogen
 
             // Ueberhoehung: Rohr so weit anheben, dass die Granate auf Visier-Entfernung trifft
-            Ballistics.SimulateFlat(Ammo, Mathf.Max(sightRange, 10f), out _, out float drop, out _);
-            superElevationDeg = Mathf.Atan2(drop, sightRange) * Mathf.Rad2Deg;
+            if (Ammo.guided) superElevationDeg = 0f;   // Lenkrakete fliegt der Visierlinie nach
+            else
+            {
+                Ballistics.SimulateFlat(Ammo, Mathf.Max(sightRange, 10f), out _, out float drop, out _);
+                superElevationDeg = Mathf.Atan2(drop, sightRange) * Mathf.Rad2Deg;
+            }
 
             float traverse = spec.traverseDegS * (Working(ModuleType.TurretDrive) ? 1f : 0.2f);
 
@@ -213,9 +217,16 @@ namespace PanzerSim
 
         void TryFire()
         {
-            if (spec.noGun) { RangeLog.AddLocal($"{spec.name}: noch keine Waffe (TOW-Rakete folgt)"); return; }
+            if (spec.noGun) { RangeLog.AddLocal($"{spec.name}: keine Waffe"); return; }
+            if (activeMissile != null) return;   // Lenkrakete im Flug: Werfer haengt am Draht
             if (reloadLeft > 0f) return;
             if (!SeatOk(ModuleType.Gunner)) { RangeLog.Add("Kein Richtschuetze!"); return; }
+            if (Ammo.guided)
+            {
+                activeMissile = GuidedMissile.Launch(this, ammoIndex);
+                reloadLeft = spec.reloadS;
+                return;
+            }
             if (!Working(ModuleType.Breech)) { RangeLog.Add("Kanonenverschluss zerstoert!"); return; }
 
             Vector3 origin = parts.muzzle.position, dir = parts.gunPivot.forward;
@@ -238,6 +249,10 @@ namespace PanzerSim
         public static bool BenchDrive;
         /// <summary>Leistungstest (-benchmg): MG feuert dauernd.</summary>
         public static bool BenchMg;
+        /// <summary>Leistungstest: einen Schuss ausloesen.</summary>
+        public void BenchFire() { reloadLeft = 0f; TryFire(); }
+        /// <summary>Lenkrakete, die gerade fliegt (nur eine gleichzeitig: sie haengt am Draht).</summary>
+        [HideInInspector] public GuidedMissile activeMissile;
         TankController autoTarget;
         float autoSearch;
         void AutoFireUpdate(float dt)

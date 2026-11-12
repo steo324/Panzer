@@ -16,7 +16,7 @@ namespace PanzerSim
     }
 
     /// <summary>Art des Zielfernrohrs (Strichplatte).</summary>
-    public enum SightType { German, US, Soviet }
+    public enum SightType { German, US, Soviet, TOW }
 
     /// <summary>Alle Daten eines Panzertyps. Masse in Metern, Panzerung in mm.</summary>
     [System.Serializable]
@@ -52,6 +52,9 @@ namespace PanzerSim
         public float barrelLength;
         public bool noGun;                   // (noch) keine Hauptwaffe: Feuern und MG aus (Wiesel: TOW-Lenkrakete folgt)
         public bool devOnly;                 // nur im Entwickler-Modus waehlbar (Fahrzeug in Arbeit)
+        public bool noMg;                    // kein Turm-MG
+        public bool hasThermal;              // Zielgeraet mit Waermebild (Taste V im Visier)
+        public bool gunPivotFromModel;       // Kanonen-/Werfergelenk an die Stelle des Modell-Gelenks legen (Werfer sitzt nicht vorne am Turm)
         public bool muzzleBrake;             // Muendungsbremse (Gas schiesst seitlich raus)
 
         // Zielfernrohr
@@ -215,9 +218,12 @@ namespace PanzerSim
             turretFront = new Armor(6, 0), turretSide = new Armor(6, 0), turretRear = new Armor(6, 0),
             turretRoof = new Armor(4, 0), mantlet = new Armor(6, 0),
             traverseDegS = 30f, elevationDegS = 15f, minElevation = -10f, maxElevation = 25f,
-            ammoIndex = 12, ammo = new[] { 12 }, reloadS = 15f, barrelLength = 1.0f, noGun = true, devOnly = true,
-            // TOW-Zielgeraet: 13-fach
-            sightType = SightType.US, sightFov = 4.5f, sightMag = 13f, sightName = "TOW-Zielgeraet (Rakete folgt)",
+            // TOW-2 und TOW; Nachladen von Hand durch die Luke (~20 s), nur eine Rakete gleichzeitig im Flug (Draht)
+            ammoIndex = 16, ammo = new[] { 16, 15 }, reloadS = 20f, barrelLength = 0.85f, devOnly = true, noMg = true,
+            gunPivotFromModel = true,
+            // TOW-Zielgeraet: Tagkanal 13-fach, Waermebild (Taste V) mit weitem Feld 4-fach
+            sightType = SightType.TOW, sightFov = 4.5f, sightMag = 13f, sightName = "TOW-Zielgeraet",
+            sightZoomFov = new[] { 13f, 4.5f }, sightZoomMag = new[] { 4f, 13f }, hasThermal = true,   // Mausrad: 4x / 13x
             modelResource = "Modelle/Wiesel", modelScale = 1f,
             modelTurretBone = "turret", modelGunBone = "cannon",
             // Leitrad hinten (radL0, laeuft mit am Boden), 3 Laufrollen, Antriebsrad vorne hochgesetzt (radL4)

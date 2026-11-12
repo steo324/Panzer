@@ -29,6 +29,8 @@ namespace PanzerSim
         public float fuseSensitivityMm = 15f; // so dick muss eine Platte sein, damit der Zuender scharf wird
 
         public float heatPenMm;               // nur HEAT: Durchschlag des Strahls senkrecht (mm RHA)
+        public bool guided;                   // Lenkrakete (TOW): fliegt der Visierlinie nach statt ballistisch
+        public float wireRange = 3750f;       // Lenkrakete: Drahtlaenge (danach ungelenkt)
 
         public bool IsCapped => type == ShellType.APC || type == ShellType.APCBC;
         public bool HasFiller => fillerKg > 0f;
@@ -74,6 +76,9 @@ namespace PanzerSim
             new ShellData("Gr. 39 HL",  "8,8 cm KwK 36 (Tiger I)",         ShellType.HEAT, 88f,  7.65f, 600f, 0.800f) { heatPenMm = 100f, dragCoefficient = 0.35f }, // 12
             new ShellData("M48 HE",     "75 mm M3 (Sherman)",              ShellType.HE,   75f,  6.62f, 463f, 0.676f) { dragCoefficient = 0.33f },  // 13
             new ShellData("O-365",      "85 mm ZiS-S-53 (T-34-85)",        ShellType.HE,   85f,  9.54f, 793f, 0.741f) { dragCoefficient = 0.32f },  // 14
+            // Lenkraketen (Wiesel 1 TOW): 152 mm Hohlladung, drahtgelenkt. Geschwindigkeit hier = Einschlag des Gefechtskopfs.
+            new ShellData("BGM-71A TOW",   "TOW-Werfer (Wiesel)",  ShellType.HEAT, 152f, 18.9f, 280f, 2.4f) { heatPenMm = 430f, guided = true, wireRange = 3000f },  // 15
+            new ShellData("BGM-71D TOW-2", "TOW-Werfer (Wiesel)",  ShellType.HEAT, 152f, 21.5f, 280f, 3.1f) { heatPenMm = 850f, guided = true, wireRange = 3750f },  // 16
         };
     }
 }

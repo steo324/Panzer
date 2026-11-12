@@ -30,6 +30,45 @@ namespace PanzerSim
             if (ci >= 0 && ci + 2 < args.Length) { float.TryParse(args[ci + 1], out camOff); float.TryParse(args[ci + 2], out camPitch); }
             if (cam != null && pl != null) cam.SetView(pl.transform.eulerAngles.y + camOff, camPitch);   // Standard: zum Horizont schauen
 
+            // Lenkraketen-Test (-benchtow): auf den Panzer, der am weitesten weg ist (bis 1 km), schiessen, Bilder im Flug
+            if (System.Array.IndexOf(args, "-benchtow") >= 0 && pl != null && cam != null)
+            {
+                TankController tgt = null; float best = 0f;
+                foreach (var other in FindObjectsByType<TankController>(FindObjectsSortMode.None))
+                {
+                    if (other == pl) continue;
+                    float dist = Vector3.Distance(other.transform.position, pl.transform.position);
+                    if (dist > best && dist < 1000f) { best = dist; tgt = other; }
+                }
+                if (tgt != null)
+                {
+                    Debug.Log($"BENCH-TOW: Ziel {tgt.spec.name} in {best:0} m");
+                    for (float w = 0f; w < 4f; w += Time.unscaledDeltaTime)
+                    {
+                        Vector3 d = tgt.transform.position + Vector3.up * 1.2f - Camera.main.transform.position;
+                        cam.SetView(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, -Mathf.Asin(d.normalized.y) * Mathf.Rad2Deg);
+                        yield return null;
+                    }
+                    pl.BenchFire();
+                    float t0 = Time.time;
+                    for (int shot = 0; shot < 4; shot++)
+                    {
+                        float at = new[] { 0.35f, 1.0f, 1.8f, 2.6f }[shot];
+                        while (Time.time - t0 < at)
+                        {
+                            Vector3 d = tgt.transform.position + Vector3.up * 1.2f - Camera.main.transform.position;
+                            cam.SetView(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, -Mathf.Asin(d.normalized.y) * Mathf.Rad2Deg);
+                            yield return null;
+                        }
+                        if (!string.IsNullOrEmpty(outDir)) { System.IO.Directory.CreateDirectory(outDir); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, $"tow_{shot}.png")); }
+                        Debug.Log($"BENCH-TOW: t={Time.time - t0:0.00} s Rakete={(pl.activeMissile != null ? $"{pl.activeMissile.Distance:0} m, gelenkt {pl.activeMissile.Guided}" : "weg")}");
+                    }
+                    yield return new WaitForSeconds(4f);
+                    for (int i = RangeLog.Lines.Count - 1; i >= 0; i--) Debug.Log("BENCH-TOW Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
+                    Debug.Log($"BENCH-TOW: Ziel zerstoert={tgt.destroyed}");
+                }
+            }
+
             var frames = new List<float>();
             float t = 0f;
             while (t < 12f)

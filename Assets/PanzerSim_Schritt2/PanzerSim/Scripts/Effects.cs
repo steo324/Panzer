@@ -164,6 +164,15 @@ namespace PanzerSim
             }
         }
 
+        /// <summary>Rauchwolke(n) an einer Stelle (Raketenmotor, Rueckstrahl).</summary>
+        public static void SmokePuff(Vector3 pos, float size, float life, int count)
+        {
+            if (!Ensure()) return;
+            for (int i = 0; i < count; i++)
+                EmitOne(smoke, pos + Random.insideUnitSphere * size * 0.3f, Random.insideUnitSphere * 0.6f + Vector3.up * 0.3f,
+                        size * Random.Range(0.8f, 1.2f), life * Random.Range(0.8f, 1.2f), Gray(0.72f, 0.82f));
+        }
+
         /// <summary>MG-Kugel: auf Stahl ein paar Funken (prallt ab), im Boden ein kleiner Staubspritzer. Bewusst sparsam (15 Schuss/s).</summary>
         public static void BulletHit(Vector3 pos, Vector3 normal, Vector3 dir, bool armor)
         {
