@@ -9,6 +9,7 @@ Alle unter **CC BY 4.0** stehenden Werke: Lizenz <https://creativecommons.org/li
 | Werk | Autor | Quelle | Änderungen |
 |---|---|---|---|
 | „Panzer Vi Tiger I Heavy Tank - Toshueyi“ | Joanthan To ([sketchfab.com/jonathanto99](https://sketchfab.com/jonathanto99)) | [Sketchfab](https://sketchfab.com/3d-models/panzer-vi-tiger-i-heavy-tank-toshueyi-84f9335c1a814c798528027c16d57276) | skaliert, in Wanne/Turm/Rohr/Laufrollen zerlegt, Kette ersetzt, bemalt und gealtert (Dreifarben-Tarnung), Dreiecke der Laufrollen reduziert (`Tools/Blender/rig_tiger.py`) |
+| „Tank Tiger 2“ | maximus0075550 ([sketchfab.com/maximus0075550](https://sketchfab.com/maximus0075550)) | [Sketchfab](https://sketchfab.com/3d-models/tank-tiger-2-f23650309a294143a7811737ca314219) | skaliert, in Wanne/Turm/Rohr/Laufrollen zerlegt, Kette ersetzt, Texturen verkleinert (`Tools/Blender/rig_tiger2.py`) |
 | „Panzer IV“ | Greg McKechnie ([sketchfab.com/mckechniegreg6](https://sketchfab.com/mckechniegreg6)) | [Sketchfab](https://sketchfab.com/3d-models/panzer-iv-098195c920b645e3af7ae7a744caeda2) | gerigged, Kette ersetzt |
 | M4A1E9 Sherman | Sem ([sketchfab.com/Sem-Hofstede](https://sketchfab.com/Sem-Hofstede)) | Sketchfab | gerigged, Kette ersetzt |
 | „T-34-85“ | DedRam ([sketchfab.com/heirohindrima](https://sketchfab.com/heirohindrima)) | [Sketchfab](https://sketchfab.com/3d-models/t-34-85-2ee073a782b149f88c3cb223293feaaf) | gerigged, Kette ersetzt |

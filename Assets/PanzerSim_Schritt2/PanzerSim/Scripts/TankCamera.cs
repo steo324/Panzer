@@ -50,8 +50,10 @@ namespace PanzerSim
             if (target == null) return;
             if (target != lastTarget) { lastTarget = target; yaw = target.transform.eulerAngles.y; pitch = 5f; sightMode = false; zoomLevel = 0; }
             // Artillerie: Kartenmodus (die Karte steuert dann die Kamera)
-            if (target.spec.artillery && (Inp.Down(KeyCode.M) || (BenchArty && !ArtilleryMode.Active && Time.timeSinceLevelLoad > 3f))) ArtilleryMode.Toggle(target, cam);
-            if (ArtilleryMode.Active) return;
+            // M: grosse Karte (Artillerie-Fahrzeuge koennen oben auf den Reiter "Artillerie" wechseln)
+            if (Inp.Down(KeyCode.M)) TeamHud.ToggleMap(target, cam);
+            if (target.spec.artillery && BenchArty && !ArtilleryMode.Active && Time.timeSinceLevelLoad > 3f) ArtilleryMode.Toggle(target, cam);
+            if (ArtilleryMode.Active || TeamHud.MapOpen) return;   // Karte offen: Kamera und Zielen ruhen
             if (BenchSight && !sightMode) { sightMode = true; if (target.visual != null) target.visual.SetVisible(false); }
 
             if (Inp.Down(KeyCode.LeftShift))
@@ -290,7 +292,7 @@ namespace PanzerSim
 
             if (!inSight) GUI.Box(new Rect(SW - 330, 10, 320, 166),
                 "W/S: fahren   A/D: lenken   Leertaste: bremsen\n" +
-                "Maus: zielen   Linksklick: " + (t.Ammo.guided ? "Rakete" : "Kanone") + (t.spec.noMg ? "" : "   Rechtsklick halten: MG") + (t.spec.artillery ? "   M: Artillerie-Karte" : "") + "\n" +
+                "Maus: zielen   Linksklick: " + (t.Ammo.guided ? "Rakete" : "Kanone") + (t.spec.noMg ? "" : "   Rechtsklick halten: MG") + "   M: Karte" + (t.spec.artillery ? " (+ Artillerie)" : "") + "\n" +
                 "Shift: Visier an/aus" + (t.spec.hasThermal ? "   V: Waermebild (im Visier)" : "") + "\n" +
                 "Mausrad: Zoom (Visier: nur wenn umschaltbar)   Q/E: Entfernung" + (t.spec.hasRangefinder ? "   R: lasern" : " (schaetzen)") + "\n" +
                 "1-7: Munition wechseln\n" +

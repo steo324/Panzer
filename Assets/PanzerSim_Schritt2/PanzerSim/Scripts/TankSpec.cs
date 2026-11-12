@@ -139,6 +139,37 @@ namespace PanzerSim
         };
 
         /// <summary>
+        /// Tiger II (Sd.Kfz. 182, "Koenigstiger", Serienturm): 8,8 cm KwK 43 L/71, schraege Panzerung bis 180 mm.
+        /// Modell: "Tank Tiger 2" von maximus0075550 (sketchfab.com/maximus0075550), CC BY 4.0 - gerigged mit Tools/Blender/rig_tiger2.py.
+        /// </summary>
+        public static TankSpec TigerII => new TankSpec
+        {
+            name = "Tiger II",
+            // Maybach HL 230 P30, 700 PS; 69,8 t; 41,5 km/h (Strasse)
+            massT = 69.8f, powerPS = 700f, maxSpeedKmh = 41.5f, reverseKmh = 7f, turnRateDegS = 18f,
+            hullLength = 7.2f, hullWidth = 3.29f, hullHeight = 1.5f, clearance = 0.36f,
+            trackWidth = 0.80f, trackInset = 0.625f,          // Kettenmitte auf den Laufrollen des Modells (x = 1,42 m)
+            hullFront = new Armor(150, 50), hullRear = new Armor(80, 30), hullSide = new Armor(80, 25),
+            hullRoof = new Armor(40, 0), hullBottom = new Armor(28, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(100, 50), hullGlacis = new Armor(150, 50), hullLowerSide = new Armor(80, 0),
+            turretLength = 3.6f, turretWidth = 2.6f, turretHeight = 0.95f, turretOffsetZ = 0.14f,
+            turretFront = new Armor(180, 9), turretSide = new Armor(80, 21), turretRear = new Armor(80, 20),
+            turretRoof = new Armor(44, 0), mantlet = new Armor(150, 0, ArmorMaterial.Cast),   // "Saukopf"-Blende
+            traverseDegS = 6f, elevationDegS = 4f, minElevation = -8f, maxElevation = 15f,    // hydraulisch, vom Motor angetrieben
+            ammoIndex = 18, ammo = new[] { 18, 19, 20 }, reloadS = 8f, barrelLength = 4.6f, muzzleBrake = true, gunPivotFromModel = true,
+            // TZF 9d: umschaltbar 3- / 6-fach
+            sightType = SightType.German, sightFov = 23f, sightMag = 3f, sightName = "TZF 9d",
+            sightZoomFov = new[] { 23f, 11.5f }, sightZoomMag = new[] { 3f, 6f },
+            modelResource = "Modelle/TigerII", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            // Leitrad hinten (radL0), 9 Achsen mit verschachtelten Laufrollen (800 mm), Antriebsrad vorne (radL10)
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 11, wheelRadius = 0.413f,
+            linkTracks = true, idlerRadius = 0.325f, sprocketRadius = 0.403f,
+            trackPitch = 0.15f, trackShoeWidth = 0.80f, trackThickness = 0.06f, trackSag = 0.05f   // Gefechtskette Kgs 73/800/152
+        };
+
+        /// <summary>
         /// Panzer IV Ausf. F2 (Sd.Kfz. 161/1, 1942): erste Version mit der langen 7,5 cm KwK 40 L/43
         /// (Kugel-Muendungsbremse), noch ohne Zusatzpanzerung und Schuerzen. Modell: Tools/Blender/rig_panzer4.py.
         /// </summary>

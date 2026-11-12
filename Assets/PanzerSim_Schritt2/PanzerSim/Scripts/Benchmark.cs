@@ -75,6 +75,16 @@ namespace PanzerSim
                 }
             }
 
+            // Karte (-benchmap): Bild der grossen Karte (Taste M)
+            if (System.Array.IndexOf(args, "-benchmap") >= 0 && pl != null)
+            {
+                TeamHud.ToggleMap(pl, Camera.main);
+                yield return new WaitForSeconds(1.5f);
+                if (!string.IsNullOrEmpty(outDir)) { System.IO.Directory.CreateDirectory(outDir); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, "karte.png")); }
+                yield return new WaitForSeconds(0.5f);
+                TeamHud.CloseMap();
+            }
+
             // Lenkraketen-Test (-benchtow): auf den Panzer, der am weitesten weg ist (bis 1 km), schiessen, Bilder im Flug
             if (System.Array.IndexOf(args, "-benchtow") >= 0 && pl != null && cam != null)
             {

@@ -54,6 +54,9 @@ namespace PanzerSim
             if (target.HasValue) Solve();
         }
 
+        /// <summary>Artillerie-Karte schliessen (z. B. Reiter "Karte" oder Taste M).</summary>
+        public static void Close() { if (Active) inst.Exit(); }
+
         void Exit()
         {
             if (tc != null) tc.artilleryAim = false;
@@ -79,7 +82,7 @@ namespace PanzerSim
             cam.orthographicSize = orthoSize;
             cam.transform.SetPositionAndRotation(center + Vector3.up * 2000f, Quaternion.Euler(90f, 0f, 0f));   // Norden oben
 
-            if (Inp.FireDown)
+            if (Inp.FireDown && Inp.MousePos.y < Screen.height - 60f * GameSettings.UiFactor)   // oben liegen die Reiter
             {
                 Vector2 mp = Inp.MousePos;
                 Ray r = cam.ScreenPointToRay(new Vector3(mp.x, mp.y, 0f));
@@ -243,6 +246,13 @@ namespace PanzerSim
 
         // ---------------- Anzeige ----------------
         void OnGUI()
+        {
+            if (tc == null) return;
+            DrawMain();
+            if (tc != null) TeamHud.DrawArtilleryOverlay(cam, tc);   // Panzer als Punkte + Reiter Karte/Artillerie
+        }
+
+        void DrawMain()
         {
             if (tc == null) return;
             if (txt == null)

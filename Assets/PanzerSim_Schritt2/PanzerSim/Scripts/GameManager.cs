@@ -12,7 +12,7 @@ namespace PanzerSim
         State state;
 
         static readonly System.Func<TankSpec>[] Tanks =
-            { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85, () => TankLibrary.Wiesel, () => TankLibrary.PzH2000 };
+            { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85, () => TankLibrary.Wiesel, () => TankLibrary.PzH2000, () => TankLibrary.TigerII };   // Reihenfolge = Panzernummer im Netz, nur hinten anfuegen
         readonly GameMap[] maps = { new PlainsMap(), new TestRangeMap(), new HillsMap(),   // Reihenfolge = Kartennummer (-map), nicht umsortieren
             new RealMap("HornBadMeinberg", "Horn-Bad Meinberg",
                 "Echte Gegend, 5 x 5 km: Horn und Bad Meinberg mit Externsteinen am Teutoburger Wald. Gelaende aus dem amtlichen Hoehenmodell NRW (1 m genau), Strassen, Gebaeude, Waelder und Felder aus OpenStreetMap.",
@@ -446,6 +446,7 @@ namespace PanzerSim
             if (Inp.Down(KeyCode.Escape))
             {
                 if (settingsOpen) CloseSettings();
+                else if (state == State.Playing && (TeamHud.MapOpen || ArtilleryMode.Active)) { ArtilleryMode.Close(); TeamHud.CloseMap(); }   // Karte zu statt Pause
                 else if (state == State.Playing) Pause(true);
                 else if (state == State.Paused) Pause(false);
             }
@@ -651,7 +652,7 @@ namespace PanzerSim
             GUI.Label(new Rect(60, H - 128, 1600, 26),
                 "Modelle (CC BY 4.0): Tiger I von Joanthan To (sketchfab.com/jonathanto99)  ·  Panzer IV von Greg McKechnie (sketchfab.com/mckechniegreg6)  ·  M4A1E9 Sherman von Sem (sketchfab.com/Sem-Hofstede)  ·  T-34-85 von DedRam (sketchfab.com/heirohindrima)", small);
             GUI.Label(new Rect(60, H - 102, 1600, 26),
-                "Panzerhaubitze 2000 von gogiart (sketchfab.com/agt14032013)  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan)  ·  alle fuer das Spiel angepasst (gerigged, Kette ersetzt, Tiger bemalt)  ·  Lizenz: creativecommons.org/licenses/by/4.0  ·  Details: CREDITS.md", small);
+                "Tiger II von maximus0075550 (sketchfab.com/maximus0075550)  ·  Panzerhaubitze 2000 von gogiart (sketchfab.com/agt14032013)  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan)  ·  alle fuer das Spiel angepasst (gerigged, Kette ersetzt, Tiger bemalt)  ·  Lizenz: creativecommons.org/licenses/by/4.0  ·  Details: CREDITS.md", small);
             GUI.Label(new Rect(60, H - 76, 1400, 26),
                 "CC0: Weizenhalme ffish.asia / floraZia.com  ·  Bodentexturen ambientCG.com  ·  Kartendaten (c) OpenStreetMap-Mitwirkende (ODbL)  ·  Gelaende: Geobasis NRW (dl-de/zero-2-0)", small);
             GUI.Label(new Rect(60, H - 50, 900, 30),

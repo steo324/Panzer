@@ -81,6 +81,10 @@ namespace PanzerSim
             new ShellData("BGM-71D TOW-2", "TOW-Werfer (Wiesel)",  ShellType.HEAT, 152f, 21.5f, 280f, 3.1f) { heatPenMm = 850f, guided = true, wireRange = 3750f },  // 16
             // PzH 2000: 155 mm L/52, Sprenggranate DM121 (43,5 kg); Geschwindigkeit = staerkste Treibladung (Zone 6)
             new ShellData("DM121 Spreng", "155 mm L/52 (PzH 2000)", ShellType.HE, 155f, 43.5f, 900f, 10.0f) { dragCoefficient = 0.25f },  // 17
+            // Tiger II: 8,8 cm KwK 43 L/71 (deutlich schneller als die KwK 36 des Tiger I)
+            new ShellData("PzGr. 39/43", "8,8 cm KwK 43 L/71 (Tiger II)", ShellType.APCBC, 88f, 10.16f, 1000f, 0.059f),   // 18
+            new ShellData("Sprgr. 43",   "8,8 cm KwK 43 L/71 (Tiger II)", ShellType.HE,    88f, 9.40f,  750f, 1.0f) { dragCoefficient = 0.32f },   // 19
+            new ShellData("Gr. 39/43 HL", "8,8 cm KwK 43 L/71 (Tiger II)", ShellType.HEAT, 88f, 7.65f,  600f, 0.8f) { heatPenMm = 100f, dragCoefficient = 0.35f },   // 20
         };
     }
 }
