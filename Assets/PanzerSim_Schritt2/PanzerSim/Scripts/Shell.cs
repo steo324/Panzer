@@ -93,9 +93,11 @@ namespace PanzerSim
         void FixedUpdate()
         {
             if (finished) return;
-            if (!ghost) { Step(); return; }
+            // Fehler beim Einschlag: Granate trotzdem beenden, sonst "trifft" sie jeden Physik-Takt erneut (Riesenexplosion, Ruckeln)
+            if (!ghost) { try { Step(); } catch (System.Exception e) { Debug.LogException(e); Finish(); } return; }
             NetSync.GhostActive = true;      // Geister-Granate: Effekte ja, Schaden/Marken/Protokoll nein
             try { Step(); }
+            catch (System.Exception e) { Debug.LogException(e); Finish(); }
             finally { NetSync.GhostActive = false; }
         }
 
@@ -133,6 +135,7 @@ namespace PanzerSim
                         part.Break(pos, dir, 8f);
                         DestructiblePart.BlowOff(pos, data.fillerKg);
                         NearMissTracks(pos);
+                        Concuss(pos, part.owner, 0.5f, false);
                         Finish();
                         return;
                     }

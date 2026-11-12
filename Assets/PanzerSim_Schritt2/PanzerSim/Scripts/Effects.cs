@@ -275,6 +275,7 @@ namespace PanzerSim
 
         static void EmitOne(ParticleSystem ps, Vector3 pos, Vector3 vel, float size, float life, Color c)
         {
+            if (ps == null) return;
             var e = new ParticleSystem.EmitParams
             {
                 position = pos, velocity = vel, startSize = size, startLifetime = life, startColor = c,
@@ -310,7 +311,8 @@ namespace PanzerSim
         static bool Ensure()
         {
             if (NetSync.Headless) return false;   // Server ohne Grafik: keine Effekte
-            if (root != null) return true;
+            if (root != null && spall != null && smoke != null && dust != null && dirt != null && fire != null && sparks != null && flash != null && embers != null) return true;
+            if (root != null) { Object.Destroy(root); root = null; }   // ein Partikelsystem ist weg: alles neu aufbauen
             var sh = Shader.Find("PanzerSim/Partikel");
             if (sh == null) sh = Resources.Load<Shader>("Shaders/Partikel");
             if (sh == null) { Debug.LogWarning("Effekte: Partikel-Shader fehlt."); return false; }
