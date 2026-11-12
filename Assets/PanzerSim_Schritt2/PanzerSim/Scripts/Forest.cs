@@ -14,7 +14,7 @@ namespace PanzerSim
         public struct TreeInfo { public Vector3 pos; public float yaw, scale; public byte kind; }   // kind 0 Fichte, 1 Laubbaum
 
         public float nearDist = 420f;     // volles Modell
-        public float farDist = 4200f;     // einfache Form bis hier
+        public float farDist = 5000f;     // einfache Form bis hier; dahinter zeigt der dunkle Waldboden die Waelder
         const float Block = 250f;
         const int Batch = 1023;
 
@@ -26,6 +26,10 @@ namespace PanzerSim
         }
 
         readonly List<Chunk> chunks = new List<Chunk>();
+        // Fern: grosse Bloecke (1 km) mit allen Baeumen darin - wenige Zeichenaufrufe; nah an der Kamera die kleinen Bloecke
+        const float SuperBlock = 1000f;
+        class Super { public Bounds bounds; public readonly List<Chunk> chunks = new List<Chunk>(); public Matrix4x4[][][] batches; }
+        readonly List<Super> supers = new List<Super>();
         Mesh[] nearMesh = new Mesh[2], farMesh = new Mesh[2];
         Material trunkMat; Material[] crownMats;
         RenderParams rpTrunk, rpTrunkNoShadow; RenderParams[] rpCrown, rpCrownFar;
@@ -60,6 +64,31 @@ namespace PanzerSim
                 int colour = (int)(Mathf.Abs(t.pos.x * 0.37f + t.pos.z * 0.61f)) & 1;
                 c.mats[t.kind * 2 + colour].Add(Matrix4x4.TRS(t.pos, Quaternion.Euler(0f, t.yaw, 0f), Vector3.one * t.scale));
                 colliders[key].Add(t);
+            }
+            // grosse Bloecke: Matrizen der kleinen Bloecke zusammenlegen (bevor deren Listen geleert werden)
+            var superMap = new Dictionary<long, Super>();
+            var superLists = new Dictionary<Super, List<Matrix4x4>[]>();
+            foreach (var c in chunks)
+            {
+                Vector3 cc = c.bounds.center;
+                long key = ((long)Mathf.FloorToInt(cc.x / SuperBlock) << 32) ^ (uint)Mathf.FloorToInt(cc.z / SuperBlock);
+                if (!superMap.TryGetValue(key, out var s))
+                {
+                    s = new Super { bounds = c.bounds }; superMap[key] = s; supers.Add(s);
+                    superLists[s] = new[] { new List<Matrix4x4>(), new List<Matrix4x4>(), new List<Matrix4x4>(), new List<Matrix4x4>() };
+                }
+                s.bounds.Encapsulate(c.bounds); s.chunks.Add(c);
+                for (int g = 0; g < 4; g++) superLists[s][g].AddRange(c.mats[g]);
+            }
+            foreach (var s in supers)
+            {
+                s.batches = new Matrix4x4[4][][];
+                for (int g = 0; g < 4; g++)
+                {
+                    var all = superLists[s][g]; int n = (all.Count + Batch - 1) / Batch;
+                    s.batches[g] = new Matrix4x4[n][];
+                    for (int b = 0; b < n; b++) s.batches[g][b] = all.GetRange(b * Batch, Mathf.Min(Batch, all.Count - b * Batch)).ToArray();
+                }
             }
             foreach (var c in chunks)
             {
@@ -138,21 +167,33 @@ namespace PanzerSim
             Vector3 cp = cam.transform.position;
             float near2 = nearDist * nearDist, far2 = farDist * farDist;
             int drawn = 0;
-            foreach (var c in chunks)
+            foreach (var s in supers)
             {
-                float d2 = c.bounds.SqrDistance(cp);
-                if (d2 > far2 || !GeometryUtility.TestPlanesAABB(planes, c.bounds)) continue;
-                bool near = d2 < near2;
-                for (int g = 0; g < 4; g++)
+                float sd2 = s.bounds.SqrDistance(cp);
+                if (sd2 > far2 || !GeometryUtility.TestPlanesAABB(planes, s.bounds)) continue;
+                if (sd2 > near2)
                 {
-                    int kind = g / 2;
-                    Mesh mesh = near ? nearMesh[kind] : farMesh[kind];
-                    foreach (var b in c.batches[g])
+                    // ganzer Block weit weg: einfache Formen in wenigen Aufrufen
+                    for (int g = 0; g < 4; g++)
+                        foreach (var b in s.batches[g]) { Graphics.RenderMeshInstanced(rpCrownFar[g], farMesh[g / 2], 1, b); drawn += b.Length; }
+                    continue;
+                }
+                // Block nahe der Kamera: kleine Bloecke einzeln (nah volles Modell, sonst einfach)
+                foreach (var c in s.chunks)
+                {
+                    float d2 = c.bounds.SqrDistance(cp);
+                    if (!GeometryUtility.TestPlanesAABB(planes, c.bounds)) continue;
+                    bool near = d2 < near2;
+                    for (int g = 0; g < 4; g++)
                     {
-                        // Unternetz 0 = Stamm, 1 = Krone (weit weg nur Krone)
-                        if (near) Graphics.RenderMeshInstanced(rpTrunk, mesh, 0, b);
-                        Graphics.RenderMeshInstanced(near ? rpCrown[g] : rpCrownFar[g], mesh, 1, b);
-                        drawn += b.Length;
+                        Mesh mesh = near ? nearMesh[g / 2] : farMesh[g / 2];
+                        foreach (var b in c.batches[g])
+                        {
+                            // Unternetz 0 = Stamm, 1 = Krone (weit weg nur Krone)
+                            if (near) Graphics.RenderMeshInstanced(rpTrunk, mesh, 0, b);
+                            Graphics.RenderMeshInstanced(near ? rpCrown[g] : rpCrownFar[g], mesh, 1, b);
+                            drawn += b.Length;
+                        }
                     }
                 }
             }

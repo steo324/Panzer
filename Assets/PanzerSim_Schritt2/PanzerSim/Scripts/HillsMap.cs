@@ -14,8 +14,8 @@ namespace PanzerSim
         public override string Name => "Huegelland";
         public override string Description => "10 x 10 km huegeliges Land: bewaldete Kuppen, weite Taeler, sieben Doerfer, Felder und Landstrassen. Startpunkt auf der Karte frei waehlbar. Sehr lange Schussdistanzen, viel Deckung hinter Kuppen.";
         public override bool Fog => true;
-        public override float FogStart => 900f;
-        public override float FogEnd => 5200f;
+        public override float FogStart => 1500f;
+        public override float FogEnd => 16000f;   // nur Dunst: Panzer bleiben auf jeder Entfernung sichtbar
         public override bool SpawnSelect => true;
         public override float Extent => Half;
         public override Vector2 PlayerXZ => spawns[0].xz;

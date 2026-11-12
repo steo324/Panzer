@@ -130,6 +130,8 @@ namespace PanzerSim
         public override string Name => "Weite Ebene";
         public override string Description => "2 x 2 km offenes Land mit sanften Huegeln, Weizenfeldern, Feldwegen, Waeldern und Bauernhoefen. Lange Schussdistanzen, Deckung hinter Huegeln und Hoefen.";
         public override bool Fog => true;
+        public override float FogStart => 600f;
+        public override float FogEnd => 4500f;   // weniger Nebel: Panzer am anderen Kartenende noch sichtbar
         public override Vector2 PlayerXZ => new Vector2(0f, -650f);
 
         const float Size = 2000f, MaxHeight = 80f;

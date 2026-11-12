@@ -40,7 +40,7 @@ namespace PanzerSim
         void Start()
         {
             cam = GetComponent<Camera>();
-            cam.farClipPlane = 5000f;
+            cam.farClipPlane = 100000f;   // 100 km: Panzer sind auf jeder Entfernung sichtbar
             baseFov = cam.fieldOfView;
             if (target != null) yaw = target.transform.eulerAngles.y;
         }
@@ -120,7 +120,7 @@ namespace PanzerSim
             }
 
             // Wohin zeigt das Fadenkreuz?
-            if (target.RaycastIgnoringSelf(transform.position, aimDir, 4000f, out RaycastHit hit))
+            if (target.RaycastIgnoringSelf(transform.position, aimDir, 15000f, out RaycastHit hit))
             {
                 target.aimPoint = hit.point;
                 aimDistance = Vector3.Distance(target.parts.muzzle.position, hit.point);
@@ -392,7 +392,7 @@ namespace PanzerSim
         {
             var gun = target.parts.gunPivot;
             Vector3 gunDir = Quaternion.AngleAxis(target.SuperElevation, gun.right) * gun.forward;
-            Vector3 gunPoint = target.RaycastIgnoringSelf(target.parts.muzzle.position, gunDir, 4000f, out RaycastHit gh)
+            Vector3 gunPoint = target.RaycastIgnoringSelf(target.parts.muzzle.position, gunDir, 15000f, out RaycastHit gh)
                 ? gh.point : target.parts.muzzle.position + gunDir * 2000f;
             Vector3 sp = cam.WorldToScreenPoint(gunPoint);
             p = new Vector2(sp.x, Screen.height - sp.y);
