@@ -102,6 +102,36 @@ namespace PanzerSim
                 for (int i = RangeLog.Lines.Count - 1; i >= 0; i--) Debug.Log("BENCH-ARTY Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
             }
 
+            // Erschuetterungs-Test (-benchstun): Granaten auf/neben fremde Panzer setzen, Besatzungszustand protokollieren
+            if (System.Array.IndexOf(args, "-benchstun") >= 0 && pl != null)
+            {
+                var others = new List<TankController>();
+                foreach (var other in FindObjectsByType<TankController>(FindObjectsSortMode.None)) if (other != pl) others.Add(other);
+                others.Sort((x, y) => Vector3.Distance(x.transform.position, pl.transform.position).CompareTo(Vector3.Distance(y.transform.position, pl.transform.position)));
+                string[] names = { "155 mm HE aufs Turmdach", "155 mm HE 5 m daneben", "88 mm HE Turmseite", "88 mm HEAT Turmseite", "75 mm HE Turmseite", "155 mm HE Turmfront" };
+                int[] ammo = { 17, 17, 11, 12, 9, 17 };
+                for (int s = 0; s < names.Length; s++)
+                {
+                    var tg = others[s % others.Count];
+                    Vector3 tp = tg.parts.turret != null ? tg.parts.turret.position : tg.transform.position + Vector3.up * 2f;
+                    Vector3 side = tg.transform.right;
+                    Vector3 from, dir;
+                    if (s == 0) { from = tp + Vector3.up * 4f; dir = Vector3.down; }
+                    else if (s == 1) { Vector3 g = tg.transform.position + side * 5f; from = g + Vector3.up * 4f; dir = Vector3.down; }
+                    else if (s == 5) { from = tp + Vector3.up * 0.3f + tg.transform.forward * 25f; dir = -tg.transform.forward; }
+                    else { from = tp + Vector3.up * 0.3f + side * 25f; dir = -side; }
+                    Shell.Fire(AmmoLibrary.All[ammo[s]], from, dir, false, 300f);
+                    yield return new WaitForSeconds(0.6f);
+                    string crew = "";
+                    foreach (var m in tg.parts.modules)
+                        if (m.IsCrew) crew += $"{m.label}: {(m.Destroyed ? "tot" : $"{m.hp:0}%" + (m.Unconscious ? $" bewusstlos {m.stun:0} s" : ""))}; ";
+                    Debug.Log($"BENCH-STUN: {names[s]} -> {tg.spec.name}: {crew}");
+                    if (s < 2) yield return new WaitForSeconds(0.1f);
+                }
+                yield return new WaitForSeconds(1f);
+                for (int i = RangeLog.Lines.Count - 1; i >= 0; i--) Debug.Log("BENCH-STUN Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
+            }
+
             var frames = new List<float>();
             float t = 0f;
             while (t < 12f)

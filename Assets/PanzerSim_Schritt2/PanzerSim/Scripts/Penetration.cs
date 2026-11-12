@@ -52,7 +52,14 @@ namespace PanzerSim
         /// Sprenggranate: so dicke Platten schlaegt die Druckwelle beim Aufschlag durch (mm RHA).
         /// Faustregel: waechst mit der dritten Wurzel der Sprengstoffmenge (0,7 kg -> ca. 18 mm, 0,9 kg -> ca. 19 mm).
         /// </summary>
-        public static float HEBlastMm(float fillerKg) => 20f * Mathf.Pow(Mathf.Max(fillerKg, 0f), 1f / 3f);
+        /// Grosse Ladungen (Artillerie, ab ~2 kg) wirken staerker als die Faustregel: Platte wird eingedrueckt/reisst an Schweissnaehten
+        /// (155 mm, 10 kg -> ca. 62 mm: Dach, Heck und Seiten leichter Panzer).
+        public static float HEBlastMm(float fillerKg)
+        {
+            float f = Mathf.Max(fillerKg, 0f);
+            float big = f > 2f ? 1f + 0.15f * Mathf.Sqrt(f - 2f) : 1f;
+            return 20f * Mathf.Pow(f, 1f / 3f) * big;
+        }
 
         /// <summary>Ab diesem Auftreffwinkel gleitet eine Hohlladung ab bzw. der Zuender spricht nicht richtig an.</summary>
         public const float HEATGrazeAngle = 80f;

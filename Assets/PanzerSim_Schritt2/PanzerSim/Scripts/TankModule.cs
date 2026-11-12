@@ -28,6 +28,29 @@ namespace PanzerSim
         public bool IsCrew => type <= ModuleType.RadioOperator;
         public bool Destroyed => hp <= 0f;
 
+        /// <summary>Besatzung: so viele Sekunden noch bewusstlos (Erschuetterung durch Sprengtreffer).</summary>
+        public float stun;
+        public bool Unconscious => stun > 0f && !Destroyed;
+
+        /// <summary>
+        /// Erschuetterung (nur Besatzung): severity 0..1 (1 = Explosion direkt daneben).
+        /// Ab 0,12: bewusstlos 4-40 s und Gehirnerschuetterung (Schaden bis ~30 %). Gibt Text fuer das Protokoll zurueck.
+        /// </summary>
+        public string ApplyConcussion(float severity)
+        {
+            if (!IsCrew || Destroyed || severity < 0.06f) return null;
+            if (!NetSync.MayApplyDamage) return null;
+            severity = Mathf.Clamp01(severity * Random.Range(0.75f, 1.25f));
+            float seconds = Mathf.Max(1.5f, 40f * Mathf.Pow(severity, 1.3f));   // 0,1 -> 2 s, 0,5 -> 16 s, 1 -> 40 s
+            stun = Mathf.Max(stun, seconds);
+            if (owner != null && owner.net != null && NetSync.ShouldBroadcast(owner)) owner.net.SendModuleStun(owner.parts.modules.IndexOf(this), stun);
+            ApplyDamage(35f * Mathf.Pow(severity, 1.5f));   // Gehirnerschuetterung, Prellungen, Trommelfell
+            if (Destroyed) return $"{label} an der Erschuetterung gestorben";
+            return severity > 0.6f ? $"{label} bewusstlos ({seconds:0} s), schwere Gehirnerschuetterung"
+                 : severity > 0.3f ? $"{label} bewusstlos ({seconds:0} s), Gehirnerschuetterung"
+                 : $"{label} benommen ({seconds:0} s)";
+        }
+
         public static string RoleName(ModuleType t)
         {
             switch (t)

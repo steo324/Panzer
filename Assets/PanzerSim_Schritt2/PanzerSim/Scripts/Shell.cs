@@ -300,6 +300,9 @@ namespace PanzerSim
             Effects.Explosion(pos, data.fillerKg, false);
             Shell.Marker(pos, new Color(1f, 0.55f, 0.1f), 0.3f);
             DestructiblePart.BlowOff(pos, data.fillerKg);   // Kotfluegel, Kaesten usw. in der Naehe fliegen weg
+            // Erschuetterung: Druckstoss/Koerperschall durch die Panzerung, auch ohne Durchschlag
+            Concuss(pos, tank, r.outcome == HitOutcome.Penetration ? 1f : plateName.StartsWith("Kette") ? 0.45f : 0.65f, false);
+            if (data.fillerKg >= 2f && !plateName.StartsWith("Kette")) NearMissTracks(pos);   // Artillerie: Wucht reisst auch Ketten in der Naehe
             if (tank != null && plateName.StartsWith("Kette"))
             {
                 // Sprengtreffer auf die Kette: Glieder fliegen weg, grosse Luecke
@@ -316,6 +319,12 @@ namespace PanzerSim
                     Damage.Fragments(inside, -normal, 24, 55f, 30f, 3f, ReportDamage);
                     report.Add("   Druckwelle und Splitter im Inneren");
                 }
+                else if (data.fillerKg >= 2f && plateMm < r.penetrationMm * 2.5f)
+                {
+                    // Artillerie: Platte haelt, beult aber ein - schwere Abplatzer, Schweissnaehte reissen
+                    Damage.Fragments(inside, -normal, 18, 60f, 24f, 2.5f, ReportDamage);
+                    report.Add("   Platte eingebeult: schwere Abplatzer im Inneren");
+                }
                 else if (plateMm < r.penetrationMm * 2f)
                 {
                     Damage.Fragments(inside, -normal, 6, 40f, 12f, 1.5f, ReportDamage);   // Abplatzer von der Innenseite
@@ -328,13 +337,13 @@ namespace PanzerSim
                     Vector3 a = tank.parts.gunPivot.position, b = tank.parts.muzzle.position;
                     Vector3 ab = b - a;
                     float t = Mathf.Clamp01(Vector3.Dot(pos - a, ab) / Mathf.Max(ab.sqrMagnitude, 0.001f));
-                    gunHit = Vector3.Distance(pos, a + ab * t) < 0.35f;
+                    gunHit = Vector3.Distance(pos, a + ab * t) < 0.35f + 0.15f * Mathf.Pow(data.fillerKg, 1f / 3f);
                 }
                 if (gunHit)
                     foreach (var m in tank.parts.modules)
                         if (m != null && m.type == ModuleType.Breech)
                         {
-                            string msg = m.ApplyDamage(35f);
+                            string msg = m.ApplyDamage(data.fillerKg >= 2f ? 80f : 35f);
                             if (msg != null) ReportDamage(m, msg + " (Sprengtreffer an der Kanone)");
                         }
             }
@@ -349,6 +358,7 @@ namespace PanzerSim
         void HitHEAT(Vector3 pos, Vector3 normal, Vector3 dir, HitResult r, TankController tank, string plateName)
         {
             Effects.Explosion(pos, data.fillerKg * 0.6f, false);
+            if (tank != null) Concuss(pos, tank, r.outcome == HitOutcome.Penetration ? 1f : 0.6f, true);
             if (tank != null && plateName.StartsWith("Kette"))
                 report.Add("   " + tank.DamageTrack(pos, 35f, pos + normal * 0.2f, true));
             if (r.outcome != HitOutcome.Penetration)
@@ -457,7 +467,27 @@ namespace PanzerSim
                             && g.collider.GetComponentInParent<ArmorPlate>() == null;
             Effects.Explosion(pos, data.fillerKg, onGround);
             report.Add($"   Explosion ({data.fillerKg * 1000f:0} g Sprengstoff)");
-            Damage.Explosion(pos, data.fillerKg, ReportDamage);
+            Damage.Explosion(pos, data.fillerKg, ReportDamage, !insideTank);
+            Concuss(pos, null, 1f, false);
+        }
+
+        /// <summary>
+        /// Besatzungen erschuettern: direct = getroffener Panzer (Faktor directFactor), alle anderen Panzer im Umkreis
+        /// als Nahtreffer (0,4; Explosion im Inneren: 1). Nur Granaten mit Sprengstoff.
+        /// </summary>
+        void Concuss(Vector3 pos, TankController direct, float directFactor, bool heat)
+        {
+            if (!data.HasFiller || !NetSync.MayApplyDamage) return;
+            if (direct != null) Damage.Concussion(direct, pos, data.fillerKg, directFactor, heat, ReportDamage);
+            float r = 3f * Mathf.Pow(data.fillerKg, 1f / 3f);
+            var done = new HashSet<TankController>();
+            if (direct != null) done.Add(direct);
+            foreach (var c in Physics.OverlapSphere(pos, r, ArmorPlate.ShotMask, QueryTriggerInteraction.Ignore))
+            {
+                var plate = c.GetComponentInParent<ArmorPlate>();
+                if (plate == null || plate.Tank == null || !done.Add(plate.Tank)) continue;
+                Damage.Concussion(plate.Tank, pos, data.fillerKg, insideTank ? 1f : 0.4f, heat, ReportDamage);
+            }
         }
 
         void Finish()

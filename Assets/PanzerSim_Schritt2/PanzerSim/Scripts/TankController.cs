@@ -140,6 +140,12 @@ namespace PanzerSim
             if (spec == null) return;
             float dt = Time.deltaTime;
 
+            foreach (var m in parts.modules)
+                if (m != null && m.stun > 0f)
+                {
+                    m.stun -= dt;
+                    if (m.stun <= 0f && !m.Destroyed && isPlayer) RangeLog.AddLocal($"{m.label} ist wieder bei Bewusstsein");
+                }
             UpdateCrew(dt);
             UpdateFire(dt);
             UpdateRecoil(dt);
@@ -149,7 +155,7 @@ namespace PanzerSim
 
             // Turm-MG: rechte Maustaste (eigener Panzer), fremde Panzer zeigen das uebertragene Feuer
             bool mgFire = false;
-            if (isPlayer) { mgFire = !destroyed && !spec.noGun && !spec.noMg && (Inp.MgHeld || BenchMg) && Cursor.lockState == CursorLockMode.Locked && Working(ModuleType.Gunner); net?.SetMg(mgFire); }
+            if (isPlayer) { mgFire = !destroyed && !spec.noGun && !spec.noMg && (Inp.MgHeld || BenchMg) && Cursor.lockState == CursorLockMode.Locked && Working(ModuleType.Gunner) && SeatActive(ModuleType.Gunner); net?.SetMg(mgFire); }
             else if (net != null) mgFire = !destroyed && net.MgFiring;
             MachineGun.Tick(this, mgFire, dt);
 
@@ -192,6 +198,7 @@ namespace PanzerSim
         void AimTurret(float dt)
         {
             if (parts.turret == null || parts.turret.parent == null) return; // Turm weggeflogen
+            if (seats.Count > 0 && SeatOk(ModuleType.Gunner) && !SeatActive(ModuleType.Gunner)) return;   // Richtschuetze bewusstlos: Turm steht
 
             // Ueberhoehung: Rohr so weit anheben, dass die Granate auf Visier-Entfernung trifft
             if (Ammo.guided || artilleryAim) superElevationDeg = 0f;   // Lenkrakete fliegt der Visierlinie nach; Artillerie: Winkel kommt vom Feuerleitrechner
@@ -226,7 +233,7 @@ namespace PanzerSim
             if (spec.noGun) { RangeLog.AddLocal($"{spec.name}: keine Waffe"); return; }
             if (activeMissile != null) return;   // Lenkrakete im Flug: Werfer haengt am Draht
             if (reloadLeft > 0f) return;
-            if (!SeatOk(ModuleType.Gunner)) { RangeLog.Add("Kein Richtschuetze!"); return; }
+            if (!SeatActive(ModuleType.Gunner)) { RangeLog.Add(SeatOk(ModuleType.Gunner) ? "Richtschuetze bewusstlos!" : "Kein Richtschuetze!"); return; }
             if (Ammo.guided)
             {
                 activeMissile = GuidedMissile.Launch(this, ammoIndex);
@@ -327,7 +334,7 @@ namespace PanzerSim
             float d = 0f;
             foreach (var b in trackBreaks) d += b.damage;
             float t = 4f + d * 0.2f;
-            if (HasSeat(ModuleType.Loader) && !SeatOk(ModuleType.Loader)) t *= 1.25f;   // weniger Haende
+            if (HasSeat(ModuleType.Loader) && !SeatActive(ModuleType.Loader)) t *= 1.25f;   // weniger Haende
             return Mathf.Clamp(t, 8f, MaxRepairS);
         }
 
@@ -359,7 +366,7 @@ namespace PanzerSim
         void StartRepair()
         {
             if (trackBreaks.Count == 0 || repairing || destroyed) return;
-            if (!SeatOk(ModuleType.Driver) && !SeatOk(ModuleType.Loader) && !SeatOk(ModuleType.RadioOperator) && !SeatOk(ModuleType.Commander))
+            if (!SeatActive(ModuleType.Driver) && !SeatActive(ModuleType.Loader) && !SeatActive(ModuleType.RadioOperator) && !SeatActive(ModuleType.Commander))
             { RangeLog.Add("Niemand da, der die Kette reparieren kann!"); return; }
             repairing = true;
             repairLeft = RepairTimeNeeded();
@@ -421,7 +428,7 @@ namespace PanzerSim
         {
             // Ohne Ladeschuetze laedt der Richtschuetze selbst (Fahrzeuge ohne Ladeschuetzen-Platz: schon in der Ladezeit enthalten)
             if (!HasSeat(ModuleType.Loader)) return 1f;
-            return SeatOk(ModuleType.Loader) ? 1f : 2.5f;
+            return SeatActive(ModuleType.Loader) ? 1f : 2.5f;
         }
 
         // =============== Fahrphysik ===============
@@ -439,7 +446,7 @@ namespace PanzerSim
             const float rest = 1.02f;                             // Ruhelaenge der Feder
             const float rayLen = 1.5f;
 
-            bool canDrive = !destroyed && SeatOk(ModuleType.Driver) && Working(ModuleType.Engine) && Working(ModuleType.Transmission);
+            bool canDrive = !destroyed && SeatActive(ModuleType.Driver) && Working(ModuleType.Engine) && Working(ModuleType.Transmission);
             float vMax = spec.maxSpeedKmh / 3.6f;
             float vRev = spec.reverseKmh / 3.6f;
             float target = throttle >= 0f ? throttle * vMax : throttle * vRev;
@@ -623,6 +630,18 @@ namespace PanzerSim
 
         // =============== Besatzung und Schaden ===============
         public bool SeatOk(ModuleType role) => seats.TryGetValue(role, out var m) && m != null && !m.Destroyed;
+        /// <summary>Platz besetzt und der Mann ist bei Bewusstsein (kann fahren/richten/laden).</summary>
+        public bool SeatActive(ModuleType role) => seats.TryGetValue(role, out var m) && m != null && !m.Destroyed && !m.Unconscious;
+        /// <summary>0..1: wie stark der Spieler (Kommandant, sonst Richtschuetze) gerade weggetreten ist.</summary>
+        public float PlayerDaze
+        {
+            get
+            {
+                seats.TryGetValue(ModuleType.Commander, out var c);
+                if (c == null || c.Destroyed) seats.TryGetValue(ModuleType.Gunner, out c);
+                return c != null && c.Unconscious ? Mathf.Clamp01(c.stun / 6f) : 0f;
+            }
+        }
 
         public bool Working(ModuleType t)
         {

@@ -131,7 +131,7 @@ namespace PanzerSim
             // Lenkung: auf die Visierlinie (Zielgeraet -> Fadenkreuz) zufliegen
             Vector3 p = transform.position;
             Guided = owner != null && !owner.destroyed && owner.parts.gunPivot != null && owner.parts.turret != null &&
-                     owner.parts.turret.parent != null && owner.Working(ModuleType.Gunner) && Distance < data.wireRange;
+                     owner.parts.turret.parent != null && owner.Working(ModuleType.Gunner) && owner.SeatActive(ModuleType.Gunner) && Distance < data.wireRange;
             Vector3 dir = vel.normalized;
             if (Guided && flightTime > 0.25f)
             {

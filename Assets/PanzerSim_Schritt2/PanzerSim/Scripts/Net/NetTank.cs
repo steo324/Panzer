@@ -155,6 +155,14 @@ namespace PanzerSim
             tc.parts.modules[index].SetHpFromServer(hp);
         }
 
+        public void SendModuleStun(int index, float seconds) { if (index >= 0) ModuleStunRpc(index, seconds); }
+        [Rpc(SendTo.NotServer)]
+        void ModuleStunRpc(int index, float seconds)
+        {
+            if (tc == null || index >= tc.parts.modules.Count) return;
+            tc.parts.modules[index].stun = seconds;
+        }
+
         public void SendDestroyed(string reason) => DestroyedRpc(reason);
         [Rpc(SendTo.NotServer)] void DestroyedRpc(string reason) { if (tc != null) tc.NetSetDestroyed(reason); }
 

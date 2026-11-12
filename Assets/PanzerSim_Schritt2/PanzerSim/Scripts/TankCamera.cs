@@ -138,6 +138,13 @@ namespace PanzerSim
             // Verwackeln bei Schuss/Explosion (nach dem Zielen, damit das Fadenkreuz-Ziel ruhig bleibt)
             Vector3 shake = CameraShake.Sample(Time.deltaTime);
             if (shake != Vector3.zero) transform.rotation *= Quaternion.Euler(shake * (sightMode ? 0.35f : 1f));
+            // Erschuetterung: Bild schwankt langsam (benommen / bewusstlos)
+            float daze = target.PlayerDaze;
+            if (daze > 0f)
+            {
+                float tt = Time.time;
+                transform.rotation *= Quaternion.Euler(Mathf.Sin(tt * 0.9f) * 2.5f * daze, Mathf.Sin(tt * 0.6f + 1f) * 3.5f * daze, Mathf.Sin(tt * 0.45f) * 4f * daze);
+            }
         }
 
         void SetViewMode(int mode)
@@ -183,10 +190,26 @@ namespace PanzerSim
                 }
             }
 
+            // Erschuetterung: Bild wird schwarz (bewusstlos), kommt beim Aufwachen langsam zurueck
+            float daze = t0.PlayerDaze;
+            if (daze > 0f)
+            {
+                float pulse = 0.85f + 0.15f * Mathf.Sin(Time.time * 1.7f);
+                GUI.color = new Color(0.03f, 0.0f, 0.0f, Mathf.Clamp01(daze * 0.97f * pulse));
+                GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
+                GUI.color = Color.white;
+            }
+
             // ab hier: Anzeigen in "virtuellen" Pixeln, die mit der Aufloesung (und der UI-Groesse) mitwachsen
             GUI.matrix = Matrix4x4.Scale(new Vector3(k, k, 1f));
             float SW = Screen.width / k, SH = Screen.height / k;
             cx = SW / 2f; cy = SH / 2f;
+            if (daze > 0.3f)
+            {
+                t0.seats.TryGetValue(ModuleType.Commander, out var dm);
+                if (dm == null || !dm.Unconscious) t0.seats.TryGetValue(ModuleType.Gunner, out dm);
+                if (dm != null) GUI.Label(new Rect(cx - 300, cy - 80, 600, 50), $"{TankModule.RoleName(dm.type)} BEWUSSTLOS ({dm.stun:0} s)", big);
+            }
             if (aimedName != null)
                 GUI.Label(new Rect(cx + 20, cy + 15, 300, 25), aimedName, box);   // ohne Meterangabe: Entfernung kennt man nur geschaetzt oder gelasert
             if (t0.spec.hasRangefinder && Time.time - laserTime < 4f)
@@ -215,7 +238,8 @@ namespace PanzerSim
                 t.seats.TryGetValue(role, out var m);
                 string who = m == null ? "<color=#f66>leer</color>"
                            : m.Destroyed ? "<color=#f66>tot</color>"
-                           : $"{m.label} {m.hp:0}%" + (m.type != role ? " (eingesprungen)" : "");
+                           : $"{m.label} {m.hp:0}%" + (m.type != role ? " (eingesprungen)" : "")
+                             + (m.Unconscious ? $" <color=#fb4>BEWUSSTLOS {m.stun:0} s</color>" : "");
                 s += $"  {TankModule.RoleName(role)}: {who}\n";
             }
             s += "\n<b>Technik</b>\n";
