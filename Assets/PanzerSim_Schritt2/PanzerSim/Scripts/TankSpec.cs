@@ -57,7 +57,7 @@ namespace PanzerSim
         public bool noGun;                   // (noch) keine Hauptwaffe: Feuern und MG aus (Wiesel: TOW-Lenkrakete folgt)
         public bool devOnly;                 // nur im Entwickler-Modus waehlbar (Fahrzeug in Arbeit)
         public bool noMg;                    // kein Turm-MG
-        public int mgType;                   // Koaxial-MG: 0 MG 34, 1 DT 7,62 mm, 2 DShKM 12,7 mm, 3 KPVT 14,5 mm, 4 M1919 .30, 5 SGMT 7,62 mm, 6 MG3 7,62 mm NATO (MachineGun.Rounds)
+        public int mgType;                   // Koaxial-MG: 0 MG 34, 1 DT 7,62 mm, 2 DShKM 12,7 mm, 3 KPVT 14,5 mm, 4 M1919 .30, 5 SGMT 7,62 mm, 6 MG3 7,62 mm NATO, 7 L94A1 Kettenkanone 7,62 mm (MachineGun.Rounds)
         public ModuleType[] crew;            // Besatzung (null = Kommandant, Richtschuetze, Ladeschuetze, Fahrer, Funker)
         public bool crewInHull;              // Richtschuetze/Kommandant sitzen in der Wanne (kein bemannter Turm)
         public bool hasThermal;              // Zielgeraet mit Waermebild (Taste V im Visier)
@@ -246,7 +246,7 @@ namespace PanzerSim
         /// </summary>
         public static TankSpec Leopard2A6 => new TankSpec
         {
-            name = "Leopard 2A6",
+            name = "Leopard 2A6", devOnly = true,   // nach 1960: nur Entwickler-Modus
             // MTU MB 873 Ka-501, 1500 PS; 62,3 t; 68 km/h vorwaerts, 31 km/h rueckwaerts
             massT = 62.3f, powerPS = 1500f, maxSpeedKmh = 68f, reverseKmh = 31f, turnRateDegS = 36f,
             hullLength = 7.63f, hullWidth = 3.75f, hullHeight = 1.16f, clearance = 0.54f,
@@ -286,7 +286,7 @@ namespace PanzerSim
         /// </summary>
         public static TankSpec Leopard2_140 => new TankSpec
         {
-            name = "Leopard 2 (140 mm)",
+            name = "Leopard 2 (140 mm)", devOnly = true,   // nach 1960: nur Entwickler-Modus
             massT = 65f, powerPS = 1500f, maxSpeedKmh = 66f, reverseKmh = 31f, turnRateDegS = 34f,
             hullLength = 7.63f, hullWidth = 3.75f, hullHeight = 1.16f, clearance = 0.54f,
             trackWidth = 0.635f, trackInset = 0.80f,
@@ -594,6 +594,44 @@ namespace PanzerSim
         };
 
         /// <summary>
+        /// Challenger 2 (britisch, ab 1998): Dorchester-Verbundpanzerung (2. Generation Chobham), 120 mm L30A1 - die einzige gezogene
+        /// 120-mm-Kanone der NATO, darum mit HESH (Quetschkopf). Waermebild TOGS II, Laser, stabilisiert, Feuerleitrechner.
+        /// L94A1-Kettenkanone (7,62 mm) koaxial. Panzerung ungefaehr nach oeffentlichen Schaetzungen.
+        /// Modell: "Challenger II" von buh (sketchfab.com/buh-late), CC BY 4.0 - gerigged mit Tools/Blender/rig_challenger2.py.
+        /// </summary>
+        public static TankSpec Challenger2 => new TankSpec
+        {
+            name = "Challenger 2", nation = Nation.UK, devOnly = true,   // nach 1960: nur Entwickler-Modus
+            // Perkins CV12 1200 PS; 62,5 t; 59 km/h vorwaerts, 35 km/h rueckwaerts
+            massT = 62.5f, powerPS = 1200f, maxSpeedKmh = 59f, reverseKmh = 35f, turnRateDegS = 32f,
+            hullLength = 8.30f, hullWidth = 3.52f, hullHeight = 1.09f, clearance = 0.50f,
+            trackWidth = 0.635f, trackInset = 0.98f,     // Kettenmitte bei x ~1,1 m
+            hullFront = new Armor(450, 0, ArmorMaterial.Composite), hullRear = new Armor(35, 0), hullSide = new Armor(80, 0),
+            hullRoof = new Armor(40, 0), hullBottom = new Armor(30, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(450, 0, ArmorMaterial.Composite), hullGlacis = new Armor(80, 0), hullLowerSide = new Armor(50, 0),
+            turretLength = 4.2f, turretWidth = 3.0f, turretHeight = 0.9f, turretOffsetZ = 0.2f,
+            turretFront = new Armor(560, 0, ArmorMaterial.Composite),       // Dorchester: mit Schraege ~800 mm gegen Pfeile
+            turretSide = new Armor(250, 0, ArmorMaterial.Composite), turretRear = new Armor(60, 0),
+            turretRoof = new Armor(50, 0), mantlet = new Armor(400, 0, ArmorMaterial.Composite),
+            traverseDegS = 36f, elevationDegS = 14f, minElevation = -10f, maxElevation = 20f,
+            stabilizer = true, fireControl = true, hasRangefinder = true, hasThermal = true,
+            // getrennte Munition, Ladeschuetze: ~6 s
+            ammoIndex = 53, ammo = new[] { 53, 54 }, reloadS = 6f, barrelLength = 4.95f, gunPivotFromModel = true, mgType = 7,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
+            // Gunner's Primary Sight: 4- / 10-fach, Waermebild TOGS II (Taste V)
+            sightType = SightType.US, sightFov = 15f, sightMag = 4f, sightName = "GPS / TOGS II",
+            sightZoomFov = new[] { 15f, 6f }, sightZoomMag = new[] { 4f, 10f },
+            modelResource = "Modelle/Challenger2", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            // Antriebsrad hinten (radL0), 6 Laufrollen (Hydrogas-Federung), Leitrad vorne (radL7), 3 Stuetzrollen
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.352f,
+            linkTracks = true, idlerRadius = 0.27f, sprocketRadius = 0.26f,
+            trackPitch = 0.16f, trackShoeWidth = 0.635f, trackThickness = 0.085f, trackSag = 0.03f,
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 3, returnRollerRadius = 0.14f
+        };
+
+        /// <summary>
         /// Wiesel 1 TOW (Bundeswehr, Luftlande-Waffentraeger, ab 1989): Modell im Code gebaut nach Risszeichnungen
         /// (Tools/Blender/build_wiesel.py). Vorerst nur fahrbar - die TOW-Lenkrakete kommt spaeter.
         /// Werte ungefaehr: 2,8 t, Audi-5-Zylinder-Turbodiesel 87 PS, 70 km/h; Panzerung nur gegen Gewehrfeuer und Splitter.
@@ -820,7 +858,7 @@ namespace PanzerSim
         /// <summary>T-55A (1963): 100 mm D-10T2S, zweiachsig stabilisiert, Strahlenschutz. SGMT koaxial (zusaetzlich Bug-SGMT).</summary>
         public static TankSpec T55A => new TankSpec
         {
-            name = "T-55A", nation = Nation.USSR, stabilizer = true,
+            name = "T-55A", nation = Nation.USSR, stabilizer = true, devOnly = true,   // nach 1960: nur Entwickler-Modus
             // V-55 580 PS; 38 t; 50 km/h
             massT = 38f, powerPS = 580f, maxSpeedKmh = 50f, reverseKmh = 8f, turnRateDegS = 32f,
             hullLength = 6.33f, hullWidth = 3.27f, hullHeight = 1.10f, clearance = 0.425f,

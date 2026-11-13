@@ -31,6 +31,7 @@ namespace PanzerSim
         public float fuseSensitivityMm = 15f; // so dick muss eine Platte sein, damit der Zuender scharf wird
 
         public float heatPenMm;               // nur HEAT: Durchschlag des Strahls senkrecht (mm RHA)
+        public float heshMm;                  // nur HESH (Quetschkopf, britisch): Platte so dick (mm RHA) platzt innen ab - gegen Verbundpanzerung kaum wirksam
         public float spallMul = 1f;           // Splitterwirkung hinter der Platte (Treibspiegel: Kern duenn, Wirkung wie viel groesseres Kaliber)
         public float penRefMm;                // nur APDS/APFSDS: Durchschlag senkrecht an der Muendung (mm RHA, aus Beschusstafeln)
         public bool guided;                   // Lenkrakete (TOW): fliegt der Visierlinie nach statt ballistisch
@@ -135,6 +136,9 @@ namespace PanzerSim
             new ShellData("APFSDS 140", "140 mm NPzK (Leopard 2-140)", ShellType.APFSDS, 34f, 9.0f, 1700f, 0f) { penRefMm = 1250f, spallMul = 6f, dragCoefficient = 0.30f },   // 50  schwerer Wolfram-Pfeil
             new ShellData("HEAT-MP 140", "140 mm NPzK (Leopard 2-140)", ShellType.HEAT, 140f, 21f, 1100f, 3.5f) { heatPenMm = 900f, dragCoefficient = 0.33f },   // 51
             new ShellData("HE 140",      "140 mm NPzK (Leopard 2-140)", ShellType.HE,   140f, 28f, 900f, 4.5f) { dragCoefficient = 0.31f },   // 52
+            // Challenger 2: 120 mm L30A1 (gezogen, Munition in drei Teilen: Geschoss, Treibladung, Zuendhuelse)
+            new ShellData("L27A1 CHARM 3", "120 mm L30A1 (Challenger 2)", ShellType.APFSDS, 26f, 4.8f, 1650f, 0f) { penRefMm = 720f, spallMul = 3.5f, dragCoefficient = 0.30f },   // 53  Uran-Pfeil
+            new ShellData("L31 HESH",      "120 mm L30A1 (Challenger 2)", ShellType.HE,     120f, 17.1f, 670f, 4.08f) { heshMm = 180f, dragCoefficient = 0.33f },   // 54  Quetschkopf
         };
     }
 }

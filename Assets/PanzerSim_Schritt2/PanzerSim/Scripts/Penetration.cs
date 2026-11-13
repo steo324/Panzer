@@ -43,7 +43,7 @@ namespace PanzerSim
 
         public static float FlatPenetration(ShellData s, float velocity)
         {
-            if (s.IsHE) return HEBlastMm(s.fillerKg);
+            if (s.IsHE) return Mathf.Max(HEBlastMm(s.fillerKg), s.heshMm);
             if (s.IsHEAT) return s.heatPenMm;   // Hohlladung: unabhaengig von der Geschwindigkeit
             if (s.IsSabot) return SabotMm(s, velocity);
             return DeMarreMm(velocity, s.massKg, s.caliberMm) * FillerFactor(s);
@@ -124,6 +124,13 @@ namespace PanzerSim
             // auf die Platte (Winkel spielt kaum eine Rolle) - durch, wenn die Platte duenner ist als die Druckwelle schafft.
             if (s.IsHE)
             {
+                // HESH (Quetschkopf): Sprengstoff klatscht auf die Platte, die Stosswelle sprengt innen Splitter ab ("Abplatzen").
+                // Gegen Verbundpanzerung und Schuerzen (Schichten, Luftspalte) wirkt das kaum; sehr flach trifft der Kopf schlecht auf.
+                if (s.heshMm > 0f)
+                {
+                    float hesh = s.heshMm * (plateMat == ArmorMaterial.Composite ? 0.25f : 1f) * (r.impactAngleDeg > 70f ? 0.6f : 1f);
+                    r.penetrationMm = Mathf.Max(HEBlastMm(s.fillerKg), hesh);
+                }
                 r.effectiveArmorMm = plateMm;
                 r.residualVelocity = 0f;
                 r.exitDirection = dir;
