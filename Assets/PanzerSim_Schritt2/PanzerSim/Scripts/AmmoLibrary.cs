@@ -91,6 +91,21 @@ namespace PanzerSim
             // Panther: 7,5 cm KwK 42 L/70
             new ShellData("PzGr. 39/42", "7,5 cm KwK 42 L/70 (Panther)", ShellType.APCBC, 75f, 6.80f, 935f, 0.018f),   // 23
             new ShellData("Sprgr. 42",   "7,5 cm KwK 42 L/70 (Panther)", ShellType.HE,    75f, 5.74f, 700f, 0.725f) { dragCoefficient = 0.33f },   // 24
+            // KV-1 (1941): 76,2 mm F-32 L/31,5
+            new ShellData("BR-350A", "76 mm F-32 (KV-1)", ShellType.APHEBC, 76.2f, 6.30f, 662f, 0.155f),   // 25
+            new ShellData("OF-350",  "76 mm F-32 (KV-1)", ShellType.HE,     76.2f, 6.20f, 638f, 0.71f) { dragCoefficient = 0.33f },   // 26
+            // IS-1: 85 mm D-5T (Ballistik wie ZiS-S-53)
+            new ShellData("BR-365",  "85 mm D-5T (IS-1)", ShellType.APHEBC, 85f, 9.20f, 792f, 0.048f),   // 27
+            new ShellData("BR-365K", "85 mm D-5T (IS-1)", ShellType.APHE,   85f, 9.20f, 792f, 0.048f),   // 28
+            new ShellData("O-365",   "85 mm D-5T (IS-1)", ShellType.HE,     85f, 9.54f, 793f, 0.741f) { dragCoefficient = 0.32f },   // 29
+            // IS-2, IS-3, T-10: 122 mm D-25T L/43 (getrennte Munition: Geschoss + Kartusche)
+            new ShellData("BR-471",  "122 mm D-25T (IS-2/IS-3/T-10)", ShellType.APHE,   122f, 25.0f, 795f, 0.156f),   // 30  stumpfe Spitze
+            new ShellData("BR-471B", "122 mm D-25T (IS-2/IS-3/T-10)", ShellType.APHEBC, 122f, 25.0f, 795f, 0.156f),   // 31  stumpf + ballistische Haube (ab 1944)
+            new ShellData("OF-471",  "122 mm D-25T (IS-2/IS-3/T-10)", ShellType.HE,     122f, 25.0f, 800f, 3.6f) { dragCoefficient = 0.31f },   // 32
+            // T-10M: 122 mm M-62-T2 L/46,5
+            new ShellData("BR-472",  "122 mm M-62-T2 (T-10M)", ShellType.APHEBC, 122f, 25.0f, 950f, 0.156f),   // 33
+            new ShellData("OF-472",  "122 mm M-62-T2 (T-10M)", ShellType.HE,     122f, 27.3f, 885f, 3.0f) { dragCoefficient = 0.31f },   // 34
+            new ShellData("BK-6M",   "122 mm M-62-T2 (T-10M)", ShellType.HEAT,   122f, 21.6f, 900f, 1.4f) { heatPenMm = 420f, dragCoefficient = 0.33f },   // 35
         };
     }
 }

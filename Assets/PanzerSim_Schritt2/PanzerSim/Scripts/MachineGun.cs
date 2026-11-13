@@ -11,7 +11,6 @@ namespace PanzerSim
     /// </summary>
     public static class MachineGun
     {
-        public const float RateS = 15f;          // Schuss pro Sekunde
         const int TracerEvery = 3;
         const float Spread = 0.0015f;            // Streuung (rad)
         const float TracerBurn = 1.4f;           // Leuchtsatz brennt ~1 km
@@ -19,7 +18,20 @@ namespace PanzerSim
         /// <summary>7,92 mm sS-Patrone (12,8 g, 755 m/s) - auch fuer die MG-Skala im Zielfernrohr.</summary>
         public static readonly ShellData Round = new ShellData("7,92 mm sS", "MG 34", ShellType.AP, 7.92f, 0.0128f, 755f, 0f) { dragCoefficient = 0.30f };
 
-        class Bullet { public Vector3 pos, vel, start; public float life; public bool tracer; public Color color; public TankController owner; }
+        /// <summary>Koaxial-MGs (TankSpec.mgType): Patrone und Kadenz (Schuss/s).</summary>
+        public static readonly ShellData[] Rounds =
+        {
+            Round,                                                                                                                  // 0: MG 34, 900/min
+            new ShellData("7,62 mm L",   "DT",     ShellType.AP, 7.62f,  0.0096f, 840f,  0f) { dragCoefficient = 0.30f },           // 1: DT/DTM, 600/min
+            new ShellData("12,7 mm B-32", "DShKM", ShellType.AP, 12.7f,  0.0485f, 840f,  0f) { dragCoefficient = 0.28f },           // 2: DShK, 600/min
+            new ShellData("14,5 mm B-32", "KPVT",  ShellType.AP, 14.5f,  0.064f,  1000f, 0f) { dragCoefficient = 0.28f },           // 3: KPVT, 600/min
+            new ShellData(".30-06 M2",   "M1919A4", ShellType.AP, 7.62f, 0.0107f, 853f,  0f) { dragCoefficient = 0.30f },           // 4: Browning, 500/min
+        };
+        static readonly float[] RatesS = { 15f, 10f, 10f, 10f, 8.3f };
+        public static ShellData RoundFor(TankSpec s) => Rounds[Mathf.Clamp(s.mgType, 0, Rounds.Length - 1)];
+        public static float RateFor(TankSpec s) => RatesS[Mathf.Clamp(s.mgType, 0, RatesS.Length - 1)];
+
+        class Bullet { public Vector3 pos, vel, start; public float life; public bool tracer; public Color color; public TankController owner; public ShellData round; }
         static readonly List<Bullet> bullets = new List<Bullet>();
         static readonly Dictionary<TankController, (float acc, int count)> guns = new Dictionary<TankController, (float, int)>();
 
@@ -29,7 +41,7 @@ namespace PanzerSim
             if (tc == null || NetSync.Headless) return;
             guns.TryGetValue(tc, out var g);
             if (!firing) { g.acc = 0f; guns[tc] = g; return; }
-            g.acc += dt * RateS;
+            g.acc += dt * RateFor(tc.spec);
             while (g.acc >= 1f)
             {
                 g.acc -= 1f; g.count++;
@@ -48,25 +60,26 @@ namespace PanzerSim
             // koaxial: rechts neben der Kanone, ueberhoeht fuer die eingestellte Visier-Entfernung (MG-Skala)
             // Rohr ist fuer die Kanonengranate ueberhoeht; das MG braucht (meist) mehr: Visierlinie + MG-Ueberhoehung
             // (AngleAxis um "rechts" mit positivem Winkel senkt die Richtung - darum Kanone minus MG)
-            Vector3 dir = Quaternion.AngleAxis(tc.SuperElevation - Superelevation(tc.sightRange), p.gunPivot.right) * p.gunPivot.forward;
+            var round = RoundFor(tc.spec);
+            Vector3 dir = Quaternion.AngleAxis(tc.SuperElevation - Superelevation(round, tc.sightRange), p.gunPivot.right) * p.gunPivot.forward;
             dir = (dir + Random.insideUnitSphere * Spread).normalized;
             Vector3 pos = p.gunPivot.position + p.gunPivot.right * 0.32f + p.gunPivot.forward * 1.1f;
-            bullets.Add(new Bullet { pos = pos, start = pos, vel = dir * Round.muzzleVelocity + (tc.rb != null ? tc.rb.linearVelocity : Vector3.zero), tracer = tracer, color = Tracers.MgColor(tc.spec.sightType), owner = tc });
+            bullets.Add(new Bullet { pos = pos, start = pos, vel = dir * round.muzzleVelocity + (tc.rb != null ? tc.rb.linearVelocity : Vector3.zero), tracer = tracer, color = Tracers.MgColor(tc.spec.sightType), owner = tc, round = round });
             Sfx.MG(pos);
             if (tc.isPlayer) CameraShake.Add(pos, 0.04f, 5f);
             EnsureRunner();
         }
 
         /// <summary>Ueberhoehung (Grad) fuer die MG-Patrone auf diese Entfernung (auf 1500 m begrenzt).</summary>
-        public static float Superelevation(float range)
+        public static float Superelevation(ShellData round, float range)
         {
+            if (!tables.TryGetValue(round, out var table)) { table = new float[31]; for (int k = 0; k < table.Length; k++) table[k] = -1f; tables[round] = table; }
             range = Mathf.Clamp(range, 10f, 1500f);
             int i = Mathf.Clamp(Mathf.RoundToInt(range / 50f), 0, table.Length - 1);
-            if (table[i] < 0f) { Ballistics.SimulateFlat(Round, i * 50f + 1f, out _, out float drop, out _); table[i] = Mathf.Atan2(drop, i * 50f + 1f) * Mathf.Rad2Deg; }
+            if (table[i] < 0f) { Ballistics.SimulateFlat(round, i * 50f + 1f, out _, out float drop, out _); table[i] = Mathf.Atan2(drop, i * 50f + 1f) * Mathf.Rad2Deg; }
             return table[i];
         }
-        static readonly float[] table = Init();
-        static float[] Init() { var a = new float[31]; for (int i = 0; i < a.Length; i++) a[i] = -1f; return a; }
+        static readonly Dictionary<ShellData, float[]> tables = new Dictionary<ShellData, float[]>();
 
         // ---------------- Geschosse bewegen ----------------
         static Runner runner;
@@ -89,7 +102,7 @@ namespace PanzerSim
                     var b = bullets[i];
                     b.life += dt;
                     Vector3 next = b.pos + b.vel * dt;
-                    b.vel += Ballistics.Acceleration(Round, b.vel) * dt;
+                    b.vel += Ballistics.Acceleration(b.round ?? Round, b.vel) * dt;
                     Vector3 step = next - b.pos;
                     bool hitSomething = false;
                     if (Physics.Raycast(b.pos, step.normalized, out RaycastHit hit, step.magnitude, ArmorPlate.ShotMask, QueryTriggerInteraction.Ignore))

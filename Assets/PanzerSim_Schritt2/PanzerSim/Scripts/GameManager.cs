@@ -12,7 +12,8 @@ namespace PanzerSim
         State state;
 
         static readonly System.Func<TankSpec>[] Tanks =
-            { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85, () => TankLibrary.Wiesel, () => TankLibrary.PzH2000, () => TankLibrary.TigerII, () => TankLibrary.PanzerIII, () => TankLibrary.Panther };   // Reihenfolge = Panzernummer im Netz, nur hinten anfuegen
+            { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85, () => TankLibrary.Wiesel, () => TankLibrary.PzH2000, () => TankLibrary.TigerII, () => TankLibrary.PanzerIII, () => TankLibrary.Panther,
+              () => TankLibrary.KV1, () => TankLibrary.IS1, () => TankLibrary.IS2, () => TankLibrary.IS3, () => TankLibrary.T10, () => TankLibrary.T10M };   // Reihenfolge = Panzernummer im Netz, nur hinten anfuegen
         readonly GameMap[] maps = { new PlainsMap(), new TestRangeMap(), new HillsMap(),   // Reihenfolge = Kartennummer (-map), nicht umsortieren
             new RealMap("HornBadMeinberg", "Horn-Bad Meinberg",
                 "Echte Gegend, 5 x 5 km: Horn und Bad Meinberg mit Externsteinen am Teutoburger Wald. Gelaende aus dem amtlichen Hoehenmodell NRW (1 m genau), Strassen, Gebaeude, Waelder und Felder aus OpenStreetMap.",
@@ -585,15 +586,23 @@ namespace PanzerSim
             GUI.Box(left, GUIContent.none, panel);
             GUILayout.BeginArea(new Rect(left.x + 18, left.y + 14, left.width - 36, left.height - 28));
             GUILayout.Label("PANZER", head);
+            // zwei Spalten, damit alle Panzer Platz haben
+            var shown = new System.Collections.Generic.List<int>();
             for (int i = 0; i < Tanks.Length; i++)
+                if (!Tanks[i]().devOnly || GameSettings.DevMode) shown.Add(i);   // Test-Fahrzeuge nur im Entwickler-Modus
+            for (int k = 0; k < shown.Count; k += 2)
             {
-                var s = Tanks[i]();
-                if (s.devOnly && !GameSettings.DevMode) continue;   // Test-Fahrzeuge nur im Entwickler-Modus
-                if (GUILayout.Button(s.name, i == tankIndex ? btnSel : btn, GUILayout.Height(44)) && i != tankIndex)
+                GUILayout.BeginHorizontal();
+                for (int j = k; j < Mathf.Min(k + 2, shown.Count); j++)
                 {
-                    tankIndex = i;
-                    BuildPreview();
+                    int i = shown[j];
+                    if (GUILayout.Button(Tanks[i]().name, i == tankIndex ? btnSel : btn, GUILayout.Height(38), GUILayout.Width(190)) && i != tankIndex)
+                    {
+                        tankIndex = i;
+                        BuildPreview();
+                    }
                 }
+                GUILayout.EndHorizontal();
             }
             GUILayout.Space(14);
             GUILayout.Label(TankInfo(Tanks[tankIndex]()), text);
@@ -652,7 +661,7 @@ namespace PanzerSim
             GUI.Label(new Rect(60, H - 128, 1600, 26),
                 "Modelle (CC BY 4.0): Tiger I, Panzer III, Panther von Joanthan To (sketchfab.com/jonathanto99)  ·  Panzer IV von Greg McKechnie (sketchfab.com/mckechniegreg6)  ·  M4A1E9 Sherman von Sem (sketchfab.com/Sem-Hofstede)  ·  T-34-85 von DedRam (sketchfab.com/heirohindrima)", small);
             GUI.Label(new Rect(60, H - 102, 1600, 26),
-                "Tiger II von maximus0075550 (sketchfab.com/maximus0075550)  ·  Panzerhaubitze 2000 von gogiart (sketchfab.com/agt14032013)  ·  Golf IV R32 von ddiaz-design (sketchfab.com/ddiaz-design, CC BY-NC-SA 4.0)  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan)  ·  alle fuer das Spiel angepasst (gerigged, Kette ersetzt, Tiger bemalt)  ·  Lizenz: creativecommons.org/licenses/by/4.0  ·  Details: CREDITS.md", small);
+                "Tiger II von maximus0075550 (sketchfab.com/maximus0075550)  ·  KV-1, IS-1, IS-2, IS-3, T-10, T-10M von snrnsrk5 (sketchfab.com/snrnsrk5)  ·  Panzerhaubitze 2000 von gogiart (sketchfab.com/agt14032013)  ·  Golf IV R32 von ddiaz-design (sketchfab.com/ddiaz-design, CC BY-NC-SA 4.0)  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan)  ·  alle fuer das Spiel angepasst (gerigged, Kette ersetzt, Tiger bemalt)  ·  Lizenz: creativecommons.org/licenses/by/4.0  ·  Details: CREDITS.md", small);
             GUI.Label(new Rect(60, H - 76, 1400, 26),
                 "CC0: Weizenhalme ffish.asia / floraZia.com  ·  Bodentexturen ambientCG.com  ·  Kartendaten (c) OpenStreetMap-Mitwirkende (ODbL)  ·  Gelaende: Geobasis NRW (dl-de/zero-2-0)", small);
             GUI.Label(new Rect(60, H - 50, 900, 30),

@@ -460,7 +460,7 @@ namespace PanzerSim
             float R1 = size * 0.31f, R2 = size * 0.262f, R3 = size * 0.225f;
             DrawScale(upper1, R1, 4000f, 0f, true, drum, gain, size, lw, ink, pivot, cur == upper1);
             if (upper2 != null) DrawScale(upper2, R2, 4000f, 0f, false, drum, gain, size, lw, ink, pivot, cur == upper2);
-            DrawScale(MachineGun.Round, R3, 1200f, 0f, false, drum, gain, size, lw, ink, pivot, false, "MG");
+            DrawScale(MachineGun.RoundFor(target.spec), R3, 1200f, 0f, false, drum, gain, size, lw, ink, pivot, false, "MG");
             if (lower != null) DrawScale(lower, R1, 4000f, 180f, true, drum, gain, size, lw, ink, pivot, cur == lower);
 
             // fester Zeiger oben: langer schwarzer Keil von oben bis an die aeussere Skala

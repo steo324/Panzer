@@ -53,6 +53,7 @@ namespace PanzerSim
         public bool noGun;                   // (noch) keine Hauptwaffe: Feuern und MG aus (Wiesel: TOW-Lenkrakete folgt)
         public bool devOnly;                 // nur im Entwickler-Modus waehlbar (Fahrzeug in Arbeit)
         public bool noMg;                    // kein Turm-MG
+        public int mgType;                   // Koaxial-MG: 0 MG 34, 1 DT 7,62 mm, 2 DShKM 12,7 mm, 3 KPVT 14,5 mm, 4 M1919 .30 (MachineGun.Rounds)
         public ModuleType[] crew;            // Besatzung (null = Kommandant, Richtschuetze, Ladeschuetze, Fahrer, Funker)
         public bool crewInHull;              // Richtschuetze/Kommandant sitzen in der Wanne (kein bemannter Turm)
         public bool hasThermal;              // Zielgeraet mit Waermebild (Taste V im Visier)
@@ -230,6 +231,182 @@ namespace PanzerSim
             trackPitch = 0.153f, trackShoeWidth = 0.66f, trackThickness = 0.05f, trackSag = 0.05f
         };
 
+        // ================= Sowjetische schwere Panzer =================
+        // Modelle: "Soviet Heavy Tanks" von snrnsrk5 (sketchfab.com/snrnsrk5), CC BY 4.0 - gerigged mit Tools/Blender/rig_soviet.py.
+        // Laufwerk: Antriebsrad hinten (radL0), Laufrollen mit Drehstabfederung, Leitrad vorne, 3 Stuetzrollen (rollL1..3).
+        // (idlerRadius = hinteres Rad, sprocketRadius = vorderes Rad - im Spiel nur fuer die Kettenform.)
+        // Visier, Koaxial-MG und Munition nach den echten Fahrzeugen; Winkel = Neigung von der Senkrechten.
+
+        /// <summary>KV-1 Modell 1941 (geschweisster Turm): 76 mm F-32, rundum 75 mm. DT-MG koaxial (zusaetzlich Bug- und Heck-DT).</summary>
+        public static TankSpec KV1 => new TankSpec
+        {
+            name = "KV-1 (1941)",
+            // V-2K Diesel 600 PS; 47,5 t; 35 km/h
+            massT = 47.5f, powerPS = 600f, maxSpeedKmh = 35f, reverseKmh = 7f, turnRateDegS = 18f,
+            hullLength = 6.77f, hullWidth = 3.32f, hullHeight = 1.26f, clearance = 0.44f,
+            trackWidth = 0.70f, trackInset = 0.67f,      // Kettenmitte bei x = 1,34 m
+            hullFront = new Armor(75, 30), hullRear = new Armor(60, 50), hullSide = new Armor(75, 0),
+            hullRoof = new Armor(30, 0), hullBottom = new Armor(30, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(75, 25), hullGlacis = new Armor(60, 70), hullLowerSide = new Armor(75, 0),
+            turretLength = 2.4f, turretWidth = 2.0f, turretHeight = 1.0f, turretOffsetZ = 0.45f,
+            turretFront = new Armor(90, 15), turretSide = new Armor(75, 15), turretRear = new Armor(75, 15),
+            turretRoof = new Armor(30, 0), mantlet = new Armor(90, 0, ArmorMaterial.Cast),
+            traverseDegS = 12f, elevationDegS = 5f, minElevation = -5f, maxElevation = 25f,   // elektrischer Turmantrieb
+            ammoIndex = 25, ammo = new[] { 25, 26 }, reloadS = 6f, barrelLength = 1.73f, gunPivotFromModel = true, mgType = 1,
+            // TOD-6: 2,5-fach, 26 Grad
+            sightType = SightType.Soviet, sightFov = 26f, sightMag = 2.5f, sightName = "TOD-6",
+            modelResource = "Modelle/KV1", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.295f,
+            linkTracks = true, idlerRadius = 0.41f, sprocketRadius = 0.33f,
+            trackPitch = 0.16f, trackShoeWidth = 0.70f, trackThickness = 0.06f, trackSag = 0.04f,
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 3, returnRollerRadius = 0.19f
+        };
+
+        /// <summary>IS-1 (IS-85, 1943): 85 mm D-5T, gestufter Bug 120 mm. 4 Mann, DT koaxial (zusaetzlich Heck-DT im Turm).</summary>
+        public static TankSpec IS1 => new TankSpec
+        {
+            name = "IS-1",
+            // V-2IS 520 PS; 44,2 t; 37 km/h
+            massT = 44.2f, powerPS = 520f, maxSpeedKmh = 37f, reverseKmh = 7f, turnRateDegS = 20f,
+            hullLength = 6.70f, hullWidth = 3.07f, hullHeight = 1.17f, clearance = 0.42f,
+            trackWidth = 0.65f, trackInset = 0.65f,      // Kettenmitte bei x = 1,21 m
+            hullFront = new Armor(120, 30), hullRear = new Armor(60, 49), hullSide = new Armor(90, 15),
+            hullRoof = new Armor(30, 0), hullBottom = new Armor(20, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(100, 30), hullGlacis = new Armor(60, 72), hullLowerSide = new Armor(90, 0),
+            turretLength = 2.9f, turretWidth = 2.3f, turretHeight = 1.0f, turretOffsetZ = 0.78f,
+            turretFront = new Armor(100, 0, ArmorMaterial.Cast), turretSide = new Armor(90, 20, ArmorMaterial.Cast),
+            turretRear = new Armor(90, 30, ArmorMaterial.Cast), turretRoof = new Armor(30, 0), mantlet = new Armor(100, 0, ArmorMaterial.Cast),
+            traverseDegS = 14f, elevationDegS = 5f, minElevation = -5f, maxElevation = 25f,
+            ammoIndex = 27, ammo = new[] { 27, 28, 29 }, reloadS = 8f, barrelLength = 2.79f, gunPivotFromModel = true, mgType = 1,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
+            // TSh-17: 4-fach, 16 Grad
+            sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-17",
+            modelResource = "Modelle/IS1", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.275f,
+            linkTracks = true, idlerRadius = 0.36f, sprocketRadius = 0.275f,
+            trackPitch = 0.16f, trackShoeWidth = 0.65f, trackThickness = 0.06f, trackSag = 0.04f,
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 3, returnRollerRadius = 0.19f
+        };
+
+        /// <summary>IS-2 Modell 1944 (gerade Bugplatte): 122 mm D-25T mit Muendungsbremse, getrennte Munition. DT koaxial (zusaetzlich Heck-DT, DShK).</summary>
+        public static TankSpec IS2 => new TankSpec
+        {
+            name = "IS-2 (1944)",
+            // V-2IS 520 PS; 46 t; 37 km/h
+            massT = 46f, powerPS = 520f, maxSpeedKmh = 37f, reverseKmh = 7f, turnRateDegS = 20f,
+            hullLength = 6.70f, hullWidth = 3.07f, hullHeight = 1.17f, clearance = 0.42f,
+            trackWidth = 0.65f, trackInset = 0.65f,
+            hullFront = new Armor(120, 60), hullRear = new Armor(60, 49), hullSide = new Armor(90, 15),
+            hullRoof = new Armor(30, 0), hullBottom = new Armor(20, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(100, 30), hullGlacis = new Armor(120, 60), hullLowerSide = new Armor(90, 0),
+            turretLength = 2.9f, turretWidth = 2.3f, turretHeight = 1.0f, turretOffsetZ = 0.78f,
+            turretFront = new Armor(100, 0, ArmorMaterial.Cast), turretSide = new Armor(90, 20, ArmorMaterial.Cast),
+            turretRear = new Armor(90, 30, ArmorMaterial.Cast), turretRoof = new Armor(30, 0), mantlet = new Armor(100, 0, ArmorMaterial.Cast),
+            traverseDegS = 14f, elevationDegS = 4f, minElevation = -3f, maxElevation = 20f,
+            // getrennte Munition (Geschoss + Kartusche), Keilverschluss: 2-3 Schuss/min
+            ammoIndex = 31, ammo = new[] { 31, 30, 32 }, reloadS = 20f, barrelLength = 4.1f, muzzleBrake = true, gunPivotFromModel = true, mgType = 1,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
+            sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-17",
+            modelResource = "Modelle/IS2", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.275f,
+            linkTracks = true, idlerRadius = 0.36f, sprocketRadius = 0.275f,
+            trackPitch = 0.16f, trackShoeWidth = 0.65f, trackThickness = 0.06f, trackSag = 0.04f,
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 3, returnRollerRadius = 0.19f
+        };
+
+        /// <summary>IS-3 (1945): Hechtbug 110 mm, flacher Gussturm bis 220 mm, Blende 250 mm. 122 mm D-25T. DT koaxial (zusaetzlich DShK).</summary>
+        public static TankSpec IS3 => new TankSpec
+        {
+            name = "IS-3",
+            // V-11 520 PS; 46,5 t; 40 km/h
+            massT = 46.5f, powerPS = 520f, maxSpeedKmh = 40f, reverseKmh = 8f, turnRateDegS = 20f,
+            hullLength = 6.88f, hullWidth = 3.15f, hullHeight = 1.02f, clearance = 0.45f,
+            trackWidth = 0.65f, trackInset = 0.63f,      // Kettenmitte bei x = 1,27 m
+            hullFront = new Armor(110, 56), hullRear = new Armor(60, 50), hullSide = new Armor(90, 30),
+            hullRoof = new Armor(30, 0), hullBottom = new Armor(20, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(110, 50), hullGlacis = new Armor(110, 72), hullLowerSide = new Armor(90, 0),
+            turretLength = 3.0f, turretWidth = 2.5f, turretHeight = 0.9f, turretOffsetZ = 0.63f,
+            turretFront = new Armor(220, 0, ArmorMaterial.Cast), turretSide = new Armor(150, 30, ArmorMaterial.Cast),
+            turretRear = new Armor(100, 30, ArmorMaterial.Cast), turretRoof = new Armor(30, 0), mantlet = new Armor(250, 0, ArmorMaterial.Cast),
+            traverseDegS = 14f, elevationDegS = 4f, minElevation = -3f, maxElevation = 20f,
+            ammoIndex = 31, ammo = new[] { 31, 30, 32 }, reloadS = 20f, barrelLength = 4.16f, muzzleBrake = true, gunPivotFromModel = true, mgType = 1,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
+            sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-17",
+            modelResource = "Modelle/IS3", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.27f,
+            linkTracks = true, idlerRadius = 0.35f, sprocketRadius = 0.28f,
+            trackPitch = 0.16f, trackShoeWidth = 0.65f, trackThickness = 0.06f, trackSag = 0.04f,
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 3, returnRollerRadius = 0.19f
+        };
+
+        /// <summary>T-10 (1953): 122 mm D-25TA mit Ansetzer, 7 Laufrollen. 12,7 mm DShKM koaxial und auf dem Turm.</summary>
+        public static TankSpec T10 => new TankSpec
+        {
+            name = "T-10",
+            // V-12-5 700 PS; 50 t; 42 km/h
+            massT = 50f, powerPS = 700f, maxSpeedKmh = 42f, reverseKmh = 9f, turnRateDegS = 22f,
+            hullLength = 7.30f, hullWidth = 3.38f, hullHeight = 1.13f, clearance = 0.45f,
+            trackWidth = 0.72f, trackInset = 0.72f,      // Kettenmitte bei x = 1,33 m
+            hullFront = new Armor(120, 55), hullRear = new Armor(60, 45), hullSide = new Armor(80, 30),
+            hullRoof = new Armor(30, 0), hullBottom = new Armor(20, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(120, 50), hullGlacis = new Armor(120, 72), hullLowerSide = new Armor(80, 0),
+            turretLength = 3.1f, turretWidth = 2.5f, turretHeight = 1.0f, turretOffsetZ = 0.54f,
+            turretFront = new Armor(201, 0, ArmorMaterial.Cast), turretSide = new Armor(148, 30, ArmorMaterial.Cast),
+            turretRear = new Armor(80, 30, ArmorMaterial.Cast), turretRoof = new Armor(40, 0), mantlet = new Armor(250, 0, ArmorMaterial.Cast),
+            traverseDegS = 16f, elevationDegS = 4f, minElevation = -3f, maxElevation = 17f,
+            // Ansetzer: 3-4 Schuss/min
+            ammoIndex = 31, ammo = new[] { 31, 30, 32 }, reloadS = 15f, barrelLength = 3.47f, muzzleBrake = true, gunPivotFromModel = true, mgType = 2,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
+            // TSh2-27: umschaltbar 3,1- / 6,2-fach
+            sightType = SightType.Soviet, sightFov = 22f, sightMag = 3.1f, sightName = "TSh2-27",
+            sightZoomFov = new[] { 22f, 11f }, sightZoomMag = new[] { 3.1f, 6.2f },
+            modelResource = "Modelle/T10", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 9, wheelRadius = 0.277f,
+            linkTracks = true, idlerRadius = 0.36f, sprocketRadius = 0.277f,
+            trackPitch = 0.16f, trackShoeWidth = 0.72f, trackThickness = 0.06f, trackSag = 0.04f,
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 3, returnRollerRadius = 0.155f
+        };
+
+        /// <summary>T-10M (1957): 122 mm M-62-T2 (schneller, mit Hohlladung), zweiachsig stabilisiert. 14,5 mm KPVT koaxial und auf dem Turm.</summary>
+        public static TankSpec T10M => new TankSpec
+        {
+            name = "T-10M",
+            // V-12-6B 750 PS; 51,5 t; 50 km/h
+            massT = 51.5f, powerPS = 750f, maxSpeedKmh = 50f, reverseKmh = 10f, turnRateDegS = 24f,
+            hullLength = 7.30f, hullWidth = 3.38f, hullHeight = 1.13f, clearance = 0.45f,
+            trackWidth = 0.72f, trackInset = 0.72f,
+            hullFront = new Armor(120, 55), hullRear = new Armor(60, 45), hullSide = new Armor(80, 30),
+            hullRoof = new Armor(30, 0), hullBottom = new Armor(20, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(120, 50), hullGlacis = new Armor(120, 72), hullLowerSide = new Armor(80, 0),
+            turretLength = 3.1f, turretWidth = 2.5f, turretHeight = 1.0f, turretOffsetZ = 0.58f,
+            turretFront = new Armor(201, 0, ArmorMaterial.Cast), turretSide = new Armor(148, 30, ArmorMaterial.Cast),
+            turretRear = new Armor(80, 30, ArmorMaterial.Cast), turretRoof = new Armor(40, 0), mantlet = new Armor(250, 0, ArmorMaterial.Cast),
+            traverseDegS = 18f, elevationDegS = 5f, minElevation = -3f, maxElevation = 17f,   // Stabilisator "Liwen"
+            // mechanisierte Ladehilfe: ~5 Schuss/min
+            ammoIndex = 33, ammo = new[] { 33, 35, 34 }, reloadS = 12f, barrelLength = 4.2f, muzzleBrake = true, gunPivotFromModel = true, mgType = 3,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
+            // T2S-29-14: stabilisiertes Periskop, 3,1- / 8-fach
+            sightType = SightType.Soviet, sightFov = 20f, sightMag = 3.1f, sightName = "T2S-29-14",
+            sightZoomFov = new[] { 20f, 7.8f }, sightZoomMag = new[] { 3.1f, 8f },
+            modelResource = "Modelle/T10M", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 9, wheelRadius = 0.277f,
+            linkTracks = true, idlerRadius = 0.36f, sprocketRadius = 0.277f,
+            trackPitch = 0.16f, trackShoeWidth = 0.72f, trackThickness = 0.06f, trackSag = 0.04f,
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 3, returnRollerRadius = 0.155f
+        };
+
         /// <summary>
         /// Panzer IV Ausf. F2 (Sd.Kfz. 161/1, 1942): erste Version mit der langen 7,5 cm KwK 40 L/43
         /// (Kugel-Muendungsbremse), noch ohne Zusatzpanzerung und Schuerzen. Modell: Tools/Blender/rig_panzer4.py.
@@ -288,7 +465,7 @@ namespace PanzerSim
             mantlet = new Armor(89, 0, ArmorMaterial.Cast),           // Blende M34A1: Schild 51 mm + Rotor 38 mm
             traverseDegS = 24f, elevationDegS = 5f, minElevation = -10f, maxElevation = 25f,   // hydraulisch 360 Grad in 15 s
             // 75 mm M3: M61 APC (mit Sprengladung) und M72 AP (Vollgeschoss)
-            ammoIndex = 2, ammo = new[] { 2, 6, 13 }, reloadS = 6f, barrelLength = 1.93f,   // sichtbarer Teil ab Schildzapfen
+            ammoIndex = 2, ammo = new[] { 2, 6, 13 }, reloadS = 6f, barrelLength = 1.93f, mgType = 4,   // sichtbarer Teil ab Schildzapfen
             // Richtschuetze: Zielfernrohr M70F in der Blende M34A1, 3-fach, 12,7 Grad Sehfeld
             sightType = SightType.US, sightFov = 12.7f, sightMag = 3f, sightName = "M70F",
             modelResource = "Modelle/M4A1E9", modelScale = 1f,
@@ -380,7 +557,7 @@ namespace PanzerSim
             turretRear = new Armor(52, 10, ArmorMaterial.Cast), turretRoof = new Armor(20, 0),
             mantlet = new Armor(40, 0, ArmorMaterial.Cast),
             traverseDegS = 20f, elevationDegS = 5f, minElevation = -5f, maxElevation = 22f,
-            ammoIndex = 4, ammo = new[] { 4, 7, 14 }, reloadS = 8f, barrelLength = 3.2f,
+            ammoIndex = 4, ammo = new[] { 4, 7, 14 }, reloadS = 8f, barrelLength = 3.2f, mgType = 1,
             sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-16",
             modelResource = "Modelle/T34_85", modelScale = 1f,
             modelTurretPivotShift = new Vector3(0f, 0f, 0.25f),   // Turmring-Mitte liegt 25 cm vor dem Turmgelenk des Modells (sonst Loch beim Drehen)
