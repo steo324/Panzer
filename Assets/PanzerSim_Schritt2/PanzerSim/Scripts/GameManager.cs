@@ -16,7 +16,7 @@ namespace PanzerSim
         readonly GameMap[] maps = { new PlainsMap(), new TestRangeMap(), new HillsMap(),   // Reihenfolge = Kartennummer (-map), nicht umsortieren
             new RealMap("HornBadMeinberg", "Horn-Bad Meinberg",
                 "Echte Gegend, 5 x 5 km: Horn und Bad Meinberg mit Externsteinen am Teutoburger Wald. Gelaende aus dem amtlichen Hoehenmodell NRW (1 m genau), Strassen, Gebaeude, Waelder und Felder aus OpenStreetMap.",
-                ("Externsteine", -2254f, -1358f)) };
+                ("Externsteine", -2254f, -1358f)).WithProp("Modelle/GolfR32", 28f, -319f, 117f) };   // Easter Egg: silberner Golf hinter der Werkstatt
 
         int tankIndex, mapIndex;
         GameMap map;
@@ -652,7 +652,7 @@ namespace PanzerSim
             GUI.Label(new Rect(60, H - 128, 1600, 26),
                 "Modelle (CC BY 4.0): Tiger I von Joanthan To (sketchfab.com/jonathanto99)  ·  Panzer IV von Greg McKechnie (sketchfab.com/mckechniegreg6)  ·  M4A1E9 Sherman von Sem (sketchfab.com/Sem-Hofstede)  ·  T-34-85 von DedRam (sketchfab.com/heirohindrima)", small);
             GUI.Label(new Rect(60, H - 102, 1600, 26),
-                "Tiger II von maximus0075550 (sketchfab.com/maximus0075550)  ·  Panzerhaubitze 2000 von gogiart (sketchfab.com/agt14032013)  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan)  ·  alle fuer das Spiel angepasst (gerigged, Kette ersetzt, Tiger bemalt)  ·  Lizenz: creativecommons.org/licenses/by/4.0  ·  Details: CREDITS.md", small);
+                "Tiger II von maximus0075550 (sketchfab.com/maximus0075550)  ·  Panzerhaubitze 2000 von gogiart (sketchfab.com/agt14032013)  ·  Golf IV R32 von ddiaz-design (sketchfab.com/ddiaz-design, CC BY-NC-SA 4.0)  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan)  ·  alle fuer das Spiel angepasst (gerigged, Kette ersetzt, Tiger bemalt)  ·  Lizenz: creativecommons.org/licenses/by/4.0  ·  Details: CREDITS.md", small);
             GUI.Label(new Rect(60, H - 76, 1400, 26),
                 "CC0: Weizenhalme ffish.asia / floraZia.com  ·  Bodentexturen ambientCG.com  ·  Kartendaten (c) OpenStreetMap-Mitwirkende (ODbL)  ·  Gelaende: Geobasis NRW (dl-de/zero-2-0)", small);
             GUI.Label(new Rect(60, H - 50, 900, 30),

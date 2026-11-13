@@ -14,9 +14,13 @@ namespace PanzerSim
     {
         readonly string folder, title, desc;
         readonly (string name, float x, float z)[] extraSpawns;
+        /// <summary>Feste Deko-Modelle (Resources-Pfad, Lage, Blickrichtung), z. B. kleine Easter Eggs.</summary>
+        public readonly List<(string res, float x, float z, float yaw)> props = new List<(string, float, float, float)>();
 
         public RealMap(string folder, string title, string desc, params (string, float, float)[] extraSpawns)
         { this.folder = folder; this.title = title; this.desc = desc; this.extraSpawns = extraSpawns; }
+
+        public RealMap WithProp(string res, float x, float z, float yaw) { props.Add((res, x, z, yaw)); return this; }
 
         public override string Name => title;
         public override string Description => desc;
@@ -33,7 +37,7 @@ namespace PanzerSim
         // ---- Daten ----
         int G; float cell, size = 5000f, half = 2500f, baseH;
         float[] H;                   // Hoehe ueber dem tiefsten Punkt (m)
-        const int S = 2048;          // Bodenarten-Raster (2,44 m)
+        const int S = 2560;          // Bodenarten-Raster (1,95 m)
         float scell;
         byte[] surf;
         const byte Wiese = 0, Acker = 1, Erde = 2, Asphalt = 3, Wald = 4, Wasser = 5, Garten = 6, Gebuesch = 7, Fels = 8, Gleis = 9;
@@ -48,6 +52,9 @@ namespace PanzerSim
         readonly List<Road> roads = new List<Road>();
         readonly List<Building> buildings = new List<Building>();
         readonly List<Area> areas = new List<Area>();
+        struct Line { public string kind; public Vector2[] p; }
+        readonly List<Line> lines = new List<Line>();             // Hecken, Mauern, Baumreihen
+        readonly List<Vector2> singleTrees = new List<Vector2>();  // Einzelbaeume aus OpenStreetMap
 
         // ================= Abfragen =================
         public override float GroundY(float x, float z)
@@ -82,7 +89,7 @@ namespace PanzerSim
         public override void Build(Transform root)
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            spawns.Clear(); places.Clear(); buildingBoxes.Clear(); roads.Clear(); buildings.Clear(); areas.Clear();
+            spawns.Clear(); places.Clear(); buildingBoxes.Clear(); roads.Clear(); buildings.Clear(); areas.Clear(); lines.Clear(); singleTrees.Clear();
             LoadHeights();
             LoadOsm();
             Rasterize();
@@ -90,6 +97,8 @@ namespace PanzerSim
             BuildBackdrop(root);
             BuildBuildings(root);
             BuildWater(root);
+            BuildHedges(root);
+            BuildProps(root);
             BuildEdge(root);
             var trees = PlaceTrees();
             Forest.Create(root, trees);
@@ -142,6 +151,8 @@ namespace PanzerSim
                         case "R": roads.Add(new Road { kind = f[1][0], width = float.Parse(f[2], CultureInfo.InvariantCulture), bridge = f[3] == "1", p = ParsePts(f[4]) }); break;
                         case "B": buildings.Add(new Building { h = float.Parse(f[1], CultureInfo.InvariantCulture), cls = f[2][0], p = ParsePts(f[3]) }); break;
                         case "P": areas.Add(new Area { cls = f[1], p = ParsePts(f[2]) }); break;
+                        case "T": singleTrees.Add(new Vector2(float.Parse(f[1], CultureInfo.InvariantCulture), float.Parse(f[2], CultureInfo.InvariantCulture))); break;
+                        case "L": lines.Add(new Line { kind = f[1], p = ParsePts(f[2]) }); break;
                         case "N": places.Add((f[1], f[2], new Vector2(float.Parse(f[3], CultureInfo.InvariantCulture), float.Parse(f[4], CultureInfo.InvariantCulture)))); break;
                     }
                 }
@@ -368,42 +379,88 @@ namespace PanzerSim
         }
 
         // ---------------- Gebaeude ----------------
-        static readonly Color[] WallH = { new Color(0.90f, 0.87f, 0.80f), new Color(0.94f, 0.92f, 0.86f), new Color(0.82f, 0.74f, 0.60f), new Color(0.66f, 0.36f, 0.27f), new Color(0.86f, 0.80f, 0.66f) };
-        static readonly Color[] Roofs = { new Color(0.50f, 0.20f, 0.14f), new Color(0.40f, 0.17f, 0.13f), new Color(0.22f, 0.22f, 0.24f), new Color(0.32f, 0.26f, 0.24f) };
+        static readonly Color[] WallH = { new Color(0.95f, 0.92f, 0.86f), new Color(1.0f, 0.98f, 0.93f), new Color(0.90f, 0.82f, 0.68f), new Color(0.78f, 0.45f, 0.36f), new Color(0.93f, 0.87f, 0.74f) };
+        static readonly Color[] Roofs = { new Color(0.62f, 0.26f, 0.18f), new Color(0.50f, 0.22f, 0.17f), new Color(0.28f, 0.28f, 0.30f), new Color(0.40f, 0.33f, 0.30f) };
+        static Texture2D texFacade, texMetal, texWood, texRoof, texFlat;
+
+        /// <summary>Kleine Texturen im Code: Putz mit Fenster (1 Feld = 3 m breit x 3 m hoch), Blech, Holz, Dachziegel, Kies.</summary>
+        static void EnsureBuildingTextures()
+        {
+            if (texFacade != null) return;
+            var r = new System.Random(3);
+            float N(float a) => (float)(r.NextDouble() - 0.5) * a;
+            texFacade = Make(128, (x, y) =>
+            {
+                float u = x / 128f, v = y / 128f;
+                Color plaster = Color.white * (0.93f + N(0.06f)); plaster.a = 1f;
+                bool frame = u > 0.30f && u < 0.70f && v > 0.32f && v < 0.84f;
+                bool glass = u > 0.33f && u < 0.67f && v > 0.35f && v < 0.81f;
+                bool bar = glass && (Mathf.Abs(u - 0.5f) < 0.012f || Mathf.Abs(v - 0.60f) < 0.012f);
+                bool sill = u > 0.28f && u < 0.72f && v > 0.29f && v < 0.32f;
+                if (glass && !bar) { float g = 0.16f + v * 0.1f + N(0.02f); return new Color(g * 0.8f, g * 0.9f, g * 1.05f, 1f); }
+                if (frame || bar || sill) return new Color(0.97f, 0.97f, 0.95f, 1f);
+                return plaster;
+            });
+            texMetal = Make(64, (x, y) => { float s = 0.75f + 0.18f * Mathf.Sin(x / 64f * Mathf.PI * 16f) + N(0.03f); return new Color(s, s, s, 1f); });
+            texWood = Make(64, (x, y) => { float s = 0.7f + ((x % 16) < 1 ? -0.35f : 0f) + 0.08f * Mathf.Sin(y * 0.3f + x) + N(0.05f); return new Color(s, s * 0.95f, s * 0.9f, 1f); });
+            texRoof = Make(64, (x, y) =>
+            {
+                int row = y / 8; int ox = (row % 2) * 8;
+                bool gap = (y % 8) < 1 || ((x + ox) % 16) < 1;
+                float s = gap ? 0.45f : 0.85f + N(0.12f) - (y % 8) * 0.02f;
+                return new Color(s, s, s, 1f);
+            });
+            texFlat = Make(64, (x, y) => { float s = 0.8f + N(0.25f); return new Color(s, s, s, 1f); });
+        }
+        static Texture2D Make(int n, System.Func<int, int, Color> f)
+        {
+            var t = new Texture2D(n, n, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Bilinear, anisoLevel = 4 };
+            var px = new Color[n * n];
+            for (int y = 0; y < n; y++) for (int x = 0; x < n; x++) px[y * n + x] = f(x, y);
+            t.SetPixels(px); t.Apply(true);
+            return t;
+        }
+        static Material TexMat(Color c, Texture2D tex)
+        {
+            var m = new Material(GameMap.Mat(c)) { enableInstancing = true };
+            if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", tex); else m.mainTexture = tex;
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.08f);
+            return m;
+        }
 
         void BuildBuildings(Transform root)
         {
             var parent = new GameObject("Gebaeude").transform; parent.SetParent(root, false);
-            // Material-Gruppen: 0-4 Waende Wohnhaus, 5 Gewerbe-Wand, 6 Kirche, 7 Holz/Scheune, 8-11 Daecher, 12 Flachdach
+            EnsureBuildingTextures();
+            // Material-Gruppen: 0-4 Waende Wohnhaus (Putz mit Fenstern), 5 Gewerbe (Blech), 6 Kirche, 7 Holz/Scheune, 8-11 Daecher (Ziegel), 12 Flachdach (Kies)
             var mats = new List<Material>();
-            foreach (var c in WallH) mats.Add(GameMap.Mat(c));
-            mats.Add(GameMap.Mat(new Color(0.72f, 0.72f, 0.70f))); mats.Add(GameMap.Mat(new Color(0.80f, 0.76f, 0.68f))); mats.Add(GameMap.Mat(new Color(0.44f, 0.31f, 0.21f)));
-            foreach (var c in Roofs) mats.Add(GameMap.Mat(c));
-            mats.Add(GameMap.Mat(new Color(0.38f, 0.38f, 0.38f)));
+            foreach (var c in WallH) mats.Add(TexMat(c, texFacade));
+            mats.Add(TexMat(new Color(0.78f, 0.80f, 0.80f), texMetal)); mats.Add(TexMat(new Color(0.96f, 0.94f, 0.88f), texFacade)); mats.Add(TexMat(new Color(0.55f, 0.40f, 0.28f), texWood));
+            foreach (var c in Roofs) mats.Add(TexMat(c, texRoof));
+            mats.Add(TexMat(new Color(0.48f, 0.47f, 0.45f), texFlat));
             const float Chunk = 500f;
-            var chunks = new Dictionary<int, List<List<int>>[]>();
+            var subs = new Dictionary<int, List<List<int>>>();
             var verts = new Dictionary<int, List<Vector3>>();
+            var uvs = new Dictionary<int, List<Vector2>>();
             foreach (var b in buildings)
             {
                 if (b.p.Length < 3) continue;
                 Vector2 c = Vector2.zero; foreach (var q in b.p) c += q; c /= b.p.Length;
                 if (Mathf.Abs(c.x) > half - 2f || Mathf.Abs(c.y) > half - 2f) continue;
                 int key = Mathf.FloorToInt((c.x + half) / Chunk) * 100 + Mathf.FloorToInt((c.y + half) / Chunk);
-                if (!chunks.TryGetValue(key, out var sub)) { sub = new List<List<int>>[1]; sub[0] = new List<List<int>>(); for (int m = 0; m < mats.Count; m++) sub[0].Add(new List<int>()); chunks[key] = sub; verts[key] = new List<Vector3>(); }
+                if (!subs.TryGetValue(key, out var sub)) { sub = new List<List<int>>(); for (int m = 0; m < mats.Count; m++) sub.Add(new List<int>()); subs[key] = sub; verts[key] = new List<Vector3>(); uvs[key] = new List<Vector2>(); }
                 float rad = 0f; foreach (var q in b.p) rad = Mathf.Max(rad, Vector2.Distance(q, c));
                 buildingBoxes.Add(new Vector4(c.x, c.y, rad, b.h));
-                AddBuilding(b, verts[key], sub[0]);
+                AddBuilding(b, verts[key], uvs[key], sub);
             }
-            foreach (var kv in chunks)
+            foreach (var kv in subs)
             {
                 var m = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32, name = "Gebaeude" };
-                m.SetVertices(verts[kv.Key]);
-                var used = new List<Material>(); int si = 0;
-                m.subMeshCount = 0;
-                var lists = new List<List<int>>();
-                for (int k = 0; k < mats.Count; k++) if (kv.Value[0][k].Count > 0) { lists.Add(kv.Value[0][k]); used.Add(mats[k]); }
+                m.SetVertices(verts[kv.Key]); m.SetUVs(0, uvs[kv.Key]);
+                var used = new List<Material>(); var lists = new List<List<int>>();
+                for (int k = 0; k < mats.Count; k++) if (kv.Value[k].Count > 0) { lists.Add(kv.Value[k]); used.Add(mats[k]); }
                 m.subMeshCount = lists.Count;
-                foreach (var l in lists) m.SetTriangles(l, si++);
+                for (int si = 0; si < lists.Count; si++) m.SetTriangles(lists[si], si);
                 m.RecalculateNormals(); m.RecalculateBounds();
                 var go = new GameObject("Haeuser");
                 go.transform.SetParent(parent, false);
@@ -413,7 +470,8 @@ namespace PanzerSim
             }
         }
 
-        void AddBuilding(Building b, List<Vector3> v, List<List<int>> sub)
+        // Fassaden-Raster: 3 m breite Fensterachsen, 3 m Geschosshoehe (Fenster ab Erdgeschoss), Holz/Blech 4 m
+        void AddBuilding(Building b, List<Vector3> v, List<Vector2> uv, List<List<int>> sub)
         {
             var p = b.p;
             Vector2 cen = Vector2.zero; foreach (var q in p) cen += q; cen /= p.Length;
@@ -422,8 +480,8 @@ namespace PanzerSim
             int hash = Mathf.Abs((int)(p[0].x * 7.13f + p[0].y * 3.71f));
             int wall = b.cls == 'i' ? 5 : b.cls == 'k' ? 6 : b.cls == 's' || b.cls == 'n' ? 7 : hash % 5;
             int roof = 8 + (b.cls == 'i' ? 2 : (hash / 5) % 4);
+            float bay = wall == 5 || wall == 7 ? 4f : 3f;
             float bottom = gmin - 1f, eave = gmax + b.h;
-            // Satteldach fuer rechteckige Wohnhaeuser/Scheunen: First entlang der langen Seite
             bool gable = (b.cls == 'h' || b.cls == 's' || b.cls == 'k') && p.Length == 4 && b.h < 25f;
             float roofH = 0f;
             Vector2 c0 = p[0], c1 = p[1], c2 = p[2], c3 = p.Length > 3 ? p[3] : p[2];
@@ -432,48 +490,65 @@ namespace PanzerSim
                 float l01 = Vector2.Distance(c0, c1), l12 = Vector2.Distance(c1, c2);
                 roofH = Mathf.Clamp(Mathf.Min(l01, l12) * 0.42f, 1.5f, 6f);
                 eave = gmax + Mathf.Max(b.h - roofH * 0.6f, 2.6f);
+                eave = gmin + Mathf.Max(3f, Mathf.Round((eave - gmin) / 3f) * 3f) - 0.15f;   // Traufe auf volle Geschosse (Fenster nicht angeschnitten)
             }
+            // Fensterachsen pro Wand mittig verteilen: Achsenbreite so, dass ganze Felder hineinpassen
             Vector3 C3 = new Vector3(cen.x, 0f, cen.y);
             for (int i = 0; i < p.Length; i++)
             {
                 Vector2 a = p[i], c = p[(i + 1) % p.Length];
+                float len = Vector2.Distance(a, c);
+                float nb = Mathf.Max(1f, Mathf.Round(len / bay));
+                float u1 = len < 1.5f ? len / bay : nb;
                 Vector3 outward = new Vector3((a.x + c.x) / 2f - cen.x, 0f, (a.y + c.y) / 2f - cen.y);
-                Quad(v, sub[wall], new Vector3(a.x, bottom, a.y), new Vector3(a.x, eave, a.y), new Vector3(c.x, eave, c.y), new Vector3(c.x, bottom, c.y), outward);
+                float vb = (bottom - gmin) / 3f, ve = (eave - gmin) / 3f;
+                Quad(v, uv, sub[wall], new Vector3(a.x, bottom, a.y), new Vector3(a.x, eave, a.y), new Vector3(c.x, eave, c.y), new Vector3(c.x, bottom, c.y),
+                     new Vector2(0f, vb), new Vector2(0f, ve), new Vector2(u1, ve), new Vector2(u1, vb), outward);
             }
             if (gable)
             {
-                // First zwischen den Mitten der kurzen Seiten
                 bool long01 = Vector2.Distance(c0, c1) >= Vector2.Distance(c1, c2);
                 Vector2 m1 = long01 ? (c1 + c2) / 2f : (c0 + c1) / 2f, m2 = long01 ? (c3 + c0) / 2f : (c2 + c3) / 2f;
                 float top = eave + roofH;
                 Vector3 r1 = new Vector3(m1.x, top, m1.y), r2 = new Vector3(m2.x, top, m2.y);
                 Vector3 P0 = new Vector3(c0.x, eave, c0.y), P1 = new Vector3(c1.x, eave, c1.y), P2 = new Vector3(c2.x, eave, c2.y), P3 = new Vector3(c3.x, eave, c3.y);
-                if (long01)
+                void RoofQ(Vector3 a, Vector3 b2, Vector3 c, Vector3 d)
                 {
-                    Quad(v, sub[roof], P0, r2, r1, P1, (P0 + P1) / 2f - C3 + Vector3.up);   // Dachflaechen
-                    Quad(v, sub[roof], P2, r1, r2, P3, (P2 + P3) / 2f - C3 + Vector3.up);
-                    Tri(v, sub[wall], P1, r1, P2, r1 - C3); Tri(v, sub[wall], P3, r2, P0, r2 - C3);   // Giebel
+                    // Ziegel: u entlang der Traufe, v den Hang hinauf (1 Feld = 1 m)
+                    Vector3 along = (d - a).normalized; float slope = Vector3.Distance(a, b2);
+                    Quad(v, uv, sub[roof], a, b2, c, d, new Vector2(0f, 0f), new Vector2(Vector3.Dot(b2 - a, along), slope), new Vector2(Vector3.Dot(c - a, along), slope), new Vector2(Vector3.Distance(a, d), 0f), (a + d) / 2f - C3 + Vector3.up);
                 }
-                else
+                void Gab(Vector3 a, Vector3 rr, Vector3 c)
                 {
-                    Quad(v, sub[roof], P1, r1, r2, P2, (P1 + P2) / 2f - C3 + Vector3.up);
-                    Quad(v, sub[roof], P3, r2, r1, P0, (P3 + P0) / 2f - C3 + Vector3.up);
-                    Tri(v, sub[wall], P0, r1, P1, r1 - C3); Tri(v, sub[wall], P2, r2, P3, r2 - C3);
+                    Vector3 along = (c - a).normalized;
+                    Tri(v, uv, sub[wall], a, rr, c, new Vector2(0f, (a.y - gmin) / 3f), new Vector2(Vector3.Dot(rr - a, along) / 3f, (rr.y - gmin) / 3f), new Vector2(Vector3.Distance(a, c) / 3f, (c.y - gmin) / 3f), rr - C3);
                 }
+                if (long01) { RoofQ(P0, r2, r1, P1); RoofQ(P2, r1, r2, P3); Gab(P1, r1, P2); Gab(P3, r2, P0); }
+                else { RoofQ(P1, r1, r2, P2); RoofQ(P3, r2, r1, P0); Gab(P0, r1, P1); Gab(P2, r2, P3); }
             }
             else
             {
                 var tris = Triangulate(p);
                 for (int t = 0; t + 2 < tris.Count; t += 3)
-                    Tri(v, sub[12], new Vector3(p[tris[t]].x, eave, p[tris[t]].y), new Vector3(p[tris[t + 1]].x, eave, p[tris[t + 1]].y), new Vector3(p[tris[t + 2]].x, eave, p[tris[t + 2]].y), Vector3.up);
+                {
+                    Vector2 a = p[tris[t]], b2 = p[tris[t + 1]], c = p[tris[t + 2]];
+                    Tri(v, uv, sub[12], new Vector3(a.x, eave, a.y), new Vector3(b2.x, eave, b2.y), new Vector3(c.x, eave, c.y), a / 2f, b2 / 2f, c / 2f, Vector3.up);
+                }
             }
         }
 
         // Vorderseite (Unity: im Uhrzeigersinn gesehen) zeigt in Richtung 'face'
-        static void Quad(List<Vector3> v, List<int> t, Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 face)
+        static void Quad(List<Vector3> v, List<Vector2> uv, List<int> t, Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector2 ua, Vector2 ub, Vector2 uc, Vector2 ud, Vector3 face)
         {
-            if (Vector3.Dot(Vector3.Cross(b - a, c - a), face) < 0f) { var x = b; b = d; d = x; }
-            int k = v.Count; v.Add(a); v.Add(b); v.Add(c); v.Add(d); t.Add(k); t.Add(k + 1); t.Add(k + 2); t.Add(k); t.Add(k + 2); t.Add(k + 3);
+            if (Vector3.Dot(Vector3.Cross(b - a, c - a), face) < 0f) { var x = b; b = d; d = x; var y = ub; ub = ud; ud = y; }
+            int k = v.Count; v.Add(a); v.Add(b); v.Add(c); v.Add(d); uv.Add(ua); uv.Add(ub); uv.Add(uc); uv.Add(ud);
+            t.Add(k); t.Add(k + 1); t.Add(k + 2); t.Add(k); t.Add(k + 2); t.Add(k + 3);
+        }
+        static void Tri(List<Vector3> v, List<Vector2> uv, List<int> t, Vector3 a, Vector3 b, Vector3 c, Vector2 ua, Vector2 ub, Vector2 uc, Vector3 face)
+        {
+            if (Vector3.Dot(Vector3.Cross(b - a, c - a), face) < 0f) { var x = b; b = c; c = x; var y = ub; ub = uc; uc = y; }
+            int k = v.Count; v.Add(a); v.Add(b); v.Add(c); uv.Add(ua); uv.Add(ub); uv.Add(uc);
+            t.Add(k); t.Add(k + 1); t.Add(k + 2);
         }
         static void Tri(List<Vector3> v, List<int> t, Vector3 a, Vector3 b, Vector3 c, Vector3 face)
         {
@@ -584,7 +659,86 @@ namespace PanzerSim
                     float sc = s == Wald ? 0.8f + (float)r.NextDouble() * 0.5f : 0.6f + (float)r.NextDouble() * 0.4f;
                     list.Add(new Forest.TreeInfo { pos = new Vector3(px, y - 0.2f, pz), yaw = (float)r.NextDouble() * 360f, scale = sc, kind = kind });
                 }
+            // echte Einzelbaeume (Strassenbaeume, Hofbaeume) und Baumreihen aus OpenStreetMap
+            void AddTree(Vector2 p, float sc)
+            {
+                if (Mathf.Abs(p.x) > half - 3f || Mathf.Abs(p.y) > half - 3f) return;
+                list.Add(new Forest.TreeInfo { pos = new Vector3(p.x, GroundY(p.x, p.y) - 0.2f, p.y), yaw = (float)r.NextDouble() * 360f, scale = sc, kind = 1 });
+            }
+            foreach (var t in singleTrees) AddTree(t, 0.75f + (float)r.NextDouble() * 0.45f);
+            foreach (var l in lines)
+            {
+                if (l.kind != "baumreihe") continue;
+                for (int s = 0; s + 1 < l.p.Length; s++)
+                {
+                    float len = Vector2.Distance(l.p[s], l.p[s + 1]);
+                    for (float d = 0f; d < len; d += 9f) AddTree(Vector2.Lerp(l.p[s], l.p[s + 1], d / Mathf.Max(len, 0.01f)), 0.7f + (float)r.NextDouble() * 0.4f);
+                }
+            }
             return list;
+        }
+
+        /// <summary>Hecken (gruen, 1,6 m) und Mauern (grau, 1,2 m) als ein Netz ohne Kollision (Panzer walzen sie um, Granaten fliegen durch).</summary>
+        void BuildHedges(Transform root)
+        {
+            if (NetSync.Headless) return;
+            var vH = new List<Vector3>(); var tH = new List<int>(); var vM = new List<Vector3>(); var tM = new List<int>();
+            foreach (var l in lines)
+            {
+                if (l.kind == "baumreihe") continue;
+                bool hedge = l.kind == "hecke";
+                float hgt = hedge ? 1.6f : 1.2f, wid = hedge ? 1.1f : 0.4f;
+                var v = hedge ? vH : vM; var t = hedge ? tH : tM;
+                for (int s = 0; s + 1 < l.p.Length; s++)
+                {
+                    Vector2 a0 = l.p[s], b0 = l.p[s + 1];
+                    float len = Vector2.Distance(a0, b0);
+                    int n = Mathf.Max(1, Mathf.CeilToInt(len / 4f));
+                    for (int k = 0; k < n; k++)
+                    {
+                        Vector2 a = Vector2.Lerp(a0, b0, k / (float)n), b = Vector2.Lerp(a0, b0, (k + 1) / (float)n);
+                        Vector2 d = (b - a).normalized, sd = new Vector2(-d.y, d.x) * wid / 2f;
+                        float ya = GroundY(a.x, a.y), yb = GroundY(b.x, b.y);
+                        Vector3 A0 = new Vector3(a.x - sd.x, ya - 0.3f, a.y - sd.y), A1 = new Vector3(a.x + sd.x, ya - 0.3f, a.y + sd.y);
+                        Vector3 B0 = new Vector3(b.x - sd.x, yb - 0.3f, b.y - sd.y), B1 = new Vector3(b.x + sd.x, yb - 0.3f, b.y + sd.y);
+                        Vector3 up = Vector3.up * (hgt + 0.3f);
+                        Vector3 mid = new Vector3((a.x + b.x) / 2f, (ya + yb) / 2f, (a.y + b.y) / 2f);
+                        Tri(v, t, A0, A0 + up, B0 + up, A0 - A1); Tri(v, t, A0, B0 + up, B0, A0 - A1);
+                        Tri(v, t, A1, B1 + up, A1 + up, A1 - A0); Tri(v, t, A1, B1, B1 + up, A1 - A0);
+                        Tri(v, t, A0 + up, A1 + up, B1 + up, Vector3.up); Tri(v, t, A0 + up, B1 + up, B0 + up, Vector3.up);
+                    }
+                }
+            }
+            void Make(string name, List<Vector3> v, List<int> t, Color c)
+            {
+                if (v.Count == 0) return;
+                var m = new Mesh { name = name, indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+                m.SetVertices(v); m.SetTriangles(t, 0); m.RecalculateNormals(); m.RecalculateBounds();
+                var go = new GameObject(name); go.transform.SetParent(root, false);
+                go.AddComponent<MeshFilter>().sharedMesh = m; go.AddComponent<MeshRenderer>().sharedMaterial = GameMap.Mat(c);
+            }
+            Make("Hecken", vH, tH, new Color(0.16f, 0.30f, 0.12f));
+            Make("Mauern", vM, tM, new Color(0.58f, 0.56f, 0.52f));
+        }
+
+        /// <summary>Feste Deko-Modelle (z. B. Easter Egg), mit Kasten-Kollision.</summary>
+        void BuildProps(Transform root)
+        {
+            foreach (var (res, x, z, yaw) in props)
+            {
+                var prefab = Resources.Load<GameObject>(res);
+                if (prefab == null) { Debug.LogWarning("Deko fehlt: " + res); continue; }
+                var go = Object.Instantiate(prefab, root);
+                go.name = "Deko " + res;
+                go.transform.SetPositionAndRotation(new Vector3(x, GroundY(x, z), z), Quaternion.Euler(0f, yaw, 0f));
+                var rs = go.GetComponentsInChildren<Renderer>();
+                if (rs.Length == 0) continue;
+                Bounds b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
+                var box = go.AddComponent<BoxCollider>();
+                box.center = go.transform.InverseTransformPoint(b.center); box.size = Quaternion.Inverse(go.transform.rotation) * b.size;
+                box.size = new Vector3(Mathf.Abs(box.size.x), Mathf.Abs(box.size.y), Mathf.Abs(box.size.z));
+                buildingBoxes.Add(new Vector4(x, z, Mathf.Max(b.extents.x, b.extents.z), b.size.y));
+            }
         }
 
         // ---------------- Startpunkte ----------------

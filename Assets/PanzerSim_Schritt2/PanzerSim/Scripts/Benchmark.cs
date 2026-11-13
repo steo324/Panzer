@@ -28,6 +28,18 @@ namespace PanzerSim
             var args = System.Environment.GetCommandLineArgs();
             int ci = System.Array.IndexOf(args, "-benchcam");   // -benchcam <Winkel> <Neigung>: Kamera seitlich (z. B. 90 12)
             if (ci >= 0 && ci + 2 < args.Length) { float.TryParse(args[ci + 1], out camOff); float.TryParse(args[ci + 2], out camPitch); }
+            // -benchat <x> <z> <blick>: Panzer an diese Stelle setzen (z. B. um ein Gebaeude aus der Naehe anzusehen)
+            int ai = System.Array.IndexOf(args, "-benchat");
+            if (ai >= 0 && ai + 3 < args.Length && pl != null)
+            {
+                var ic = System.Globalization.CultureInfo.InvariantCulture;
+                float.TryParse(args[ai + 1], System.Globalization.NumberStyles.Float, ic, out float bx);
+                float.TryParse(args[ai + 2], System.Globalization.NumberStyles.Float, ic, out float bz);
+                float.TryParse(args[ai + 3], System.Globalization.NumberStyles.Float, ic, out float byaw);
+                var gm = GameManager.Instance.CurrentMap;
+                pl.Teleport(new Vector3(bx, gm.GroundY(bx, bz) + 0.6f, bz), byaw);
+                yield return new WaitForSeconds(3f);
+            }
             if (cam != null && pl != null) cam.SetView(pl.transform.eulerAngles.y + camOff, camPitch);   // Standard: zum Horizont schauen
 
             // Startpunkt-Auswahl (-benchspawn): Bild der Karte, dann Startpunkt 3 waehlen (Enter-Weg ueber Abbrechen)

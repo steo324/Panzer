@@ -34,14 +34,25 @@ def get(url, path, timeout=300, data=None):
     raise RuntimeError("Download fehlgeschlagen: " + url[:120])
 
 # ---------------- Hoehen (DGM NRW) ----------------
-tif = os.path.join(CACHE, "dgm.tif")
 cell = SIZE / (RES - 1)
-url = ("https://www.wcs.nrw.de/geobasis/wcs_nw_dgm?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage&COVERAGEID=nw_dgm&FORMAT=image/tiff"
-       f"&SUBSET=x({E0 - H - cell / 2:.2f},{E0 + H + cell / 2:.2f})&SUBSET=y({N0 - H - cell / 2:.2f},{N0 + H + cell / 2:.2f})&SCALESIZE=x({RES}),y({RES})")
-get(url, tif)
-W, Hh, vals, comp = geo.read_tiff_float(tif)
-print(f"HOEHE TIFF {W}x{Hh} (Kompression {comp}), {min(vals):.1f}..{max(vals):.1f} m")
-assert W == RES and Hh == RES, "Rastergroesse passt nicht"
+# Der Dienst liefert hoechstens ~1300 x 1300 Punkte: in Kacheln holen und zusammensetzen (Raender teilen sich eine Reihe)
+PARTS = 1
+while (RES - 1) // PARTS > 1280: PARTS *= 2
+PN = (RES - 1) // PARTS + 1
+vals = [0.0] * (RES * RES)   # Zeile 0 = Norden (wie im TIFF)
+for py in range(PARTS):
+    for px in range(PARTS):
+        ix0, iy0 = px * (PN - 1), py * (PN - 1)            # iy0 von Norden gezaehlt
+        xa = E0 - H + ix0 * cell; ya = N0 + H - (iy0 + PN - 1) * cell
+        tif = os.path.join(CACHE, f"dgm_{RES}_{px}_{py}.tif")
+        url = ("https://www.wcs.nrw.de/geobasis/wcs_nw_dgm?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage&COVERAGEID=nw_dgm&FORMAT=image/tiff"
+               f"&SUBSET=x({xa - cell / 2:.3f},{xa + (PN - 1) * cell + cell / 2:.3f})&SUBSET=y({ya - cell / 2:.3f},{ya + (PN - 1) * cell + cell / 2:.3f})&SCALESIZE=x({PN}),y({PN})")
+        get(url, tif)
+        W, Hh, part, comp = geo.read_tiff_float(tif)
+        assert W == PN and Hh == PN, f"Rastergroesse passt nicht: {W}x{Hh}"
+        for r in range(PN):
+            vals[(iy0 + r) * RES + ix0: (iy0 + r) * RES + ix0 + PN] = part[r * PN:(r + 1) * PN]
+print(f"HOEHE {RES}x{RES} aus {PARTS * PARTS} Teilen, {min(vals):.1f}..{max(vals):.1f} m")
 lo = min(vals); scale = 0.01   # 1 cm
 with open(os.path.join(OUT, "hoehe.bytes"), "wb") as f:
     f.write(struct.pack("<iffff", RES, cell, lo, scale, SIZE))
@@ -84,9 +95,11 @@ q = f"""[out:json][timeout:240];
  way["amenity"="parking"]({bb});
  node["place"]({bb});
  node["natural"="peak"]({bb});
+ node["natural"="tree"]({bb});
+ way["barrier"~"hedge|wall|city_wall|retaining_wall"]({bb});
 );
 out geom;"""
-osm_path = os.path.join(CACHE, "osm.json")
+osm_path = os.path.join(CACHE, "osm2.json")   # mit Einzelbaeumen, Baumreihen, Hecken und Mauern
 raw = get("https://overpass-api.de/api/interpreter", osm_path, 400, urllib.parse.urlencode({"data": q}).encode())
 osm = json.loads(raw.decode("utf-8"))
 els = osm["elements"]
@@ -148,6 +161,9 @@ for e in els:
         if "place" in t and "name" in t:
             p = xy(e["lat"], e["lon"])
             if abs(p[0]) < H + 1500 and abs(p[1]) < H + 1500: add("N", f"N|{t['name']}|{t['place']}|{p[0]}|{p[1]}")
+        elif t.get("natural") == "tree":
+            p = xy(e["lat"], e["lon"])
+            if abs(p[0]) < H and abs(p[1]) < H: add("T", f"T|{p[0]}|{p[1]}")
         elif t.get("natural") == "peak" and "name" in t:
             p = xy(e["lat"], e["lon"])
             if abs(p[0]) < H and abs(p[1]) < H: add("N", f"N|{t['name']}|peak|{p[0]}|{p[1]}")
@@ -173,6 +189,11 @@ for e in els:
             if t.get("tunnel") == "yes": continue
             add("R", f"R|{kind}|{w}|{1 if t.get('bridge') == 'yes' else 0}|{fmt(rings[0])}")
         continue
+    if t.get("natural") == "tree_row" and e["type"] == "way":
+        add("L", f"L|baumreihe|{fmt(rings[0])}"); continue
+    if "barrier" in t and e["type"] == "way":
+        kind = "hecke" if t["barrier"] == "hedge" else "mauer"
+        add("L", f"L|{kind}|{fmt(rings[0])}"); continue
     if t.get("railway") == "rail":
         if t.get("tunnel") != "yes": add("R", f"R|r|4.5|{1 if t.get('bridge') == 'yes' else 0}|{fmt(rings[0])}")
         continue
