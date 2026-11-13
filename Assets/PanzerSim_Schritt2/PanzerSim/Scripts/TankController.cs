@@ -306,8 +306,13 @@ namespace PanzerSim
             }
             if (!Working(ModuleType.Breech)) { RangeLog.Add("Kanonenverschluss zerstoert!"); return; }
 
+            if (!Working(ModuleType.Barrel)) { RangeLog.Add("Rohr zerstoert - Kanone kann nicht feuern! [G] reparieren"); return; }
+
             reloadLeft = spec.reloadS;   // zuerst: auch wenn danach ein Effekt scheitert, wird nachgeladen
             Vector3 origin = parts.muzzle.position, dir = parts.gunPivot.forward;
+            // beschaedigtes Rohr (verbogen, Splitterkerben): Granaten streuen - bis ~0,8 Grad kurz vor dem Ausfall
+            float bent = 1f - ModuleCondition(ModuleType.Barrel);
+            if (bent > 0.05f) dir = Quaternion.Euler(Random.Range(-1f, 1f) * bent * 0.8f, Random.Range(-1f, 1f) * bent * 0.8f, 0f) * dir;
             float speed = artilleryAim ? artySpeed : 0f;                         // Artillerie: Treibladung bestimmt die Geschwindigkeit
             if (net != null && NetSync.Active)
             {
@@ -384,7 +389,7 @@ namespace PanzerSim
         public readonly List<TrackBreak> trackBreaks = new List<TrackBreak>();
         public bool repairing { get; private set; }
         public float repairLeft { get; private set; }
-        public const float MaxRepairS = 40f;
+        public const float MaxRepairS = 150f;   // alles auf einmal (Kette + Motor + Getriebe ...)
 
         public bool TrackBroken(bool leftSide)
         {
@@ -392,14 +397,65 @@ namespace PanzerSim
             return false;
         }
 
-        /// <summary>Reparaturzeit nach Gesamtschaden: kleine Bruchstelle ca. 15 s, mehrere/Sprengtreffer bis 40 s.</summary>
+        /// <summary>
+        /// Reparaturzeit nach Gesamtschaden: Kette (kleine Bruchstelle ~15 s, mehrere/Sprengtreffer bis 40 s) plus jedes beschaedigte
+        /// Teil je nach Art und Schaden (zerstoert = 1,5-fach): Motor bis 45 s, Getriebe 40 s, Rohr 30 s, Verschluss 25 s ...
+        /// Verwundete werden verbunden (Tote bleiben tot). Fehlt der Ladeschuetze, dauert es laenger.
+        /// </summary>
         public float RepairTimeNeeded()
         {
-            float d = 0f;
-            foreach (var b in trackBreaks) d += b.damage;
-            float t = 4f + d * 0.2f;
+            float t = 0f;
+            if (trackBreaks.Count > 0)
+            {
+                float d = 0f;
+                foreach (var b in trackBreaks) d += b.damage;
+                t += Mathf.Clamp(4f + d * 0.2f, 8f, 40f);
+            }
+            foreach (var m in parts.modules)
+            {
+                if (!Repairable(m)) continue;
+                float missing = 1f - m.hp / m.maxHp;
+                t += RepairSeconds(m.type) * missing * (m.Destroyed ? 1.5f : 1f);
+            }
+            if (t <= 0f) return 0f;
             if (HasSeat(ModuleType.Loader) && !SeatActive(ModuleType.Loader)) t *= 1.25f;   // weniger Haende
-            return Mathf.Clamp(t, 8f, MaxRepairS);
+            return Mathf.Clamp(t, 6f, MaxRepairS);
+        }
+
+        /// <summary>Kann die Besatzung dieses Teil wieder herrichten? (Tote nicht; sonst alles, was beschaedigt ist)</summary>
+        static bool Repairable(TankModule m) => m.hp < m.maxHp - 0.5f && !(m.IsCrew && m.Destroyed);
+
+        static float RepairSeconds(ModuleType t)
+        {
+            switch (t)
+            {
+                case ModuleType.Engine: return 45f;
+                case ModuleType.Transmission: return 40f;
+                case ModuleType.Barrel: return 30f;
+                case ModuleType.Breech: return 25f;
+                case ModuleType.TurretDrive: return 20f;
+                case ModuleType.Fuel: return 15f;
+                case ModuleType.Ammo: return 10f;
+                default: return 15f;   // Besatzung verbinden
+            }
+        }
+
+        /// <summary>Gibt es etwas zu reparieren (Kette oder Teile)?</summary>
+        public bool NeedsRepair
+        {
+            get
+            {
+                if (trackBreaks.Count > 0) return true;
+                foreach (var m in parts.modules) if (Repairable(m)) return true;
+                return false;
+            }
+        }
+
+        /// <summary>Anteil Restzustand eines Teils (1 = heil; Teil nicht vorhanden = 1).</summary>
+        public float ModuleCondition(ModuleType t)
+        {
+            foreach (var m in parts.modules) if (m.type == t) return m.hp / m.maxHp;
+            return 1f;
         }
 
         /// <summary>
@@ -429,12 +485,22 @@ namespace PanzerSim
 
         void StartRepair()
         {
-            if (trackBreaks.Count == 0 || repairing || destroyed) return;
-            if (!SeatActive(ModuleType.Driver) && !SeatActive(ModuleType.Loader) && !SeatActive(ModuleType.RadioOperator) && !SeatActive(ModuleType.Commander))
-            { RangeLog.Add("Niemand da, der die Kette reparieren kann!"); return; }
+            if (repairing || destroyed) return;
+            if (!NeedsRepair) { RangeLog.AddLocal($"{spec.name}: nichts zu reparieren"); return; }
+            if (!SeatActive(ModuleType.Driver) && !SeatActive(ModuleType.Loader) && !SeatActive(ModuleType.RadioOperator) && !SeatActive(ModuleType.Commander) && !SeatActive(ModuleType.Gunner))
+            { RangeLog.Add("Niemand da, der reparieren kann!"); return; }
             repairing = true;
             repairLeft = RepairTimeNeeded();
-            RangeLog.Add($"{spec.name}: Kette wird repariert ({repairLeft:0} s, Panzer muss stehen)");
+            RangeLog.Add($"{spec.name}: Reparatur ({RepairList()}) - {repairLeft:0} s, Panzer muss stehen");
+        }
+
+        /// <summary>Was repariert wird, fuer das Protokoll.</summary>
+        string RepairList()
+        {
+            var l = new List<string>();
+            if (trackBreaks.Count > 0) l.Add("Kette");
+            foreach (var m in parts.modules) if (Repairable(m)) l.Add(m.IsCrew ? m.label + " verbinden" : m.label);
+            return string.Join(", ", l);
         }
 
         void UpdateRepair(float dt)
@@ -444,18 +510,22 @@ namespace PanzerSim
             if (SpeedKmh > 3f) return;          // Besatzung arbeitet nur im Stand
             repairLeft -= dt;
             if (repairLeft > 0f) return;
-            trackBreaks.Clear();
-            repairing = false;
-            RangeLog.Add($"{spec.name}: Kette repariert");
+            RepairAll();
+            RangeLog.Add($"{spec.name}: alles repariert");
             if (net != null && NetSync.Active) net.ReportRepairDone();   // Server und alle anderen erfahren es
         }
 
-        /// <summary>Mehrspieler: Reparatur fertig (vom Besitzer gemeldet).</summary>
-        public void NetTrackRepaired()
+        /// <summary>Kette und alle beschaedigten Teile wieder heil (Verwundete verbunden, Tote bleiben tot). Auf allen Rechnern gleich.</summary>
+        void RepairAll()
         {
             trackBreaks.Clear();
+            foreach (var m in parts.modules)
+                if (Repairable(m)) m.SetHpFromServer(m.maxHp);
             repairing = false;
         }
+
+        /// <summary>Mehrspieler: Reparatur fertig (vom Besitzer gemeldet).</summary>
+        public void NetTrackRepaired() => RepairAll();
 
         // ---- Treffermarken im Mehrspieler: Bezugsteil (0 = Wanne, 1 = Turm, 2 = Kanone) ----
         public Transform DecalRef(int sel) => sel == 1 && parts.turret != null ? parts.turret : sel == 2 && parts.gunPivot != null ? parts.gunPivot : transform;

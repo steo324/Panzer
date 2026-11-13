@@ -77,6 +77,22 @@ namespace PanzerSim
             muzzle.localPosition = new Vector3(0f, 0f, s.barrelLength + 0.2f);
             parts.muzzle = muzzle;
 
+            // Rohr als Trefferzone und Hindernis: fester Collider (stoesst an Waende/Panzer), getroffen wird das Teil "Rohr"
+            // (beschaedigt = streut, zerstoert = Kanone schiesst nicht mehr). Beginnt vor der Blende, endet an der Muendung.
+            {
+                float start = Mathf.Min(0.6f, s.barrelLength * 0.3f), len = Mathf.Max(0.3f, s.barrelLength - start);
+                float d = Mathf.Clamp(cal * 2.2f, 0.08f, 0.32f);
+                var bgo = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                bgo.name = "Rohr (Trefferzone)";
+                bgo.transform.SetParent(gun, false);
+                bgo.transform.localPosition = new Vector3(0f, 0f, start + len / 2f);
+                bgo.transform.localScale = new Vector3(d, d, len);
+                var bm = bgo.AddComponent<TankModule>();
+                bm.type = ModuleType.Barrel; bm.label = "Rohr"; bm.maxHp = 80f; bm.hp = 80f; bm.absorb = 0f;
+                bm.UpdateColor();
+                parts.modules.Add(bm);
+            }
+
             var sight = new GameObject("Visier").transform;
             sight.SetParent(turret, false);
             sight.localPosition = new Vector3(-0.35f, Ht * 0.6f, frontTopZ + 0.3f);

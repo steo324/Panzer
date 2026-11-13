@@ -24,10 +24,57 @@ namespace PanzerSim
         public static void GroundHit(Vector3 pos) =>
             Play(Clip(ref ground, 0.8f, 0.002f, 0.2f, 70f, 0.7f, 37), pos, 1f, 0.6f, 12f);
 
-        /// <summary>Einzelschuss des MG (kurzer, trockener Knall).</summary>
-        public static void MG(Vector3 pos) =>
-            Play(Clip(ref mg, 0.16f, 0.0008f, 0.045f, 260f, 0.85f, 61), pos, 1f, 0.35f, 8f);
-        static AudioClip mg;
+        /// <summary>
+        /// Einzelschuss des MG: Ueberschallknall, Muendungsknall, Verschlussklacken und kurzes Echo; drei Varianten im Wechsel.
+        /// Schweres MG (ab 12 mm: DShK, KPVT) tiefer und lauter.
+        /// </summary>
+        public static void MG(Vector3 pos, float caliberMm = 7.62f)
+        {
+            bool heavy = caliberMm >= 12f;
+            var set = heavy ? mgHeavy : mgLight;
+            mgTurn = (mgTurn + 1 + Random.Range(0, 2)) % set.Length;
+            if (set[mgTurn] == null) set[mgTurn] = MgClip(heavy, 101 + mgTurn * 17 + (heavy ? 7 : 0));
+            Play(set[mgTurn], pos, 1f, heavy ? 0.85f : 0.6f, heavy ? 18f : 10f);
+        }
+        static readonly AudioClip[] mgLight = new AudioClip[3], mgHeavy = new AudioClip[3];
+        static int mgTurn;
+
+        static AudioClip MgClip(bool heavy, int seed)
+        {
+            const int rate = 44100;
+            float length = heavy ? 0.42f : 0.32f;
+            int n = Mathf.CeilToInt(length * rate);
+            var d = new float[n];
+            var rng = new System.Random(seed);
+            float lpCrack = 0f, lpBlast = 0f, lpEcho = 0f, phase = 0f;
+            float blastHz = (heavy ? 85f : 150f) * (0.95f + 0.1f * (float)rng.NextDouble());
+            float clickAt = (heavy ? 0.03f : 0.02f) + 0.004f * (float)rng.NextDouble(), clickHz = 2600f + 900f * (float)rng.NextDouble();
+            var blastBuf = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                float t = i / (float)rate;
+                float white = (float)(rng.NextDouble() * 2.0 - 1.0);
+                lpCrack += (white - lpCrack) * 0.5f;
+                float crack = (white - lpCrack) * Mathf.Exp(-t / 0.0022f);                          // heller Ueberschallknall
+                lpBlast += (white - lpBlast) * (heavy ? 0.08f : 0.14f);
+                phase += 2f * Mathf.PI * blastHz * (1f + 1.5f * Mathf.Exp(-t * 60f)) / rate;
+                float blast = (lpBlast * 2.2f + Mathf.Sin(phase) * 0.7f) * Mathf.Exp(-t / (heavy ? 0.04f : 0.026f));   // Muendungsknall
+                blastBuf[i] = blast;
+                float tc = t - clickAt;
+                float click = tc > 0f ? (Mathf.Sin(tc * clickHz * 6.283f) + 0.6f * Mathf.Sin(tc * clickHz * 1.57f * 6.283f)) * Mathf.Exp(-tc / 0.005f) * 0.18f : 0f;   // Verschluss
+                // Echo: verzoegerter, dumpfer Muendungsknall (Gelaende/Waldrand)
+                int k = i - (int)(0.085f * rate);
+                float e = k >= 0 ? blastBuf[k] : 0f;
+                lpEcho += (e - lpEcho) * 0.06f;
+                float echo = lpEcho * 0.9f * Mathf.Exp(-t / 0.18f);
+                d[i] = crack * 0.9f + blast + click + echo;
+            }
+            float peak = 0.001f; foreach (var v in d) peak = Mathf.Max(peak, Mathf.Abs(v));
+            for (int i = 0; i < n; i++) d[i] = d[i] / peak * 0.95f;
+            var clip = AudioClip.Create((heavy ? "MG schwer " : "MG ") + seed, n, 1, rate, false);
+            clip.SetData(d, 0);
+            return clip;
+        }
 
         public static void Explosion(Vector3 pos, float fillerKg) =>
             Play(Clip(ref blast, 2.5f, 0.003f, 0.7f, 38f, 0.95f, 51), pos, Mathf.Clamp(0.7f + fillerKg * 4f, 0.7f, 1.3f), 1f, 25f + fillerKg * 200f);
@@ -55,7 +102,7 @@ namespace PanzerSim
                 pool.Clear();
             }
             foreach (var s in pool) if (s != null && !s.isPlaying) return s;
-            if (pool.Count >= 24) { pool[0].Stop(); return pool[0]; }
+            if (pool.Count >= 40) { pool[0].Stop(); return pool[0]; }   // MG mit 20 Schuss/s braucht einige Quellen gleichzeitig
             var go = new GameObject("Ton");
             go.transform.SetParent(root.transform, false);
             var a = go.AddComponent<AudioSource>();

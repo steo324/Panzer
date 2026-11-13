@@ -139,6 +139,18 @@ for sn in "LR":
     for k, s in enumerate(W[sn]): set_origin(objs[f"rad{sn}{k}"], Vector(((s[4] + s[5]) / 2, s[1], s[2])))
     for k, s in enumerate(R[sn]): set_origin(objs[f"roll{sn}{k + 1}"], Vector(((s[4] + s[5]) / 2, s[1], s[2])))
 
+# Wannen- und Turmmaterial sind im Original "durchsichtig" (Alpha aus der Textur) - im Spiel gibt das Loecher/falsche Reihenfolge: undurchsichtig machen
+for mat in bpy.data.materials:
+    if not mat.use_nodes: continue
+    for n in mat.node_tree.nodes:
+        if n.type == "BSDF_PRINCIPLED":
+            a = n.inputs["Alpha"]
+            for l in list(a.links): mat.node_tree.links.remove(l)
+            a.default_value = 1.0
+    try: mat.surface_render_method = "DITHERED"
+    except Exception: pass
+    try: mat.blend_method = "OPAQUE"
+    except Exception: pass
 for img in bpy.data.images:
     if img.size[0] > 512: img.scale(512, 512 * img.size[1] // img.size[0])   # 27 Bilder: sonst ~40 MB mehr im Spiel
 # Original ~200 000 Dreiecke (MG, Granaten, Schrauben sehr fein): auf gut ein Drittel reduzieren

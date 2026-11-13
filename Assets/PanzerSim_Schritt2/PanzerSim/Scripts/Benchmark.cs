@@ -42,6 +42,29 @@ namespace PanzerSim
             }
             if (cam != null && pl != null) cam.SetView(pl.transform.eulerAngles.y + camOff, camPitch);   // Standard: zum Horizont schauen
 
+            // -benchbarrel: auf das Rohr des naechsten Zielpanzers schiessen, Motor beschaedigen, Reparatur pruefen
+            if (System.Array.IndexOf(args, "-benchbarrel") >= 0 && pl != null)
+            {
+                TankController tg = null; float bd = 1e9f;
+                foreach (var tk in Object.FindObjectsByType<TankController>(FindObjectsSortMode.None))
+                    if (tk != pl && !tk.destroyed) { float dd = Vector3.Distance(tk.transform.position, pl.transform.position); if (dd < bd) { bd = dd; tg = tk; } }
+                if (tg != null)
+                {
+                    var gp = tg.parts.gunPivot;
+                    for (int s = 0; s < 3; s++)
+                    {
+                        Vector3 aimAt = gp.position + gp.forward * (1.2f + s * 0.6f);
+                        Shell.Fire(AmmoLibrary.All[s == 2 ? 14 : 3], aimAt + gp.right * 40f, -gp.right, false);
+                        yield return new WaitForSeconds(0.6f);
+                    }
+                    foreach (var m in tg.parts.modules) if (m.type == ModuleType.Engine) m.ApplyDamage(70f);
+                    Debug.Log($"BENCH-BARREL: {tg.spec.name} Rohr {tg.ModuleCondition(ModuleType.Barrel) * 100f:0}%, Motor {tg.ModuleCondition(ModuleType.Engine) * 100f:0}%, Reparatur braucht {tg.RepairTimeNeeded():0} s");
+                    tg.NetTrackRepaired();
+                    Debug.Log($"BENCH-BARREL: nach Reparatur Rohr {tg.ModuleCondition(ModuleType.Barrel) * 100f:0}%, Motor {tg.ModuleCondition(ModuleType.Engine) * 100f:0}%, noch noetig {tg.NeedsRepair}");
+                    for (int i = RangeLog.Lines.Count - 1; i >= 0; i--) Debug.Log("BENCH-BARREL Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
+                }
+            }
+
             // -benchammo: alle Granaten des Panzers mit Durchschlag auf 0/500/1000/2000 m ins Protokoll, letzte Granate laden
             if (System.Array.IndexOf(args, "-benchammo") >= 0 && pl != null)
             {

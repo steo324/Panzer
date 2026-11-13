@@ -68,7 +68,7 @@ namespace PanzerSim
             dir = (dir + Random.insideUnitSphere * Spread).normalized;
             Vector3 pos = p.gunPivot.position + p.gunPivot.right * 0.32f + p.gunPivot.forward * 1.1f;
             bullets.Add(new Bullet { pos = pos, start = pos, vel = dir * round.muzzleVelocity + (tc.rb != null ? tc.rb.linearVelocity : Vector3.zero), tracer = tracer, color = Tracers.MgColor(tc.spec.sightType), owner = tc, round = round });
-            Sfx.MG(pos);
+            Sfx.MG(pos, round.caliberMm);
             if (tc.isPlayer) CameraShake.Add(pos, 0.04f, 5f);
             EnsureRunner();
         }

@@ -123,6 +123,32 @@ namespace PanzerSim
                 remaining -= hit.distance;
                 pos = hit.point;
 
+                // Rohr getroffen: Teil "Rohr" beschaedigt; Spreng-/Hohlladung explodiert dort, Vollgeschosse schlagen durch die Rohrwand
+                var barrelHit = hit.collider.isTrigger ? null : hit.collider.GetComponent<TankModule>();
+                if (barrelHit != null && barrelHit.type == ModuleType.Barrel)
+                {
+                    var bt = barrelHit.owner;
+                    float v = velocity.magnitude;
+                    float dmg = data.IsHE ? 50f + data.fillerKg * 40f : data.IsHEAT ? 90f
+                              : (20f + data.caliberMm * data.spallMul * 0.6f) * Mathf.Clamp(v / 700f, 0.3f, 1.6f);
+                    string bmsg = barrelHit.ApplyDamage(dmg);
+                    report.Add($"{data.name} -> {(bt != null ? bt.spec.name + ": " : "")}Rohr getroffen ({Vector3.Distance(origin, pos):0} m){(bmsg != null ? " - " + bmsg : "")}");
+                    if (bmsg != null && bt != null) ReportDamage(barrelHit, bmsg);
+                    Effects.Impact(pos, hit.normal, dir, data.caliberMm, true, false);
+                    if (data.IsHE || data.IsHEAT)
+                    {
+                        Effects.Explosion(pos, data.fillerKg, false);
+                        if (data.IsHE) { DestructiblePart.BlowOff(pos, data.fillerKg); Concuss(pos, bt, 0.3f, false); }
+                        Finish();
+                        return;
+                    }
+                    // Rohrwand ~40 mm: kleine Kaliber bleiben stecken, grosse fliegen gebremst weiter (hinter dem Rohr: Turm, Wanne)
+                    if (Penetration.FlatPenetration(data, v) < 60f) { Stop(pos); return; }
+                    velocity *= 0.8f;
+                    pos += dir * 0.35f;
+                    continue;
+                }
+
                 // Anbauteil (Kotfluegel, Kasten, Tank ...): keine Panzerung, wird abgerissen
                 var part = hit.collider.GetComponentInParent<DestructiblePart>();
                 if (part != null)

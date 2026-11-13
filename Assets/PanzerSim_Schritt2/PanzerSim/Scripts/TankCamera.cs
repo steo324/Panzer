@@ -334,13 +334,18 @@ namespace PanzerSim
         /// <summary>Kettenzustand fuer die Anzeige: gerissen (mit Reparaturhinweis) oder Reparatur laeuft.</summary>
         static string TrackStatus(TankController t)
         {
-            if (t.trackBreaks.Count == 0) return "";
-            bool l = t.TrackBroken(true), r = t.TrackBroken(false);
-            string sides = l && r ? "Beide Ketten" : l ? "Kette links" : "Kette rechts";
-            int n = t.trackBreaks.Count;
             if (t.repairing)
-                return $"<color=#fd6>{sides}: Reparatur {t.repairLeft:0} s{(t.SpeedKmh > 3f ? " (anhalten!)" : "")}</color>\n";
-            return $"<color=#f66><b>{sides} GERISSEN</b> ({n} Stelle{(n > 1 ? "n" : "")})  [G] reparieren ~{t.RepairTimeNeeded():0} s</color>\n";
+                return $"<color=#fd6>Reparatur laeuft: noch {t.repairLeft:0} s{(t.SpeedKmh > 3f ? " (anhalten!)" : "")}</color>\n";
+            if (!t.NeedsRepair || t.destroyed) return "";
+            string s = "";
+            if (t.trackBreaks.Count > 0)
+            {
+                bool l = t.TrackBroken(true), r = t.TrackBroken(false);
+                string sides = l && r ? "Beide Ketten" : l ? "Kette links" : "Kette rechts";
+                int n = t.trackBreaks.Count;
+                s = $"<color=#f66><b>{sides} GERISSEN</b> ({n} Stelle{(n > 1 ? "n" : "")})</color>  ";
+            }
+            return s + $"<color=#fd6>[G] alles reparieren ~{t.RepairTimeNeeded():0} s</color>\n";
         }
 
         static Texture2D MakeCircle(int n, float inner, float outer)

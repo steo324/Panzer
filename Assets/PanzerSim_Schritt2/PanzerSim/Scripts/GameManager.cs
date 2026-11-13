@@ -332,6 +332,10 @@ namespace PanzerSim
                 floor.transform.localPosition = new Vector3(0f, -0.05f, 0f);
                 floor.transform.localScale = new Vector3(16f, 0.05f, 16f);
                 floor.GetComponent<Renderer>().sharedMaterial = GameMap.Mat(new Color(0.18f, 0.18f, 0.17f));
+                // Der Zylinder bekommt von Unity einen Kapsel-Collider - so flach wird daraus eine Kugel mit 8 m Radius:
+                // die Bodenstrahlen der Laufrollen starten darin, finden nichts und die Ketten sinken ins Podest. Flache Kiste statt dessen.
+                Destroy(floor.GetComponent<Collider>());
+                floor.AddComponent<BoxCollider>().size = new Vector3(1f, 2f, 1f);
             }
             stage.gameObject.SetActive(true);
             if (preview != null) Destroy(preview.gameObject);
@@ -688,7 +692,7 @@ namespace PanzerSim
             GUI.Label(new Rect(60, H - 76, 1400, 26),
                 "CC0: Weizenhalme ffish.asia / floraZia.com  ·  Bodentexturen ambientCG.com  ·  Kartendaten (c) OpenStreetMap-Mitwirkende (ODbL)  ·  Gelaende: Geobasis NRW (dl-de/zero-2-0)", small);
             GUI.Label(new Rect(60, H - 50, 900, 30),
-                "Im Spiel: Esc = Pause  ·  W/A/S/D fahren  ·  Maus zielen  ·  Linksklick Kanone  ·  Rechtsklick MG  ·  Shift Visier  ·  X Ansicht  ·  G Kette reparieren  ·  F3 Dev-Anzeige", small);
+                "Im Spiel: Esc = Pause  ·  W/A/S/D fahren  ·  Maus zielen  ·  Linksklick Kanone  ·  Rechtsklick MG  ·  Shift Visier  ·  X Ansicht  ·  G reparieren  ·  F3 Dev-Anzeige", small);
         }
 
         // ================= Serverliste =================

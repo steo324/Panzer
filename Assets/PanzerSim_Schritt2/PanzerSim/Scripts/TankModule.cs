@@ -7,7 +7,7 @@ namespace PanzerSim
         // Besatzung (Reihenfolge wichtig: alles bis RadioOperator ist Besatzung)
         Gunner, Driver, Loader, Commander, RadioOperator,
         // Technik
-        Engine, Transmission, Ammo, Fuel, Breech, TurretDrive
+        Engine, Transmission, Ammo, Fuel, Breech, TurretDrive, Barrel   // nur hinten anfuegen (Netz)
     }
 
     /// <summary>Ein Innenteil des Panzers: Besatzungsmitglied, Motor, Munition ... Collider ist ein Trigger.</summary>
@@ -66,6 +66,7 @@ namespace PanzerSim
                 case ModuleType.Fuel: return "Kraftstofftank";
                 case ModuleType.Breech: return "Kanonenverschluss";
                 case ModuleType.TurretDrive: return "Turmantrieb";
+                case ModuleType.Barrel: return "Rohr";
                 default: return t.ToString();
             }
         }
