@@ -31,6 +31,7 @@ namespace PanzerSim
         public float fuseSensitivityMm = 15f; // so dick muss eine Platte sein, damit der Zuender scharf wird
 
         public float heatPenMm;               // nur HEAT: Durchschlag des Strahls senkrecht (mm RHA)
+        public float spallMul = 1f;           // Splitterwirkung hinter der Platte (Treibspiegel: Kern duenn, Wirkung wie viel groesseres Kaliber)
         public float penRefMm;                // nur APDS/APFSDS: Durchschlag senkrecht an der Muendung (mm RHA, aus Beschusstafeln)
         public bool guided;                   // Lenkrakete (TOW): fliegt der Visierlinie nach statt ballistisch
         public float wireRange = 3750f;       // Lenkrakete: Drahtlaenge (danach ungelenkt)
@@ -123,13 +124,17 @@ namespace PanzerSim
             new ShellData("APC Mk4", "17-Pfuender (Firefly)", ShellType.APC, 76.2f, 7.70f, 884f, 0f),   // 42  Vollgeschoss mit Panzerkappe
             new ShellData("HE Mk1",  "17-Pfuender (Firefly)", ShellType.HE,  76.2f, 6.98f, 610f, 0.585f) { dragCoefficient = 0.33f },   // 43
             // ---- Treibspiegelgeschosse: Kaliber und Masse = fliegendes Geschoss ohne Treibspiegel ----
-            new ShellData("APDS Mk1", "17-Pfuender (Firefly)", ShellType.APDS, 47f, 2.0f, 1204f, 0f) { penRefMm = 245f, dragCoefficient = 0.30f },   // 44  ab Ende 1944, Wolframkarbid-Kern
-            new ShellData("3BM8",  "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.APDS,   46f, 3.65f, 1415f, 0f) { penRefMm = 360f, dragCoefficient = 0.28f },   // 45  1967, ~290 mm auf 2 km
-            new ShellData("3BM25 \"Isomer\"", "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.APFSDS, 30f, 3.6f, 1475f, 0f) { penRefMm = 360f, dragCoefficient = 0.30f },   // 46  1978, Pfeil, ~330 mm auf 2 km
+            new ShellData("APDS Mk1", "17-Pfuender (Firefly)", ShellType.APDS, 47f, 2.0f, 1204f, 0f) { penRefMm = 245f, spallMul = 1.6f, dragCoefficient = 0.30f },   // 44  ab Ende 1944, Wolframkarbid-Kern
+            new ShellData("3BM8",  "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.APDS,   46f, 3.65f, 1415f, 0f) { penRefMm = 360f, spallMul = 2f, dragCoefficient = 0.28f },   // 45  1967, ~290 mm auf 2 km
+            new ShellData("3BM25 \"Isomer\"", "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.APFSDS, 30f, 3.6f, 1475f, 0f) { penRefMm = 360f, spallMul = 2.5f, dragCoefficient = 0.30f },   // 46  1978, Pfeil, ~330 mm auf 2 km
             // Leopard 2A6: 120 mm Rh L/55 (Glattrohr)
-            new ShellData("DM53",  "120 mm Rh L/55 (Leopard 2A6)", ShellType.APFSDS, 26f, 4.6f, 1750f, 0f) { penRefMm = 800f, dragCoefficient = 0.30f },   // 47  Wolfram-Pfeil
+            new ShellData("DM53",  "120 mm Rh L/55 (Leopard 2A6)", ShellType.APFSDS, 26f, 4.6f, 1750f, 0f) { penRefMm = 800f, spallMul = 3f, dragCoefficient = 0.30f },   // 47  Wolfram-Pfeil
             new ShellData("DM12",  "120 mm Rh L/55 (Leopard 2A6)", ShellType.HEAT,  120f, 13.5f, 1140f, 1.6f) { heatPenMm = 480f, dragCoefficient = 0.33f },   // 48  Mehrzweck-Hohlladung
             new ShellData("DM11",  "120 mm Rh L/55 (Leopard 2A6)", ShellType.HE,    120f, 19.0f, 960f, 2.15f) { dragCoefficient = 0.31f },   // 49  Sprenggranate (programmierbar)
+            // Leopard 2 mit 140 mm NPzK (Rheinmetall-Versuchskanone, um 2000): ~2,4-fache Muendungsenergie der 120 mm
+            new ShellData("APFSDS 140", "140 mm NPzK (Leopard 2-140)", ShellType.APFSDS, 34f, 9.0f, 1700f, 0f) { penRefMm = 1250f, spallMul = 6f, dragCoefficient = 0.30f },   // 50  schwerer Wolfram-Pfeil
+            new ShellData("HEAT-MP 140", "140 mm NPzK (Leopard 2-140)", ShellType.HEAT, 140f, 21f, 1100f, 3.5f) { heatPenMm = 900f, dragCoefficient = 0.33f },   // 51
+            new ShellData("HE 140",      "140 mm NPzK (Leopard 2-140)", ShellType.HE,   140f, 28f, 900f, 4.5f) { dragCoefficient = 0.31f },   // 52
         };
     }
 }

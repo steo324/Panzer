@@ -278,6 +278,41 @@ namespace PanzerSim
             returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 4, returnRollerRadius = 0.09f
         };
 
+        /// <summary>
+        /// Leopard 2 mit 140-mm-Kanone: nach dem Versuchstraeger mit der Rheinmetall NPzK 140 (um 2000, nie in Serie).
+        /// Wanne und Turm wie Leopard 2A6, dazu schwerere Turmfront. Getrennte 140-mm-Munition mit Ladeautomat im Turmheck.
+        /// Pfeil mit ~1250 mm Durchschlag und grosser Splitterwirkung hinter der Platte.
+        /// Modell: Leopard 2A6 von buh (sketchfab.com/buh-late), CC BY 4.0 - Rohr vergroessert mit Tools/Blender/make_leopard140.py.
+        /// </summary>
+        public static TankSpec Leopard2_140 => new TankSpec
+        {
+            name = "Leopard 2 (140 mm)",
+            massT = 65f, powerPS = 1500f, maxSpeedKmh = 66f, reverseKmh = 31f, turnRateDegS = 34f,
+            hullLength = 7.63f, hullWidth = 3.75f, hullHeight = 1.16f, clearance = 0.54f,
+            trackWidth = 0.635f, trackInset = 0.80f,
+            hullFront = new Armor(450, 0, ArmorMaterial.Composite), hullRear = new Armor(30, 0), hullSide = new Armor(80, 0),
+            hullRoof = new Armor(40, 0), hullBottom = new Armor(30, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(450, 0, ArmorMaterial.Composite), hullGlacis = new Armor(70, 0), hullLowerSide = new Armor(45, 0),
+            turretLength = 4.0f, turretWidth = 3.0f, turretHeight = 0.85f, turretOffsetZ = 0.95f,
+            turretFront = new Armor(600, 0, ArmorMaterial.Composite),
+            turretSide = new Armor(240, 0, ArmorMaterial.Composite), turretRear = new Armor(60, 0),
+            turretRoof = new Armor(50, 0), mantlet = new Armor(400, 0, ArmorMaterial.Composite),
+            traverseDegS = 36f, elevationDegS = 14f, minElevation = -8f, maxElevation = 18f,
+            stabilizer = true, fireControl = true, hasRangefinder = true, hasThermal = true,
+            // Ladeautomat fuer die getrennte 140-mm-Munition: ~7 s
+            ammoIndex = 50, ammo = new[] { 50, 51, 52 }, reloadS = 7f, barrelLength = 5.9f, gunPivotFromModel = true, mgType = 6,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
+            sightType = SightType.German, sightFov = 5f, sightMag = 12f, sightName = "EMES 15",
+            sightZoomFov = new[] { 14f, 5f }, sightZoomMag = new[] { 4f, 12f },
+            modelResource = "Modelle/Leopard2_140", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 9, wheelRadius = 0.345f,
+            linkTracks = true, idlerRadius = 0.29f, sprocketRadius = 0.26f,
+            trackPitch = 0.184f, trackShoeWidth = 0.635f, trackThickness = 0.08f, trackSag = 0.03f,
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 4, returnRollerRadius = 0.09f
+        };
+
         // ================= Sowjetische schwere Panzer =================
         // Modelle: "Soviet Heavy Tanks" von snrnsrk5 (sketchfab.com/snrnsrk5), CC BY 4.0 - gerigged mit Tools/Blender/rig_soviet.py.
         // Laufwerk: Antriebsrad hinten (radL0), Laufrollen mit Drehstabfederung, Leitrad vorne, 3 Stuetzrollen (rollL1..3).

@@ -215,9 +215,11 @@ namespace PanzerSim
                             insideTank = true;
                             // Splitter von Platte und Geschoss
                             float e = Mathf.Clamp01(r.residualVelocity / 600f);
-                            int count = Mathf.RoundToInt(8f + data.caliberMm * 0.2f * e + plateMm * 0.1f);
-                            float cone = 15f + 15f * Mathf.Clamp01(plateMm / data.caliberMm);
-                            Damage.Fragments(pos, velocity.normalized, count, cone, 15f + 35f * e, 4f, ReportDamage);
+                            // spallMul: Treibspiegel-Pfeile reissen trotz duennem Kern viel Platte mit (Splitterwolke wie ein grosses Kaliber)
+                            int count = Mathf.RoundToInt(8f + data.caliberMm * data.spallMul * 0.2f * e + plateMm * 0.1f);
+                            float cone = 15f + 15f * Mathf.Clamp01(plateMm / (data.caliberMm * data.spallMul));
+                            float fragDmg = (15f + 35f * e) * (1f + 0.15f * (data.spallMul - 1f));
+                            Damage.Fragments(pos, velocity.normalized, count, cone, fragDmg, 4f, ReportDamage);
                         }
                         if (data.HasFiller && fuseTimer < 0f && plateMm >= data.fuseSensitivityMm)
                             fuseTimer = data.fuseDelay;

@@ -15,7 +15,7 @@ namespace PanzerSim
             { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85, () => TankLibrary.Wiesel, () => TankLibrary.PzH2000, () => TankLibrary.TigerII, () => TankLibrary.PanzerIII, () => TankLibrary.Panther,
               () => TankLibrary.KV1, () => TankLibrary.IS1, () => TankLibrary.IS2, () => TankLibrary.IS3, () => TankLibrary.T10, () => TankLibrary.T10M,
               () => TankLibrary.T34, () => TankLibrary.T34_85_44, () => TankLibrary.T44, () => TankLibrary.T44_100, () => TankLibrary.T54, () => TankLibrary.T55A,
-              () => TankLibrary.Firefly, () => TankLibrary.Leopard2A6 };   // Reihenfolge = Panzernummer im Netz, nur hinten anfuegen
+              () => TankLibrary.Firefly, () => TankLibrary.Leopard2A6, () => TankLibrary.Leopard2_140 };   // Reihenfolge = Panzernummer im Netz, nur hinten anfuegen
         readonly GameMap[] maps = { new PlainsMap(), new TestRangeMap(), new HillsMap(),   // Reihenfolge = Kartennummer (-map), nicht umsortieren
             new RealMap("HornBadMeinberg", "Horn-Bad Meinberg",
                 "Echte Gegend, 5 x 5 km: Horn und Bad Meinberg mit Externsteinen am Teutoburger Wald. Gelaende aus dem amtlichen Hoehenmodell NRW (1 m genau), Strassen, Gebaeude, Waelder und Felder aus OpenStreetMap.",
