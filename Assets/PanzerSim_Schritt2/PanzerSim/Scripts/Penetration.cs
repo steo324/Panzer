@@ -73,6 +73,8 @@ namespace PanzerSim
             return 20f * Mathf.Pow(f, 1f / 3f) * big;
         }
 
+        public const float CompositeVsHEAT = 1.7f;
+
         /// <summary>Ab diesem Auftreffwinkel gleitet eine Hohlladung ab bzw. der Zuender spricht nicht richtig an.</summary>
         public const float HEATGrazeAngle = 80f;
 
@@ -136,7 +138,8 @@ namespace PanzerSim
             // Sehr flach auftreffend gleitet sie ab.
             if (s.IsHEAT)
             {
-                float t = plateMm * (plateMat == ArmorMaterial.Cast ? 0.95f : 1f);
+                // Verbundpanzerung: Keramik und Zwischenschichten zerstreuen den Strahl (Leopard 2: gegen HEAT etwa 1,7-mal so stark wie gegen Pfeile)
+                float t = plateMm * (plateMat == ArmorMaterial.Cast ? 0.95f : plateMat == ArmorMaterial.Composite ? CompositeVsHEAT : 1f);
                 r.effectiveArmorMm = t / Mathf.Max(Mathf.Cos(r.impactAngleDeg * Mathf.Deg2Rad), 0.05f);
                 if (r.impactAngleDeg > HEATGrazeAngle)
                 {

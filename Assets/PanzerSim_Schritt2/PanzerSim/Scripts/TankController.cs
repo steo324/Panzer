@@ -251,24 +251,46 @@ namespace PanzerSim
             }
 
             float traverse = spec.traverseDegS * (Working(ModuleType.TurretDrive) ? 1f : 0.2f);
+            // Stabilisator: Rohr haelt seine Richtung im Raum, die Wannenbewegung wird sofort ausgeglichen (nur mit intaktem Turmantrieb)
+            bool stab = spec.stabilizer && hasLastGunDir && Working(ModuleType.TurretDrive);
+
+            // Feuerleitrechner: Vorhalt fuer ein bewegtes Ziel (beim Lasern gemessen) - Rohr zielt vor das Fadenkreuz
+            Vector3 aim = aimPoint;
+            if (spec.fireControl && Time.time < leadUntil && !Ammo.guided && !artilleryAim)
+            {
+                Ballistics.SimulateFlat(Ammo, Mathf.Max(sightRange, 10f), out _, out _, out float tof);
+                aim += leadVelocity * tof;
+            }
 
             // Turm drehen (in Wannen-Koordinaten)
             Transform hull = parts.turret.parent;
-            Vector3 local = hull.InverseTransformPoint(aimPoint) - parts.turret.localPosition;
+            Vector3 local = hull.InverseTransformPoint(aim) - parts.turret.localPosition;
             float wantYaw = Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg;
             float yaw = parts.turret.localEulerAngles.y;
+            if (stab) { Vector3 h = hull.InverseTransformDirection(lastGunDir); yaw = Mathf.Atan2(h.x, h.z) * Mathf.Rad2Deg; }
             yaw = Mathf.MoveTowardsAngle(yaw, wantYaw, traverse * dt);
             parts.turret.localRotation = Quaternion.Euler(0f, yaw, 0f);
 
             // Kanone heben/senken (in Turm-Koordinaten)
-            Vector3 g = parts.turret.InverseTransformPoint(aimPoint) - parts.gunPivot.localPosition;
+            Vector3 g = parts.turret.InverseTransformPoint(aim) - parts.gunPivot.localPosition;
             float wantElev = Mathf.Atan2(g.y, new Vector2(g.x, g.z).magnitude) * Mathf.Rad2Deg + superElevationDeg;
             wantElev = Mathf.Clamp(wantElev, spec.minElevation, spec.maxElevation);
             float elev = -parts.gunPivot.localEulerAngles.x;
             elev = Mathf.DeltaAngle(0f, elev);
+            if (stab)
+            {
+                Vector3 t = parts.turret.InverseTransformDirection(lastGunDir);
+                elev = Mathf.Clamp(Mathf.Atan2(t.y, new Vector2(t.x, t.z).magnitude) * Mathf.Rad2Deg, spec.minElevation, spec.maxElevation);
+            }
             elev = Mathf.MoveTowards(elev, wantElev, spec.elevationDegS * dt);
             parts.gunPivot.localRotation = Quaternion.Euler(-elev, 0f, 0f);
+            lastGunDir = parts.gunPivot.forward; hasLastGunDir = true;
         }
+
+        Vector3 lastGunDir; bool hasLastGunDir;
+        /// <summary>Feuerleitrechner: beim Lasern gemessene Zielgeschwindigkeit (Vorhalt), gilt bis leadUntil.</summary>
+        [HideInInspector] public Vector3 leadVelocity;
+        [HideInInspector] public float leadUntil;
 
         void TryFire()
         {

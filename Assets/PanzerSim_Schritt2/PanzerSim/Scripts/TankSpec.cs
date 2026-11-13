@@ -57,10 +57,12 @@ namespace PanzerSim
         public bool noGun;                   // (noch) keine Hauptwaffe: Feuern und MG aus (Wiesel: TOW-Lenkrakete folgt)
         public bool devOnly;                 // nur im Entwickler-Modus waehlbar (Fahrzeug in Arbeit)
         public bool noMg;                    // kein Turm-MG
-        public int mgType;                   // Koaxial-MG: 0 MG 34, 1 DT 7,62 mm, 2 DShKM 12,7 mm, 3 KPVT 14,5 mm, 4 M1919 .30, 5 SGMT 7,62 mm (MachineGun.Rounds)
+        public int mgType;                   // Koaxial-MG: 0 MG 34, 1 DT 7,62 mm, 2 DShKM 12,7 mm, 3 KPVT 14,5 mm, 4 M1919 .30, 5 SGMT 7,62 mm, 6 MG3 7,62 mm NATO (MachineGun.Rounds)
         public ModuleType[] crew;            // Besatzung (null = Kommandant, Richtschuetze, Ladeschuetze, Fahrer, Funker)
         public bool crewInHull;              // Richtschuetze/Kommandant sitzen in der Wanne (kein bemannter Turm)
         public bool hasThermal;              // Zielgeraet mit Waermebild (Taste V im Visier)
+        public bool stabilizer;              // Waffenanlage stabilisiert: Rohr haelt die Richtung, auch wenn die Wanne schaukelt
+        public bool fireControl;             // Feuerleitrechner: beim Lasern wird die Zielbewegung gemessen und der Vorhalt eingerechnet
         public bool hasRangefinder;          // Laser-Entfernungsmesser (Taste R); ohne: Entfernung schaetzen (Q/E), keine Meterangabe
         public bool artillery;               // Artillerie: Kartenmodus (Taste M) fuer indirektes Feuer
         public bool gunPivotFromModel;       // Kanonen-/Werfergelenk an die Stelle des Modell-Gelenks legen (Werfer sitzt nicht vorne am Turm)
@@ -235,6 +237,47 @@ namespace PanzerSim
             trackPitch = 0.153f, trackShoeWidth = 0.66f, trackThickness = 0.05f, trackSag = 0.05f
         };
 
+        /// <summary>
+        /// Leopard 2A6 (Bundeswehr, ab 2001): 120 mm Rh L/55, Verbundpanzerung mit Keilpanzer am Turm, Feuerleitanlage EMES 15
+        /// (Laser-Entfernungsmesser, Waermebild, Vorhalt), Waffenanlage zweiachsig stabilisiert. MG3 koaxial (zusaetzlich MG3 am Ladeschuetzen).
+        /// Panzerung ungefaehr nach oeffentlichen Schaetzungen (mm = Schutz gegen Pfeilgeschosse; gegen Hohlladungen ~1,7-fach);
+        /// die Schraege kommt aus der Modellform (Keile vorne am Turm).
+        /// Modell: "Leopard 2 A6" von buh (sketchfab.com/buh-late), CC BY 4.0 - gerigged mit Tools/Blender/rig_leopard2.py.
+        /// </summary>
+        public static TankSpec Leopard2A6 => new TankSpec
+        {
+            name = "Leopard 2A6",
+            // MTU MB 873 Ka-501, 1500 PS; 62,3 t; 68 km/h vorwaerts, 31 km/h rueckwaerts
+            massT = 62.3f, powerPS = 1500f, maxSpeedKmh = 68f, reverseKmh = 31f, turnRateDegS = 36f,
+            hullLength = 7.63f, hullWidth = 3.75f, hullHeight = 1.16f, clearance = 0.54f,
+            trackWidth = 0.635f, trackInset = 0.80f,     // Kettenmitte bei x = 1,39 m
+            hullFront = new Armor(400, 0, ArmorMaterial.Composite), hullRear = new Armor(30, 0), hullSide = new Armor(80, 0),
+            hullRoof = new Armor(40, 0), hullBottom = new Armor(30, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(400, 0, ArmorMaterial.Composite),   // Bug mit Verbundmodulen
+            hullGlacis = new Armor(60, 0),                                  // flache Oberwanne vorne: duenn, aber sehr schraeg
+            hullLowerSide = new Armor(45, 0),
+            turretLength = 4.0f, turretWidth = 3.0f, turretHeight = 0.85f, turretOffsetZ = 0.95f,
+            turretFront = new Armor(550, 0, ArmorMaterial.Composite),       // Keilpanzer + Grundpanzerung: mit Schraege ~900 mm
+            turretSide = new Armor(220, 0, ArmorMaterial.Composite), turretRear = new Armor(60, 0),
+            turretRoof = new Armor(50, 0), mantlet = new Armor(350, 0, ArmorMaterial.Composite),
+            traverseDegS = 40f, elevationDegS = 16f, minElevation = -9f, maxElevation = 20f,   // elektrisch, 360 Grad in ~9 s
+            stabilizer = true, fireControl = true, hasRangefinder = true, hasThermal = true,
+            // Ladeschuetze von Hand: ~5 s
+            ammoIndex = 47, ammo = new[] { 47, 48, 49 }, reloadS = 5f, barrelLength = 5.1f, gunPivotFromModel = true, mgType = 6,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
+            // EMES 15: Tagkanal 12-fach, Waermebild (Taste V) umschaltbar 4- / 12-fach
+            sightType = SightType.German, sightFov = 5f, sightMag = 12f, sightName = "EMES 15",
+            sightZoomFov = new[] { 14f, 5f }, sightZoomMag = new[] { 4f, 12f },
+            modelResource = "Modelle/Leopard2A6", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            // Antriebsrad hinten (radL0), 7 Laufrollen (700 mm, Drehstab), Leitrad vorne (radL8), 4 Stuetzrollen
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 9, wheelRadius = 0.345f,
+            linkTracks = true, idlerRadius = 0.29f, sprocketRadius = 0.26f,
+            trackPitch = 0.184f, trackShoeWidth = 0.635f, trackThickness = 0.08f, trackSag = 0.03f,   // Kette Diehl 570 FT
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 4, returnRollerRadius = 0.09f
+        };
+
         // ================= Sowjetische schwere Panzer =================
         // Modelle: "Soviet Heavy Tanks" von snrnsrk5 (sketchfab.com/snrnsrk5), CC BY 4.0 - gerigged mit Tools/Blender/rig_soviet.py.
         // Laufwerk: Antriebsrad hinten (radL0), Laufrollen mit Drehstabfederung, Leitrad vorne, 3 Stuetzrollen (rollL1..3).
@@ -384,7 +427,7 @@ namespace PanzerSim
         /// <summary>T-10M (1957): 122 mm M-62-T2 (schneller, mit Hohlladung), zweiachsig stabilisiert. 14,5 mm KPVT koaxial und auf dem Turm.</summary>
         public static TankSpec T10M => new TankSpec
         {
-            name = "T-10M", nation = Nation.USSR,
+            name = "T-10M", nation = Nation.USSR, stabilizer = true,
             // V-12-6B 750 PS; 51,5 t; 50 km/h
             massT = 51.5f, powerPS = 750f, maxSpeedKmh = 50f, reverseKmh = 10f, turnRateDegS = 24f,
             hullLength = 7.30f, hullWidth = 3.38f, hullHeight = 1.13f, clearance = 0.45f,
@@ -742,7 +785,7 @@ namespace PanzerSim
         /// <summary>T-55A (1963): 100 mm D-10T2S, zweiachsig stabilisiert, Strahlenschutz. SGMT koaxial (zusaetzlich Bug-SGMT).</summary>
         public static TankSpec T55A => new TankSpec
         {
-            name = "T-55A", nation = Nation.USSR,
+            name = "T-55A", nation = Nation.USSR, stabilizer = true,
             // V-55 580 PS; 38 t; 50 km/h
             massT = 38f, powerPS = 580f, maxSpeedKmh = 50f, reverseKmh = 8f, turnRateDegS = 32f,
             hullLength = 6.33f, hullWidth = 3.27f, hullHeight = 1.10f, clearance = 0.425f,

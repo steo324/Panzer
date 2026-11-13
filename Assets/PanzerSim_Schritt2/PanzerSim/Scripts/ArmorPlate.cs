@@ -6,7 +6,8 @@ namespace PanzerSim
     {
         RHA,          // gewalzter homogener Stahl (Referenz)
         Cast,         // Gussstahl, etwas schwaecher
-        FaceHardened  // oberflaechengehaertet: stark gegen Granaten OHNE Kappe
+        FaceHardened, // oberflaechengehaertet: stark gegen Granaten OHNE Kappe
+        Composite     // Verbundpanzerung (Stahl, Keramik, Zwischenschichten): mm = Schutz gegen Pfeile (KE), gegen Hohlladungen viel staerker
     }
 
     /// <summary>Eine Panzerplatte. Die Dicke der Box wird automatisch an die mm angepasst.</summary>
@@ -47,6 +48,7 @@ namespace PanzerSim
             {
                 case ArmorMaterial.Cast: return "Gussstahl";
                 case ArmorMaterial.FaceHardened: return "oberflaechengehaertet";
+                case ArmorMaterial.Composite: return "Verbundpanzerung";
                 default: return "Walzstahl (RHA)";
             }
         }

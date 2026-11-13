@@ -15,7 +15,7 @@ namespace PanzerSim
             { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85, () => TankLibrary.Wiesel, () => TankLibrary.PzH2000, () => TankLibrary.TigerII, () => TankLibrary.PanzerIII, () => TankLibrary.Panther,
               () => TankLibrary.KV1, () => TankLibrary.IS1, () => TankLibrary.IS2, () => TankLibrary.IS3, () => TankLibrary.T10, () => TankLibrary.T10M,
               () => TankLibrary.T34, () => TankLibrary.T34_85_44, () => TankLibrary.T44, () => TankLibrary.T44_100, () => TankLibrary.T54, () => TankLibrary.T55A,
-              () => TankLibrary.Firefly };   // Reihenfolge = Panzernummer im Netz, nur hinten anfuegen
+              () => TankLibrary.Firefly, () => TankLibrary.Leopard2A6 };   // Reihenfolge = Panzernummer im Netz, nur hinten anfuegen
         readonly GameMap[] maps = { new PlainsMap(), new TestRangeMap(), new HillsMap(),   // Reihenfolge = Kartennummer (-map), nicht umsortieren
             new RealMap("HornBadMeinberg", "Horn-Bad Meinberg",
                 "Echte Gegend, 5 x 5 km: Horn und Bad Meinberg mit Externsteinen am Teutoburger Wald. Gelaende aus dem amtlichen Hoehenmodell NRW (1 m genau), Strassen, Gebaeude, Waelder und Felder aus OpenStreetMap.",
@@ -583,7 +583,7 @@ namespace PanzerSim
         {
             if (listOpen) { DrawServerList(W, H); return; }   // sonst nimmt das Menue darunter die Klicks
             GUI.Label(new Rect(60, 40, 1100, 60), "BALLISTIK TANK FRONTS", title);
-            GUI.Label(new Rect(64, 100, 1100, 30), "von Ballistik Studios  ·  Panzer im Zweiten Weltkrieg  ·  Echte Ballistik", sub);
+            GUI.Label(new Rect(64, 100, 1100, 30), "von Ballistik Studios  ·  Panzer vom Zweiten Weltkrieg bis heute  ·  Echte Ballistik", sub);
 
             // ---- Panzer ----
             var left = new Rect(60, 160, 430, 760);
@@ -682,7 +682,7 @@ namespace PanzerSim
             if (GUI.Button(new Rect(W - 272, 856, 212, 50), "Beenden", btn)) Quit();
 
             GUI.Label(new Rect(60, H - 128, 1600, 26),
-                "Modelle (CC BY 4.0): Tiger I, Panzer III, Panther von Joanthan To (sketchfab.com/jonathanto99)  ·  Panzer IV von Greg McKechnie (sketchfab.com/mckechniegreg6)  ·  M4A1E9 Sherman von Sem (sketchfab.com/Sem-Hofstede)  ·  Sherman Firefly von barking_dogo (sketchfab.com/barking_dogo)  ·  T-34-85 von DedRam (sketchfab.com/heirohindrima)", small);
+                "Modelle (CC BY 4.0): Tiger I, Panzer III, Panther von Joanthan To (sketchfab.com/jonathanto99)  ·  Panzer IV von Greg McKechnie (sketchfab.com/mckechniegreg6)  ·  M4A1E9 Sherman von Sem (sketchfab.com/Sem-Hofstede)  ·  Sherman Firefly von barking_dogo (sketchfab.com/barking_dogo) ·  Leopard 2A6 von buh (sketchfab.com/buh-late)  ·  T-34-85 von DedRam (sketchfab.com/heirohindrima)", small);
             GUI.Label(new Rect(60, H - 102, 1600, 26),
                 "Tiger II von maximus0075550 (sketchfab.com/maximus0075550)  ·  KV-1, IS-1/2/3, T-10(M), T-34, T-34-85 (1944), T-44(-100), T-54, T-55A von snrnsrk5 (sketchfab.com/snrnsrk5)  ·  Panzerhaubitze 2000 von gogiart (sketchfab.com/agt14032013)  ·  Golf IV R32 von ddiaz-design (sketchfab.com/ddiaz-design, CC BY-NC-SA 4.0)  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan)  ·  alle fuer das Spiel angepasst (gerigged, Kette ersetzt, Tiger bemalt)  ·  Lizenz: creativecommons.org/licenses/by/4.0  ·  Details: CREDITS.md", small);
             GUI.Label(new Rect(60, H - 76, 1400, 26),

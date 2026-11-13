@@ -27,8 +27,9 @@ namespace PanzerSim
             new ShellData("14,5 mm B-32", "KPVT",  ShellType.AP, 14.5f,  0.064f,  1000f, 0f) { dragCoefficient = 0.28f },           // 3: KPVT, 600/min
             new ShellData(".30-06 M2",   "M1919A4", ShellType.AP, 7.62f, 0.0107f, 853f,  0f) { dragCoefficient = 0.30f },           // 4: Browning, 500/min
             new ShellData("7,62 mm LPS", "SGMT",   ShellType.AP, 7.62f,  0.0096f, 855f,  0f) { dragCoefficient = 0.30f },           // 5: SGMT, 650/min
+            new ShellData("7,62 mm DM41", "MG3",   ShellType.AP, 7.62f,  0.0095f, 820f,  0f) { dragCoefficient = 0.30f },           // 6: MG3, 1200/min
         };
-        static readonly float[] RatesS = { 15f, 10f, 10f, 10f, 8.3f, 10.8f };
+        static readonly float[] RatesS = { 15f, 10f, 10f, 10f, 8.3f, 10.8f, 20f };
         public static ShellData RoundFor(TankSpec s) => Rounds[Mathf.Clamp(s.mgType, 0, Rounds.Length - 1)];
         public static float RateFor(TankSpec s) => RatesS[Mathf.Clamp(s.mgType, 0, RatesS.Length - 1)];
 

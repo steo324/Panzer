@@ -126,6 +126,10 @@ namespace PanzerSim
             new ShellData("APDS Mk1", "17-Pfuender (Firefly)", ShellType.APDS, 47f, 2.0f, 1204f, 0f) { penRefMm = 245f, dragCoefficient = 0.30f },   // 44  ab Ende 1944, Wolframkarbid-Kern
             new ShellData("3BM8",  "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.APDS,   46f, 3.65f, 1415f, 0f) { penRefMm = 360f, dragCoefficient = 0.28f },   // 45  1967, ~290 mm auf 2 km
             new ShellData("3BM25 \"Isomer\"", "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.APFSDS, 30f, 3.6f, 1475f, 0f) { penRefMm = 360f, dragCoefficient = 0.30f },   // 46  1978, Pfeil, ~330 mm auf 2 km
+            // Leopard 2A6: 120 mm Rh L/55 (Glattrohr)
+            new ShellData("DM53",  "120 mm Rh L/55 (Leopard 2A6)", ShellType.APFSDS, 26f, 4.6f, 1750f, 0f) { penRefMm = 800f, dragCoefficient = 0.30f },   // 47  Wolfram-Pfeil
+            new ShellData("DM12",  "120 mm Rh L/55 (Leopard 2A6)", ShellType.HEAT,  120f, 13.5f, 1140f, 1.6f) { heatPenMm = 480f, dragCoefficient = 0.33f },   // 48  Mehrzweck-Hohlladung
+            new ShellData("DM11",  "120 mm Rh L/55 (Leopard 2A6)", ShellType.HE,    120f, 19.0f, 960f, 2.15f) { dragCoefficient = 0.31f },   // 49  Sprenggranate (programmierbar)
         };
     }
 }

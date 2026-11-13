@@ -26,6 +26,7 @@ namespace PanzerSim
         public static bool BenchArty;
         bool autoRange;                                     // nur Leistungstests; im Spiel stellt man die Entfernung selbst ein (Q/E) oder lasert (R)
         float laserTime = -10f, laserRange;                 // letzte Laser-Messung (nur Fahrzeuge mit Entfernungsmesser)
+        TankController aimedTank;                           // Fahrzeug im Fadenkreuz (Feuerleitrechner misst seine Geschwindigkeit)
         float manualRange = 500f;
         Camera cam;
         float baseFov;
@@ -66,7 +67,17 @@ namespace PanzerSim
             // Fahrzeuge ohne Entfernungsmesser (alle Weltkriegspanzer): Entfernung schaetzen und mit Q/E einstellen.
             if (Inp.Down(KeyCode.R))
             {
-                if (target.spec.hasRangefinder) { laserRange = aimDistance; laserTime = Time.time; manualRange = Mathf.Clamp(aimDistance, 50f, 9999f); }
+                if (target.spec.hasRangefinder)
+                {
+                    laserRange = aimDistance; laserTime = Time.time; manualRange = Mathf.Clamp(aimDistance, 50f, 9999f);
+                    // Feuerleitrechner: Geschwindigkeit des anvisierten Fahrzeugs messen -> Vorhalt (8 s gueltig, neu lasern zum Nachfuehren)
+                    if (target.spec.fireControl)
+                    {
+                        var rb = aimedTank != null && !aimedTank.destroyed ? aimedTank.rb : null;
+                        target.leadVelocity = rb != null ? rb.linearVelocity : Vector3.zero;
+                        target.leadUntil = Time.time + 8f;
+                    }
+                }
                 else RangeLog.AddLocal($"{target.spec.name}: kein Entfernungsmesser - Entfernung schaetzen und mit Q/E einstellen");
             }
             // Waermebild (nur Zielgeraete mit WBG, nur im Visier)
@@ -127,6 +138,7 @@ namespace PanzerSim
                 target.aimPoint = hit.point;
                 aimDistance = Vector3.Distance(target.parts.muzzle.position, hit.point);
                 var tank = hit.collider.GetComponentInParent<TankController>();
+                aimedTank = tank;
                 aimedName = tank != null ? (tank.destroyed ? $"<color=#ccc>{tank.spec.name}</color> <color=#f96>(ausgeschaltet)</color>" : tank.spec.name) : null;
             }
             else
@@ -134,6 +146,7 @@ namespace PanzerSim
                 target.aimPoint = transform.position + aimDir * 2000f;
                 aimDistance = 2000f;
                 aimedName = null;
+                aimedTank = null;
             }
             if (!target.autoFire) target.sightRange = autoRange ? aimDistance : manualRange;   // Test-Autofeuer stellt selbst ein
 
@@ -241,7 +254,7 @@ namespace PanzerSim
             if (aimedName != null)
                 GUI.Label(new Rect(cx + 20, cy + 15, 300, 25), aimedName, box);   // ohne Meterangabe: Entfernung kennt man nur geschaetzt oder gelasert
             if (t0.spec.hasRangefinder && Time.time - laserTime < 4f)
-                GUI.Label(new Rect(cx + 20, cy + 42, 300, 25), $"<color=#f55>LASER {laserRange:0} m</color>", box);
+                GUI.Label(new Rect(cx + 20, cy + 42, 300, 25), $"<color=#f55>LASER {laserRange:0} m</color>" + (t0.spec.fireControl && t0.leadVelocity.magnitude > 0.5f && Time.time < t0.leadUntil ? $"  <color=#fd6>VORHALT {t0.leadVelocity.magnitude * 3.6f:0} km/h</color>" : ""), box);
 
             // Panzer-Status
             var t = target;
@@ -431,7 +444,8 @@ namespace PanzerSim
         static string ScaleName(ShellData s)
         {
             int cm = s.gun.IndexOf(" cm");
-            string cal = cm > 0 ? s.gun.Substring(0, cm + 3) : $"{s.caliberMm:0} mm";
+            int mm = s.gun.IndexOf(" mm");   // Kaliber der Kanone (bei Treibspiegeln ist caliberMm nur der Kern)
+            string cal = cm > 0 ? s.gun.Substring(0, cm + 3) : mm > 0 && mm < 6 ? s.gun.Substring(0, mm + 3) : $"{s.caliberMm:0} mm";
             return $"{cal} {s.name.Replace("PzGr.", "Pzgr").Replace("Sprgr.", "Sprgr")}";
         }
 
