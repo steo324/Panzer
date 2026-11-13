@@ -13,13 +13,16 @@ namespace PanzerSim
 
         static readonly System.Func<TankSpec>[] Tanks =
             { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85, () => TankLibrary.Wiesel, () => TankLibrary.PzH2000, () => TankLibrary.TigerII, () => TankLibrary.PanzerIII, () => TankLibrary.Panther,
-              () => TankLibrary.KV1, () => TankLibrary.IS1, () => TankLibrary.IS2, () => TankLibrary.IS3, () => TankLibrary.T10, () => TankLibrary.T10M };   // Reihenfolge = Panzernummer im Netz, nur hinten anfuegen
+              () => TankLibrary.KV1, () => TankLibrary.IS1, () => TankLibrary.IS2, () => TankLibrary.IS3, () => TankLibrary.T10, () => TankLibrary.T10M,
+              () => TankLibrary.T34, () => TankLibrary.T34_85_44, () => TankLibrary.T44, () => TankLibrary.T44_100, () => TankLibrary.T54, () => TankLibrary.T55A };   // Reihenfolge = Panzernummer im Netz, nur hinten anfuegen
         readonly GameMap[] maps = { new PlainsMap(), new TestRangeMap(), new HillsMap(),   // Reihenfolge = Kartennummer (-map), nicht umsortieren
             new RealMap("HornBadMeinberg", "Horn-Bad Meinberg",
                 "Echte Gegend, 5 x 5 km: Horn und Bad Meinberg mit Externsteinen am Teutoburger Wald. Gelaende aus dem amtlichen Hoehenmodell NRW (1 m genau), Strassen, Gebaeude, Waelder und Felder aus OpenStreetMap.",
                 ("Externsteine", -2254f, -1358f)).WithProp("Modelle/GolfR32", 28f, -319f, 117f) };   // Easter Egg: silberner Golf hinter der Werkstatt
 
         int tankIndex, mapIndex;
+        int nationTab = -1;   // Reiter in der Panzerauswahl (-1 = Nation des gewaehlten Panzers)
+        static readonly string[] NationNames = { "Deutschland", "USA", "Sowjetunion" };
         GameMap map;
         public GameMap CurrentMap => map;
         public bool InGame => state != State.Menu;
@@ -586,10 +589,29 @@ namespace PanzerSim
             GUI.Box(left, GUIContent.none, panel);
             GUILayout.BeginArea(new Rect(left.x + 18, left.y + 14, left.width - 36, left.height - 28));
             GUILayout.Label("PANZER", head);
+            // Nationen-Reiter: nur die Panzer dieser Nation zeigen
+            if (nationTab < 0) nationTab = (int)Tanks[tankIndex]().nation;
+            GUILayout.BeginHorizontal();
+            for (int n = 0; n < NationNames.Length; n++)
+                if (GUILayout.Button(NationNames[n], n == nationTab ? btnSel : btn, GUILayout.Height(36)) && n != nationTab)
+                {
+                    nationTab = n;
+                    if ((int)Tanks[tankIndex]().nation != n)
+                        for (int i = 0; i < Tanks.Length; i++)
+                        {
+                            var s = Tanks[i]();
+                            if ((int)s.nation == n && (!s.devOnly || GameSettings.DevMode)) { tankIndex = i; BuildPreview(); break; }
+                        }
+                }
+            GUILayout.EndHorizontal();
+            GUILayout.Space(6);
             // zwei Spalten, damit alle Panzer Platz haben
             var shown = new System.Collections.Generic.List<int>();
             for (int i = 0; i < Tanks.Length; i++)
-                if (!Tanks[i]().devOnly || GameSettings.DevMode) shown.Add(i);   // Test-Fahrzeuge nur im Entwickler-Modus
+            {
+                var s = Tanks[i]();
+                if ((int)s.nation == nationTab && (!s.devOnly || GameSettings.DevMode)) shown.Add(i);   // Test-Fahrzeuge nur im Entwickler-Modus
+            }
             for (int k = 0; k < shown.Count; k += 2)
             {
                 GUILayout.BeginHorizontal();
@@ -661,7 +683,7 @@ namespace PanzerSim
             GUI.Label(new Rect(60, H - 128, 1600, 26),
                 "Modelle (CC BY 4.0): Tiger I, Panzer III, Panther von Joanthan To (sketchfab.com/jonathanto99)  ·  Panzer IV von Greg McKechnie (sketchfab.com/mckechniegreg6)  ·  M4A1E9 Sherman von Sem (sketchfab.com/Sem-Hofstede)  ·  T-34-85 von DedRam (sketchfab.com/heirohindrima)", small);
             GUI.Label(new Rect(60, H - 102, 1600, 26),
-                "Tiger II von maximus0075550 (sketchfab.com/maximus0075550)  ·  KV-1, IS-1, IS-2, IS-3, T-10, T-10M von snrnsrk5 (sketchfab.com/snrnsrk5)  ·  Panzerhaubitze 2000 von gogiart (sketchfab.com/agt14032013)  ·  Golf IV R32 von ddiaz-design (sketchfab.com/ddiaz-design, CC BY-NC-SA 4.0)  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan)  ·  alle fuer das Spiel angepasst (gerigged, Kette ersetzt, Tiger bemalt)  ·  Lizenz: creativecommons.org/licenses/by/4.0  ·  Details: CREDITS.md", small);
+                "Tiger II von maximus0075550 (sketchfab.com/maximus0075550)  ·  KV-1, IS-1/2/3, T-10(M), T-34, T-34-85 (1944), T-44(-100), T-54, T-55A von snrnsrk5 (sketchfab.com/snrnsrk5)  ·  Panzerhaubitze 2000 von gogiart (sketchfab.com/agt14032013)  ·  Golf IV R32 von ddiaz-design (sketchfab.com/ddiaz-design, CC BY-NC-SA 4.0)  ·  Weizenbueschel von ebmclachlan (sketchfab.com/ebmclachlan)  ·  alle fuer das Spiel angepasst (gerigged, Kette ersetzt, Tiger bemalt)  ·  Lizenz: creativecommons.org/licenses/by/4.0  ·  Details: CREDITS.md", small);
             GUI.Label(new Rect(60, H - 76, 1400, 26),
                 "CC0: Weizenhalme ffish.asia / floraZia.com  ·  Bodentexturen ambientCG.com  ·  Kartendaten (c) OpenStreetMap-Mitwirkende (ODbL)  ·  Gelaende: Geobasis NRW (dl-de/zero-2-0)", small);
             GUI.Label(new Rect(60, H - 50, 900, 30),
@@ -974,7 +996,7 @@ namespace PanzerSim
                     if (Toggle("Entwickler-Modus (Test-Fahrzeuge, z. B. Wiesel)", ref on) && !on)
                     {
                         GameSettings.DevMode = false; changed = true;
-                        if (Tanks[tankIndex]().devOnly) { tankIndex = 0; BuildPreview(); }
+                        if (Tanks[tankIndex]().devOnly) { tankIndex = 0; nationTab = -1; BuildPreview(); }
                     }
                 }
                 else

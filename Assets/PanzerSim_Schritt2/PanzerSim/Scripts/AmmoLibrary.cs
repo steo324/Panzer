@@ -92,8 +92,8 @@ namespace PanzerSim
             new ShellData("PzGr. 39/42", "7,5 cm KwK 42 L/70 (Panther)", ShellType.APCBC, 75f, 6.80f, 935f, 0.018f),   // 23
             new ShellData("Sprgr. 42",   "7,5 cm KwK 42 L/70 (Panther)", ShellType.HE,    75f, 5.74f, 700f, 0.725f) { dragCoefficient = 0.33f },   // 24
             // KV-1 (1941): 76,2 mm F-32 L/31,5
-            new ShellData("BR-350A", "76 mm F-32 (KV-1)", ShellType.APHEBC, 76.2f, 6.30f, 662f, 0.155f),   // 25
-            new ShellData("OF-350",  "76 mm F-32 (KV-1)", ShellType.HE,     76.2f, 6.20f, 638f, 0.71f) { dragCoefficient = 0.33f },   // 26
+            new ShellData("BR-350A", "76 mm F-32 (KV-1)", ShellType.APHEBC, 76.2f, 6.30f, 612f, 0.155f),   // 25  kurzes Rohr: 612 m/s
+            new ShellData("OF-350",  "76 mm F-32 (KV-1)", ShellType.HE,     76.2f, 6.20f, 600f, 0.71f) { dragCoefficient = 0.33f },   // 26
             // IS-1: 85 mm D-5T (Ballistik wie ZiS-S-53)
             new ShellData("BR-365",  "85 mm D-5T (IS-1)", ShellType.APHEBC, 85f, 9.20f, 792f, 0.048f),   // 27
             new ShellData("BR-365K", "85 mm D-5T (IS-1)", ShellType.APHE,   85f, 9.20f, 792f, 0.048f),   // 28
@@ -106,6 +106,14 @@ namespace PanzerSim
             new ShellData("BR-472",  "122 mm M-62-T2 (T-10M)", ShellType.APHEBC, 122f, 25.0f, 950f, 0.156f),   // 33
             new ShellData("OF-472",  "122 mm M-62-T2 (T-10M)", ShellType.HE,     122f, 27.3f, 885f, 3.0f) { dragCoefficient = 0.31f },   // 34
             new ShellData("BK-6M",   "122 mm M-62-T2 (T-10M)", ShellType.HEAT,   122f, 21.6f, 900f, 1.4f) { heatPenMm = 420f, dragCoefficient = 0.33f },   // 35
+            // T-34 (1943): 76 mm F-34 L/41,5
+            new ShellData("BR-350A", "76 mm F-34 (T-34)", ShellType.APHEBC, 76.2f, 6.30f, 662f, 0.155f),   // 36
+            new ShellData("OF-350",  "76 mm F-34 (T-34)", ShellType.HE,     76.2f, 6.20f, 680f, 0.71f) { dragCoefficient = 0.33f },   // 37
+            // T-44-100, T-54, T-55A: 100 mm D-10T L/53,5
+            new ShellData("BR-412B", "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.APHEBC, 100f, 15.88f, 887f, 0.065f),   // 38
+            new ShellData("OF-412",  "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.HE,     100f, 15.6f,  900f, 1.46f) { dragCoefficient = 0.31f },   // 39
+            new ShellData("BR-412D", "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.APCBC,  100f, 15.88f, 887f, 0.061f),   // 40  Panzerkappe + Haube (ab 1953)
+            new ShellData("BK-5M",   "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.HEAT,   100f, 12.2f,  900f, 0.9f) { heatPenMm = 380f, dragCoefficient = 0.33f },   // 41
         };
     }
 }

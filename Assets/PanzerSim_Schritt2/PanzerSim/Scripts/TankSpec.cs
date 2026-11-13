@@ -18,11 +18,15 @@ namespace PanzerSim
     /// <summary>Art des Zielfernrohrs (Strichplatte).</summary>
     public enum SightType { German, US, Soviet, TOW }
 
+    /// <summary>Nation (Reiter in der Panzerauswahl).</summary>
+    public enum Nation { Germany, USA, USSR }
+
     /// <summary>Alle Daten eines Panzertyps. Masse in Metern, Panzerung in mm.</summary>
     [System.Serializable]
     public class TankSpec
     {
         public string name;
+        public Nation nation;                // Reiter in der Panzerauswahl (Standard: Deutschland)
         public float massT;
         public float powerPS;
         public float maxSpeedKmh;
@@ -53,7 +57,7 @@ namespace PanzerSim
         public bool noGun;                   // (noch) keine Hauptwaffe: Feuern und MG aus (Wiesel: TOW-Lenkrakete folgt)
         public bool devOnly;                 // nur im Entwickler-Modus waehlbar (Fahrzeug in Arbeit)
         public bool noMg;                    // kein Turm-MG
-        public int mgType;                   // Koaxial-MG: 0 MG 34, 1 DT 7,62 mm, 2 DShKM 12,7 mm, 3 KPVT 14,5 mm, 4 M1919 .30 (MachineGun.Rounds)
+        public int mgType;                   // Koaxial-MG: 0 MG 34, 1 DT 7,62 mm, 2 DShKM 12,7 mm, 3 KPVT 14,5 mm, 4 M1919 .30, 5 SGMT 7,62 mm (MachineGun.Rounds)
         public ModuleType[] crew;            // Besatzung (null = Kommandant, Richtschuetze, Ladeschuetze, Fahrer, Funker)
         public bool crewInHull;              // Richtschuetze/Kommandant sitzen in der Wanne (kein bemannter Turm)
         public bool hasThermal;              // Zielgeraet mit Waermebild (Taste V im Visier)
@@ -240,7 +244,7 @@ namespace PanzerSim
         /// <summary>KV-1 Modell 1941 (geschweisster Turm): 76 mm F-32, rundum 75 mm. DT-MG koaxial (zusaetzlich Bug- und Heck-DT).</summary>
         public static TankSpec KV1 => new TankSpec
         {
-            name = "KV-1 (1941)",
+            name = "KV-1 (1941)", nation = Nation.USSR,
             // V-2K Diesel 600 PS; 47,5 t; 35 km/h
             massT = 47.5f, powerPS = 600f, maxSpeedKmh = 35f, reverseKmh = 7f, turnRateDegS = 18f,
             hullLength = 6.77f, hullWidth = 3.32f, hullHeight = 1.26f, clearance = 0.44f,
@@ -267,7 +271,7 @@ namespace PanzerSim
         /// <summary>IS-1 (IS-85, 1943): 85 mm D-5T, gestufter Bug 120 mm. 4 Mann, DT koaxial (zusaetzlich Heck-DT im Turm).</summary>
         public static TankSpec IS1 => new TankSpec
         {
-            name = "IS-1",
+            name = "IS-1", nation = Nation.USSR,
             // V-2IS 520 PS; 44,2 t; 37 km/h
             massT = 44.2f, powerPS = 520f, maxSpeedKmh = 37f, reverseKmh = 7f, turnRateDegS = 20f,
             hullLength = 6.70f, hullWidth = 3.07f, hullHeight = 1.17f, clearance = 0.42f,
@@ -295,7 +299,7 @@ namespace PanzerSim
         /// <summary>IS-2 Modell 1944 (gerade Bugplatte): 122 mm D-25T mit Muendungsbremse, getrennte Munition. DT koaxial (zusaetzlich Heck-DT, DShK).</summary>
         public static TankSpec IS2 => new TankSpec
         {
-            name = "IS-2 (1944)",
+            name = "IS-2 (1944)", nation = Nation.USSR,
             // V-2IS 520 PS; 46 t; 37 km/h
             massT = 46f, powerPS = 520f, maxSpeedKmh = 37f, reverseKmh = 7f, turnRateDegS = 20f,
             hullLength = 6.70f, hullWidth = 3.07f, hullHeight = 1.17f, clearance = 0.42f,
@@ -323,7 +327,7 @@ namespace PanzerSim
         /// <summary>IS-3 (1945): Hechtbug 110 mm, flacher Gussturm bis 220 mm, Blende 250 mm. 122 mm D-25T. DT koaxial (zusaetzlich DShK).</summary>
         public static TankSpec IS3 => new TankSpec
         {
-            name = "IS-3",
+            name = "IS-3", nation = Nation.USSR,
             // V-11 520 PS; 46,5 t; 40 km/h
             massT = 46.5f, powerPS = 520f, maxSpeedKmh = 40f, reverseKmh = 8f, turnRateDegS = 20f,
             hullLength = 6.88f, hullWidth = 3.15f, hullHeight = 1.02f, clearance = 0.45f,
@@ -350,7 +354,7 @@ namespace PanzerSim
         /// <summary>T-10 (1953): 122 mm D-25TA mit Ansetzer, 7 Laufrollen. 12,7 mm DShKM koaxial und auf dem Turm.</summary>
         public static TankSpec T10 => new TankSpec
         {
-            name = "T-10",
+            name = "T-10", nation = Nation.USSR,
             // V-12-5 700 PS; 50 t; 42 km/h
             massT = 50f, powerPS = 700f, maxSpeedKmh = 42f, reverseKmh = 9f, turnRateDegS = 22f,
             hullLength = 7.30f, hullWidth = 3.38f, hullHeight = 1.13f, clearance = 0.45f,
@@ -380,7 +384,7 @@ namespace PanzerSim
         /// <summary>T-10M (1957): 122 mm M-62-T2 (schneller, mit Hohlladung), zweiachsig stabilisiert. 14,5 mm KPVT koaxial und auf dem Turm.</summary>
         public static TankSpec T10M => new TankSpec
         {
-            name = "T-10M",
+            name = "T-10M", nation = Nation.USSR,
             // V-12-6B 750 PS; 51,5 t; 50 km/h
             massT = 51.5f, powerPS = 750f, maxSpeedKmh = 50f, reverseKmh = 10f, turnRateDegS = 24f,
             hullLength = 7.30f, hullWidth = 3.38f, hullHeight = 1.13f, clearance = 0.45f,
@@ -447,7 +451,7 @@ namespace PanzerSim
         /// </summary>
         public static TankSpec Sherman => new TankSpec
         {
-            name = "M4A1E9 Sherman",
+            name = "M4A1E9 Sherman", nation = Nation.USA,
             // Continental R975 Sternmotor, 400 PS; ca. 31 t mit Zusatzpanzerung; 39 km/h (24 mph)
             massT = 31f, powerPS = 400f, maxSpeedKmh = 39f, reverseKmh = 6f, turnRateDegS = 28f,
             hullLength = 5.84f, hullWidth = 2.6f, hullHeight = 1.52f, clearance = 0.43f,
@@ -543,7 +547,7 @@ namespace PanzerSim
 
         public static TankSpec T34_85 => new TankSpec
         {
-            name = "T-34-85",
+            name = "T-34-85", nation = Nation.USSR,
             massT = 32f, powerPS = 500f, maxSpeedKmh = 54f, reverseKmh = 8f, turnRateDegS = 32f,
             // Masse passend zum Modell (DedRam, CC BY 4.0), auf echte Groesse umgerechnet
             hullLength = 6.0f, hullWidth = 2.4f, hullHeight = 1.35f, clearance = 0.3f,
@@ -566,6 +570,167 @@ namespace PanzerSim
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 7, wheelRadius = 0.4f,
             linkTracks = true, idlerRadius = 0.281f, sprocketRadius = 0.233f,   // hinten Antriebsrad, vorne Leitrad
             trackPitch = 0.172f, trackShoeWidth = 0.5f, trackThickness = 0.06f, trackSag = 0.03f
+        };
+
+        // ================= Sowjetische mittlere Panzer =================
+        // Modelle: "Soviet Medium Tanks" von snrnsrk5 (sketchfab.com/snrnsrk5), CC BY 4.0 - gerigged mit Tools/Blender/rig_soviet.py.
+        // Laufwerk: Antriebsrad hinten (radL0), 5 grosse Laufrollen (T-34: Christie, sonst Drehstab), Leitrad vorne (radL6), keine Stuetzrollen.
+
+        /// <summary>T-34 Modell 1943 (Sechseckturm): 76 mm F-34, schraege 45-mm-Wanne. 4 Mann, DT koaxial (zusaetzlich Bug-DT).</summary>
+        public static TankSpec T34 => new TankSpec
+        {
+            name = "T-34 (1943)", nation = Nation.USSR,
+            // V-2-34 Diesel 500 PS; 30,9 t; 54 km/h
+            massT = 30.9f, powerPS = 500f, maxSpeedKmh = 54f, reverseKmh = 8f, turnRateDegS = 32f,
+            hullLength = 5.92f, hullWidth = 3.0f, hullHeight = 1.14f, clearance = 0.40f,
+            trackWidth = 0.50f, trackInset = 0.53f,      // Kettenmitte bei x = 1,22 m
+            hullFront = new Armor(45, 60), hullRear = new Armor(45, 47), hullSide = new Armor(45, 40),
+            hullRoof = new Armor(20, 0), hullBottom = new Armor(15, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(45, 53), hullGlacis = new Armor(45, 60), hullLowerSide = new Armor(45, 0),
+            turretLength = 2.3f, turretWidth = 1.8f, turretHeight = 0.8f, turretOffsetZ = 0.42f,
+            turretFront = new Armor(60, 20, ArmorMaterial.Cast), turretSide = new Armor(52, 20, ArmorMaterial.Cast),
+            turretRear = new Armor(52, 10, ArmorMaterial.Cast), turretRoof = new Armor(20, 0), mantlet = new Armor(52, 0, ArmorMaterial.Cast),
+            traverseDegS = 24f, elevationDegS = 6f, minElevation = -5f, maxElevation = 30f,
+            ammoIndex = 36, ammo = new[] { 36, 37 }, reloadS = 6f, barrelLength = 1.77f, gunPivotFromModel = true, mgType = 1,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.RadioOperator },   // Kommandant war zugleich Richtschuetze
+            // TMFD-7: 2,5-fach, 15 Grad
+            sightType = SightType.Soviet, sightFov = 15f, sightMag = 2.5f, sightName = "TMFD-7",
+            modelResource = "Modelle/T34", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 7, wheelRadius = 0.415f,
+            linkTracks = true, idlerRadius = 0.30f, sprocketRadius = 0.25f,
+            trackPitch = 0.172f, trackShoeWidth = 0.50f, trackThickness = 0.06f, trackSag = 0.03f
+        };
+
+        /// <summary>T-34-85 Modell 1944: 85 mm ZiS-S-53, Dreimannturm. DT koaxial (zusaetzlich Bug-DT).</summary>
+        public static TankSpec T34_85_44 => new TankSpec
+        {
+            name = "T-34-85 (1944)", nation = Nation.USSR,
+            massT = 32f, powerPS = 500f, maxSpeedKmh = 54f, reverseKmh = 8f, turnRateDegS = 32f,
+            hullLength = 5.92f, hullWidth = 3.0f, hullHeight = 1.15f, clearance = 0.40f,
+            trackWidth = 0.50f, trackInset = 0.53f,
+            hullFront = new Armor(45, 60), hullRear = new Armor(45, 47), hullSide = new Armor(45, 40),
+            hullRoof = new Armor(20, 0), hullBottom = new Armor(15, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(45, 53), hullGlacis = new Armor(45, 60), hullLowerSide = new Armor(45, 0),
+            turretLength = 2.65f, turretWidth = 1.86f, turretHeight = 0.89f, turretOffsetZ = 0.42f,
+            turretFront = new Armor(90, 20, ArmorMaterial.Cast), turretSide = new Armor(75, 20, ArmorMaterial.Cast),
+            turretRear = new Armor(52, 10, ArmorMaterial.Cast), turretRoof = new Armor(20, 0), mantlet = new Armor(40, 0, ArmorMaterial.Cast),
+            traverseDegS = 20f, elevationDegS = 5f, minElevation = -5f, maxElevation = 22f,
+            ammoIndex = 4, ammo = new[] { 4, 7, 14 }, reloadS = 8f, barrelLength = 3.24f, gunPivotFromModel = true, mgType = 1,
+            sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-16",
+            modelResource = "Modelle/T3485", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 7, wheelRadius = 0.415f,
+            linkTracks = true, idlerRadius = 0.30f, sprocketRadius = 0.25f,
+            trackPitch = 0.172f, trackShoeWidth = 0.50f, trackThickness = 0.06f, trackSag = 0.03f
+        };
+
+        /// <summary>T-44 (1944): quer eingebauter Motor, Bug 90 mm, 85 mm ZiS-S-53. 4 Mann, DT koaxial (zusaetzlich Bug-DT).</summary>
+        public static TankSpec T44 => new TankSpec
+        {
+            name = "T-44", nation = Nation.USSR,
+            // V-44 520 PS; 31,9 t; 51 km/h
+            massT = 31.9f, powerPS = 520f, maxSpeedKmh = 51f, reverseKmh = 8f, turnRateDegS = 30f,
+            hullLength = 6.07f, hullWidth = 3.18f, hullHeight = 0.97f, clearance = 0.42f,
+            trackWidth = 0.50f, trackInset = 0.54f,      // Kettenmitte bei x = 1,30 m
+            hullFront = new Armor(90, 60), hullRear = new Armor(30, 0), hullSide = new Armor(75, 0),
+            hullRoof = new Armor(15, 0), hullBottom = new Armor(15, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(90, 45), hullGlacis = new Armor(90, 60), hullLowerSide = new Armor(75, 0),
+            turretLength = 2.6f, turretWidth = 2.1f, turretHeight = 0.9f, turretOffsetZ = 0f,
+            turretFront = new Armor(120, 0, ArmorMaterial.Cast), turretSide = new Armor(90, 20, ArmorMaterial.Cast),
+            turretRear = new Armor(75, 10, ArmorMaterial.Cast), turretRoof = new Armor(20, 0), mantlet = new Armor(120, 0, ArmorMaterial.Cast),
+            traverseDegS = 15f, elevationDegS = 5f, minElevation = -5f, maxElevation = 25f,
+            ammoIndex = 4, ammo = new[] { 4, 7, 14 }, reloadS = 8f, barrelLength = 3.33f, gunPivotFromModel = true, mgType = 1,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
+            sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-16",
+            modelResource = "Modelle/T44", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 7, wheelRadius = 0.415f,
+            linkTracks = true, idlerRadius = 0.26f, sprocketRadius = 0.25f,
+            trackPitch = 0.16f, trackShoeWidth = 0.50f, trackThickness = 0.06f, trackSag = 0.03f
+        };
+
+        /// <summary>T-44-100 (Versuchsfahrzeug 1945): T-44 mit 100 mm D-10T. DT koaxial.</summary>
+        public static TankSpec T44_100 => new TankSpec
+        {
+            name = "T-44-100", nation = Nation.USSR,
+            massT = 34.2f, powerPS = 520f, maxSpeedKmh = 50f, reverseKmh = 8f, turnRateDegS = 29f,
+            hullLength = 6.07f, hullWidth = 3.18f, hullHeight = 0.99f, clearance = 0.42f,
+            trackWidth = 0.50f, trackInset = 0.54f,
+            hullFront = new Armor(90, 60), hullRear = new Armor(30, 0), hullSide = new Armor(75, 0),
+            hullRoof = new Armor(15, 0), hullBottom = new Armor(15, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(90, 45), hullGlacis = new Armor(90, 60), hullLowerSide = new Armor(75, 0),
+            turretLength = 2.7f, turretWidth = 2.2f, turretHeight = 0.85f, turretOffsetZ = 0f,
+            turretFront = new Armor(120, 0, ArmorMaterial.Cast), turretSide = new Armor(90, 20, ArmorMaterial.Cast),
+            turretRear = new Armor(75, 10, ArmorMaterial.Cast), turretRoof = new Armor(20, 0), mantlet = new Armor(120, 0, ArmorMaterial.Cast),
+            traverseDegS = 14f, elevationDegS = 4f, minElevation = -5f, maxElevation = 20f,
+            ammoIndex = 38, ammo = new[] { 38, 39 }, reloadS = 10f, barrelLength = 4.09f, gunPivotFromModel = true, mgType = 1,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
+            sightType = SightType.Soviet, sightFov = 18f, sightMag = 3.5f, sightName = "TSh-20",
+            modelResource = "Modelle/T44100", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 7, wheelRadius = 0.415f,
+            linkTracks = true, idlerRadius = 0.26f, sprocketRadius = 0.25f,
+            trackPitch = 0.16f, trackShoeWidth = 0.50f, trackThickness = 0.06f, trackSag = 0.03f
+        };
+
+        /// <summary>T-54 Modell 1951 (Kuppelturm): 100 mm D-10T, Bug 100 mm, Turm bis 200 mm. SGMT koaxial (zusaetzlich DShK und Bug-SGMT).</summary>
+        public static TankSpec T54 => new TankSpec
+        {
+            name = "T-54 (1951)", nation = Nation.USSR,
+            // V-54 520 PS; 36 t; 50 km/h
+            massT = 36f, powerPS = 520f, maxSpeedKmh = 50f, reverseKmh = 8f, turnRateDegS = 30f,
+            hullLength = 6.33f, hullWidth = 3.27f, hullHeight = 1.11f, clearance = 0.425f,
+            trackWidth = 0.58f, trackInset = 0.6f,       // Kettenmitte bei x = 1,33 m
+            hullFront = new Armor(100, 60), hullRear = new Armor(45, 0), hullSide = new Armor(80, 0),
+            hullRoof = new Armor(30, 0), hullBottom = new Armor(20, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(100, 55), hullGlacis = new Armor(100, 60), hullLowerSide = new Armor(80, 0),
+            turretLength = 2.6f, turretWidth = 2.3f, turretHeight = 0.85f, turretOffsetZ = -0.1f,
+            turretFront = new Armor(200, 0, ArmorMaterial.Cast), turretSide = new Armor(160, 30, ArmorMaterial.Cast),
+            turretRear = new Armor(65, 0, ArmorMaterial.Cast), turretRoof = new Armor(30, 0), mantlet = new Armor(200, 0, ArmorMaterial.Cast),
+            traverseDegS = 18f, elevationDegS = 4f, minElevation = -5f, maxElevation = 18f,
+            ammoIndex = 40, ammo = new[] { 40, 38, 39 }, reloadS = 8.5f, barrelLength = 3.8f, gunPivotFromModel = true, mgType = 5,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
+            // TSh-20: 3,5-fach, 18 Grad
+            sightType = SightType.Soviet, sightFov = 18f, sightMag = 3.5f, sightName = "TSh-20",
+            modelResource = "Modelle/T54", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 7, wheelRadius = 0.398f,
+            linkTracks = true, idlerRadius = 0.31f, sprocketRadius = 0.25f,
+            trackPitch = 0.137f, trackShoeWidth = 0.58f, trackThickness = 0.05f, trackSag = 0.03f   // Kette OMSh
+        };
+
+        /// <summary>T-55A (1963): 100 mm D-10T2S, zweiachsig stabilisiert, Strahlenschutz. SGMT koaxial (zusaetzlich Bug-SGMT).</summary>
+        public static TankSpec T55A => new TankSpec
+        {
+            name = "T-55A", nation = Nation.USSR,
+            // V-55 580 PS; 38 t; 50 km/h
+            massT = 38f, powerPS = 580f, maxSpeedKmh = 50f, reverseKmh = 8f, turnRateDegS = 32f,
+            hullLength = 6.33f, hullWidth = 3.27f, hullHeight = 1.10f, clearance = 0.425f,
+            trackWidth = 0.58f, trackInset = 0.6f,
+            hullFront = new Armor(100, 60), hullRear = new Armor(45, 0), hullSide = new Armor(80, 0),
+            hullRoof = new Armor(30, 0), hullBottom = new Armor(20, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(100, 55), hullGlacis = new Armor(100, 60), hullLowerSide = new Armor(80, 0),
+            turretLength = 2.6f, turretWidth = 2.3f, turretHeight = 0.85f, turretOffsetZ = -0.12f,
+            turretFront = new Armor(205, 0, ArmorMaterial.Cast), turretSide = new Armor(160, 30, ArmorMaterial.Cast),
+            turretRear = new Armor(65, 0, ArmorMaterial.Cast), turretRoof = new Armor(30, 0), mantlet = new Armor(205, 0, ArmorMaterial.Cast),
+            traverseDegS = 20f, elevationDegS = 4.5f, minElevation = -5f, maxElevation = 18f,   // Stabilisator "Zyklon"
+            ammoIndex = 40, ammo = new[] { 40, 41, 39 }, reloadS = 8f, barrelLength = 3.86f, gunPivotFromModel = true, mgType = 5,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
+            // TSh2B-32P: umschaltbar 3,5- / 7-fach
+            sightType = SightType.Soviet, sightFov = 18f, sightMag = 3.5f, sightName = "TSh2B-32P",
+            sightZoomFov = new[] { 18f, 9f }, sightZoomMag = new[] { 3.5f, 7f },
+            modelResource = "Modelle/T55A", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 7, wheelRadius = 0.404f,
+            linkTracks = true, idlerRadius = 0.31f, sprocketRadius = 0.25f,
+            trackPitch = 0.137f, trackShoeWidth = 0.58f, trackThickness = 0.05f, trackSag = 0.03f
         };
     }
 }

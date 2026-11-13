@@ -1,13 +1,13 @@
 """
-Riggt "Soviet Heavy Tanks" (snrnsrk5, sketchfab.com/snrnsrk5, CC BY 4.0) fuer PanzerSim:
-KV-1, IS-1, IS-2, IS-3, T-10, T-10M. Jeder Panzer: Hull, Turret, Track (je eigene PBR-Texturen).
+Riggt "Soviet Heavy Tanks" und "Soviet Medium Tanks" (snrnsrk5, sketchfab.com/snrnsrk5, CC BY 4.0) fuer PanzerSim:
+KV-1, IS-1, IS-2, IS-3, T-10, T-10M bzw. T-34, T-34-85, T-44, T-44-100, T-54, T-55A. Jeder Panzer: Hull, Turret, Track (je eigene PBR-Texturen).
 Im Original stehen alle sechs nebeneinander, leicht gedreht; Meter, echte Groesse.
   - auf eigenen Ursprung gebracht und gerade gedreht (vorne = -Y, wie die anderen Modelle)
   - Kette entfaellt: das Spiel baut eine Gliederkette
   - Raeder (in der Wanne): Inseln innerhalb der Radscheiben -> radL0..N / radR0..N (0 = hinten), Stuetzrollen rollL/rollR
   - Rohr + Blende aus dem Turm -> cannon
   - Texturen auf 1024 verkleinert
-Aufruf: blender -b -P rig_soviet.py -- <soviet_heavy_tanks.glb> <ausgabe-ordner> [vorschau-ordner]
+Aufruf: blender -b -P rig_soviet.py -- <soviet_heavy_tanks.glb bzw. soviet_medium_tanks.glb> <ausgabe-ordner> [vorschau-ordner]
 """
 import bpy, bmesh, sys, os, math
 import numpy as np
@@ -17,16 +17,16 @@ import tiger_common as tc
 
 args = sys.argv[sys.argv.index("--") + 1:]
 src, outdir = args[0], args[1]
-preview = args[2] if len(args) > 2 else None
+preview = args[2] if len(args) > 2 and args[2] != "-" else None   # "-" = keine Vorschau
 ONLY = args[3].split(",") if len(args) > 3 else None
 
-# Datei -> (Name im Spiel, Rohr-Grenze: Inseln mit Hinterkante vor dieser Turm-y-Position (relativ zum Rohrende) gehoeren zur Kanone)
-TANKS = {"KV-1": "KV1", "IS-1": "IS1", "IS-2": "IS2", "IS-3": "IS3", "T-10": "T10", "T-10M": "T10M"}
-# Blende: Inseln nahe der Rohrachse, deren Hinterkante hoechstens so weit hinter dem Rohrende liegt (m)
-MANTLET = {"KV-1": 0.10, "IS-1": 0.10, "IS-2": 0.10, "IS-3": 0.10, "T-10": 0.10, "T-10M": 0.10}
+# Panzer aus den Knotennamen ("<Name> Hull"); Dateiname im Spiel = Name ohne Bindestriche (T-34-85 -> T3485)
+MANTLET = 0.10   # Blende: Inseln nahe der Rohrachse, deren Hinterkante hoechstens so weit hinter dem Rohrende liegt (m)
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=src)
+TANKS = {o.name[:-5]: o.name[:-5].replace("-", "") for o in bpy.data.objects if o.name.endswith(" Hull")}
+print("SV Panzer:", TANKS)
 
 # Ursprung und Drehung je Panzer aus dem Wannen-Knoten
 frames = {}
@@ -129,10 +129,15 @@ for t, game in TANKS.items():
     barrel = max((v for v in st.values() if (v[1] - v[0])[0] < 0.4 and (v[1] - v[0])[2] < 0.4 and abs((v[0][0] + v[1][0]) / 2 - tcx) < 0.25
                   and v[1][2] < tmx0.z - 0.3), key=lambda v: (v[1] - v[0])[1])
     bx = (barrel[0][0] + barrel[1][0]) / 2; bz = (barrel[0][2] + barrel[1][2]) / 2; brear = barrel[1][1]
+    # Rohr aus mehreren Stuecken (z. B. Rauchabsauger): weitere schlanke Teile auf der Achse anhaengen
+    axis = sorted((v for v in st.values() if (v[1] - v[0])[0] < 0.4 and (v[1] - v[0])[2] < 0.4
+                   and abs((v[0][0] + v[1][0]) / 2 - bx) < 0.06 and abs((v[0][2] + v[1][2]) / 2 - bz) < 0.06), key=lambda v: v[0][1])
+    for v in axis:
+        if v[0][1] <= brear + 0.05 and v[1][1] > brear: brear = v[1][1]
     gun = set()
     for i, (mn, mx, n, m) in st.items():
         c = (mn + mx) / 2
-        if mx[1] <= brear + MANTLET[t] and abs(c[0] - bx) < 0.7 and abs(c[2] - bz) < 0.5: gun.add(i)
+        if mx[1] <= brear + MANTLET and abs(c[0] - bx) < 0.7 and abs(c[2] - bz) < 0.5: gun.add(i)
     fg = np.array([1 if i in gun else 0 for i in fi], dtype=np.int64)
     tobjs = split(tur, fg, ["turret", "cannon"])
     bpy.data.objects.remove(tur)
