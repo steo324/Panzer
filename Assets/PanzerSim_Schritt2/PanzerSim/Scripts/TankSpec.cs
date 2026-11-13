@@ -19,7 +19,7 @@ namespace PanzerSim
     public enum SightType { German, US, Soviet, TOW }
 
     /// <summary>Nation (Reiter in der Panzerauswahl).</summary>
-    public enum Nation { Germany, USA, USSR }
+    public enum Nation { Germany, USA, USSR, UK }
 
     /// <summary>Alle Daten eines Panzertyps. Masse in Metern, Panzerung in mm.</summary>
     [System.Serializable]
@@ -479,6 +479,40 @@ namespace PanzerSim
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.257f,
             linkTracks = true, idlerRadius = 0.306f, sprocketRadius = 0.32f,
             trackPitch = 0.152f, trackShoeWidth = 0.42f, trackThickness = 0.05f, trackSag = 0.04f   // Kette T48/T51: 6 Zoll Teilung
+        };
+
+        /// <summary>
+        /// Sherman Firefly VC (britisch, 1944, auf M4A4): 17-Pfuender (76,2 mm) - der einzige westalliierte Panzer, der Tiger und Panther
+        /// frontal auf normale Kampfentfernung bekaempfen konnte. Funker/Bug-MG entfallen (Platz fuer Munition), Funkgeraet im Turmanbau hinten.
+        /// Modell: "M4 Sherman Firefly" von barking_dogo (sketchfab.com/barking_dogo), CC BY 4.0 - gerigged mit Tools/Blender/rig_firefly.py.
+        /// </summary>
+        public static TankSpec Firefly => new TankSpec
+        {
+            name = "Sherman Firefly VC", nation = Nation.UK,
+            // Chrysler A57 Multibank 425 PS; 34,8 t; 40 km/h
+            massT = 34.8f, powerPS = 425f, maxSpeedKmh = 40f, reverseKmh = 6f, turnRateDegS = 26f,
+            hullLength = 6.24f, hullWidth = 2.62f, hullHeight = 1.42f, clearance = 0.43f,
+            trackWidth = 0.42f, trackInset = 0.46f,      // Kettenmitte bei x = 1,06 m
+            hullFront = new Armor(51, 56), hullRear = new Armor(38, 10), hullSide = new Armor(38, 0),
+            hullRoof = new Armor(19, 0), hullBottom = new Armor(13, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(64, 45, ArmorMaterial.Cast),   // Getriebegehaeuse (Guss, 51-108 mm gewoelbt)
+            hullGlacis = new Armor(51, 56), hullLowerSide = new Armor(38, 0),
+            turretLength = 2.9f, turretWidth = 2.0f, turretHeight = 0.8f, turretOffsetZ = 0.19f,
+            turretFront = new Armor(76, 30, ArmorMaterial.Cast), turretSide = new Armor(51, 5, ArmorMaterial.Cast),
+            turretRear = new Armor(51, 0, ArmorMaterial.Cast), turretRoof = new Armor(25, 0), mantlet = new Armor(89, 0, ArmorMaterial.Cast),
+            traverseDegS = 24f, elevationDegS = 5f, minElevation = -5f, maxElevation = 20f,   // hydraulisch wie beim Sherman
+            ammoIndex = 5, ammo = new[] { 5, 42, 43 }, reloadS = 7f, barrelLength = 3.53f, muzzleBrake = true, gunPivotFromModel = true, mgType = 4,
+            crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
+            // Zielfernrohr No. 43 x3 ML: 3-fach, 13 Grad
+            sightType = SightType.US, sightFov = 13f, sightMag = 3f, sightName = "No. 43 x3 ML",
+            modelResource = "Modelle/Firefly", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            // Leitrad hinten (radL0), 6 Laufrollen (VVSS, 508 mm), Antriebsrad vorne (radL7), Stuetzrollen auf den Drehgestellen
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.243f,
+            linkTracks = true, idlerRadius = 0.287f, sprocketRadius = 0.31f,
+            trackPitch = 0.152f, trackShoeWidth = 0.42f, trackThickness = 0.05f, trackSag = 0.04f,
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 3, returnRollerRadius = 0.112f
         };
 
         /// <summary>

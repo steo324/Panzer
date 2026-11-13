@@ -114,6 +114,9 @@ namespace PanzerSim
             new ShellData("OF-412",  "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.HE,     100f, 15.6f,  900f, 1.46f) { dragCoefficient = 0.31f },   // 39
             new ShellData("BR-412D", "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.APCBC,  100f, 15.88f, 887f, 0.061f),   // 40  Panzerkappe + Haube (ab 1953)
             new ShellData("BK-5M",   "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.HEAT,   100f, 12.2f,  900f, 0.9f) { heatPenMm = 380f, dragCoefficient = 0.33f },   // 41
+            // Sherman Firefly: 17-Pfuender (76,2 mm L/55); dazu APCBC Mk8 (Index 5)
+            new ShellData("APC Mk4", "17-Pfuender (Firefly)", ShellType.APC, 76.2f, 7.70f, 884f, 0f),   // 42  Vollgeschoss mit Panzerkappe
+            new ShellData("HE Mk1",  "17-Pfuender (Firefly)", ShellType.HE,  76.2f, 6.98f, 610f, 0.585f) { dragCoefficient = 0.33f },   // 43
         };
     }
 }
