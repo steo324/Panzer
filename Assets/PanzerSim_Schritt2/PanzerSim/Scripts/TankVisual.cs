@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace PanzerSim
@@ -111,6 +112,7 @@ namespace PanzerSim
             else Debug.LogWarning($"Kanonengelenk '{s.modelGunBone}' im Modell nicht gefunden.");
 
             SetupWheels(tc);
+            try { ComputeDepressionTable(tc); } catch (System.Exception e) { Debug.LogWarning("Rohr-Freigang: " + e.Message); }
             SetupTracks();
 
             // Anbauteile (Kotfluegel, Kaesten, Tanks ...) herausloesen: zerstoerbar, keine Panzerung
@@ -350,6 +352,94 @@ namespace PanzerSim
                 }
             }
             return result;
+        }
+
+        /// <summary>
+        /// Rohr darf nicht in die Wanne tauchen (z. B. Leopard 2: erhoehtes Motordeck hinten, "NATO-Hoecker"):
+        /// Hoehenkarte der Wanne aus dem Modell (ohne Turm und Laufwerk), dann fuer jeden Turmwinkel (2-Grad-Schritte)
+        /// die kleinste Rohrerhoehung, bei der das Rohr ueberall frei ueber der Wanne liegt. Ergebnis in tank.minElevationByYaw.
+        /// </summary>
+        void ComputeDepressionTable(TankController tc)
+        {
+            var s = tc.spec;
+            Transform root = tc.transform, turret = tc.parts.turret, gun = tc.parts.gunPivot;
+            if (turret == null || gun == null) return;
+            const float cell = 0.1f;
+            var height = new Dictionary<long, float>();
+            float minX = 1e9f, maxX = -1e9f, minZ = 1e9f, maxZ = -1e9f;
+            string wl = s.wheelBoneLeft, wr = s.wheelBoneRight, rl = s.returnRollerLeft, rr = s.returnRollerRight;
+            bool IsRunningGear(Transform t)
+            {
+                for (; t != null && t != model; t = t.parent)
+                {
+                    string n = t.name;
+                    if ((!string.IsNullOrEmpty(wl) && n.StartsWith(wl)) || (!string.IsNullOrEmpty(wr) && n.StartsWith(wr)) ||
+                        (!string.IsNullOrEmpty(rl) && n.StartsWith(rl)) || (!string.IsNullOrEmpty(rr) && n.StartsWith(rr))) return true;
+                }
+                return false;
+            }
+            bool Skip(Transform t) => t == null || (turretBone != null && t.IsChildOf(turretBone)) || (gunBone != null && t.IsChildOf(gunBone)) || IsRunningGear(t);
+            void Add(Vector3 world)
+            {
+                Vector3 l = root.InverseTransformPoint(world);
+                long key = ((long)Mathf.FloorToInt(l.x / cell) << 32) ^ (uint)Mathf.FloorToInt(l.z / cell);
+                if (!height.TryGetValue(key, out float h) || l.y > h) height[key] = l.y;
+                minX = Mathf.Min(minX, l.x); maxX = Mathf.Max(maxX, l.x); minZ = Mathf.Min(minZ, l.z); maxZ = Mathf.Max(maxZ, l.z);
+            }
+            foreach (var r in model.GetComponentsInChildren<Renderer>())
+            {
+                if (r is SkinnedMeshRenderer smr)
+                {
+                    if (smr.sharedMesh == null) continue;
+                    var baked = new Mesh(); smr.BakeMesh(baked, true);
+                    var v = baked.vertices; var bw = smr.sharedMesh.boneWeights; var bones = smr.bones;
+                    for (int i = 0; i < v.Length; i++)
+                    {
+                        if (bw.Length == v.Length && bones != null && bw[i].boneIndex0 < bones.Length && Skip(bones[bw[i].boneIndex0])) continue;
+                        Add(smr.transform.TransformPoint(v[i]));
+                    }
+                    Destroy(baked);
+                }
+                else if (r is MeshRenderer)
+                {
+                    if (Skip(r.transform)) continue;
+                    var mf = r.GetComponent<MeshFilter>();
+                    if (mf == null || mf.sharedMesh == null || !mf.sharedMesh.isReadable) continue;
+                    foreach (var p in mf.sharedMesh.vertices) Add(r.transform.TransformPoint(p));
+                }
+            }
+            if (height.Count == 0) return;
+
+            // Rohr in Wannen-Koordinaten: Drehpunkt des Turms, Schildzapfen relativ zum Turm, Laenge bis zur Muendung
+            Transform hull = turret.parent;
+            Vector3 ring = root.InverseTransformPoint(turret.position);
+            Vector3 trunLocal = Quaternion.Inverse(turret.rotation) * (gun.position - turret.position);   // im ungedrehten Turm
+            float len = s.barrelLength + 0.2f, radius = 0.12f;
+            var table = new float[180];
+            for (int k = 0; k < 180; k++)
+            {
+                float yaw = k * 2f;
+                Quaternion q = Quaternion.Inverse(root.rotation) * hull.rotation * Quaternion.Euler(0f, yaw, 0f);
+                Vector3 piv = ring + q * trunLocal;
+                float need = s.minElevation;
+                for (float e = s.minElevation; e <= s.maxElevation; e += 0.25f)
+                {
+                    Vector3 dir = q * (Quaternion.Euler(-e, 0f, 0f) * Vector3.forward);
+                    bool free = true;
+                    for (float d = 0.6f; d <= len && free; d += 0.1f)
+                    {
+                        Vector3 p = piv + dir * d;
+                        if (p.x < minX || p.x > maxX || p.z < minZ || p.z > maxZ) continue;
+                        long key = ((long)Mathf.FloorToInt(p.x / cell) << 32) ^ (uint)Mathf.FloorToInt(p.z / cell);
+                        if (height.TryGetValue(key, out float h) && p.y - radius < h) free = false;
+                    }
+                    need = e;
+                    if (free) break;
+                }
+                table[k] = need;
+            }
+            tc.minElevationByYaw = table;
+            if (tc.isPlayer) Debug.Log($"Rohr-Freigang {s.name}: vorne {table[0]:0.0}, rechts {table[45]:0.0}, hinten {table[90]:0.0}, links {table[135]:0.0} Grad (spec min {s.minElevation})");
         }
 
         static Transform Find(Transform t, string name)

@@ -274,7 +274,9 @@ namespace PanzerSim
             // Kanone heben/senken (in Turm-Koordinaten)
             Vector3 g = parts.turret.InverseTransformPoint(aim) - parts.gunPivot.localPosition;
             float wantElev = Mathf.Atan2(g.y, new Vector2(g.x, g.z).magnitude) * Mathf.Rad2Deg + superElevationDeg;
-            wantElev = Mathf.Clamp(wantElev, spec.minElevation, spec.maxElevation);
+            // Freigang ueber der Wanne (z. B. erhoehtes Motordeck hinten): je nach Turmwinkel hoechstens so tief
+            float minE = MinElevationAt(yaw);
+            wantElev = Mathf.Clamp(wantElev, minE, spec.maxElevation);
             float elev = -parts.gunPivot.localEulerAngles.x;
             elev = Mathf.DeltaAngle(0f, elev);
             if (stab)
@@ -283,8 +285,22 @@ namespace PanzerSim
                 elev = Mathf.Clamp(Mathf.Atan2(t.y, new Vector2(t.x, t.z).magnitude) * Mathf.Rad2Deg, spec.minElevation, spec.maxElevation);
             }
             elev = Mathf.MoveTowards(elev, wantElev, spec.elevationDegS * dt);
+            // Rohr hebt sich beim Schwenken ueber das Heck selbsttaetig (Rohrabweiser) - nie in die Wanne
+            elev = Mathf.Max(elev, minE);
             parts.gunPivot.localRotation = Quaternion.Euler(-elev, 0f, 0f);
             lastGunDir = parts.gunPivot.forward; hasLastGunDir = true;
+        }
+
+        /// <summary>Kleinste Rohrerhoehung je Turmwinkel (2-Grad-Schritte, aus der Modellform; null = nur spec.minElevation).</summary>
+        [HideInInspector] public float[] minElevationByYaw;
+
+        /// <summary>Wie tief das Rohr bei diesem Turmwinkel (Grad, Wannen-Koordinaten) darf - mit einem Grad Vorlauf in Schwenkrichtung.</summary>
+        public float MinElevationAt(float yaw)
+        {
+            if (minElevationByYaw == null) return spec.minElevation;
+            float y = Mathf.Repeat(yaw, 360f) / 2f;
+            int a = Mathf.FloorToInt(y) % 180, b = (a + 1) % 180, c = (a + 179) % 180;
+            return Mathf.Max(spec.minElevation, Mathf.Max(minElevationByYaw[a], Mathf.Max(minElevationByYaw[b], minElevationByYaw[c])));
         }
 
         Vector3 lastGunDir; bool hasLastGunDir;

@@ -889,7 +889,7 @@ namespace PanzerSim
 
         // ---- Entwickler-Modus: nur mit Code. Gespeichert ist nur die SHA-256-Pruefsumme (Repo ist oeffentlich).
         // Neuen Code setzen: Pruefsumme des neuen Codes (kleingeschrieben, ohne Leerzeichen) hier eintragen.
-        const string DevCodeHash = "b28846fde2d25cef5b384ad1494877ee871c84b19a29ad8e022095c3707165cf";
+        const string DevCodeHash = "e5f61398529f62857f1237dea1b7f293a1102d202cd724ea5804bee9f1644e86";
         string devCode = "", devCodeMsg = "";
         static bool DevCodeOk(string code)
         {
