@@ -45,7 +45,19 @@ namespace PanzerSim
         {
             if (s.IsHE) return HEBlastMm(s.fillerKg);
             if (s.IsHEAT) return s.heatPenMm;   // Hohlladung: unabhaengig von der Geschwindigkeit
+            if (s.IsSabot) return SabotMm(s, velocity);
             return DeMarreMm(velocity, s.massKg, s.caliberMm) * FillerFactor(s);
+        }
+
+        /// <summary>
+        /// Treibspiegelgeschoss: Durchschlag an der Muendung aus Beschusstafeln, mit der Restgeschwindigkeit skaliert.
+        /// APDS (Hartkern) wie de Marre (~v^1,43); APFSDS (Langstab) haengt schwaecher von der Geschwindigkeit ab (~v^1,1).
+        /// </summary>
+        public static float SabotMm(ShellData s, float velocity)
+        {
+            if (velocity <= 0f || s.muzzleVelocity <= 0f) return 0f;
+            float k = s.type == ShellType.APFSDS ? 1.1f : 1.43f;
+            return s.penRefMm * Mathf.Pow(velocity / s.muzzleVelocity, k);
         }
 
         /// <summary>
@@ -72,6 +84,8 @@ namespace PanzerSim
                 case ShellType.APC:
                 case ShellType.APCBC: return 70f;
                 case ShellType.APHEBC: return 72f;
+                case ShellType.APDS: return 72f;
+                case ShellType.APFSDS: return 78f;   // langer Pfeil graebt sich auch flach ein
                 default: return 65f;
             }
         }
@@ -84,6 +98,8 @@ namespace PanzerSim
                 case ShellType.APC:
                 case ShellType.APCBC: return 6f;
                 case ShellType.APHEBC: return 8f;
+                case ShellType.APDS: return 2f;
+                case ShellType.APFSDS: return 0f;    // Langstab dreht nicht in die Platte
                 default: return 3f;
             }
         }
@@ -161,7 +177,7 @@ namespace PanzerSim
             r.effectiveArmorMm = thickness / Mathf.Max(Mathf.Cos(effAngle * Mathf.Deg2Rad), 0.05f);
 
             // 3) Zerbrechen (Shatter Gap): Granate ohne Kappe, sehr schnell, gegen dicke Platte.
-            if (!s.IsCapped && v > 800f && plateMm > s.caliberMm * 1.05f
+            if (!s.IsCapped && !s.IsSabot && v > 800f && plateMm > s.caliberMm * 1.05f   // (Treibspiegel: Kern ist fuer dicke Platten gemacht)
                 && r.penetrationMm >= r.effectiveArmorMm && Random.value < 0.4f)
             {
                 r.outcome = HitOutcome.Shatter;

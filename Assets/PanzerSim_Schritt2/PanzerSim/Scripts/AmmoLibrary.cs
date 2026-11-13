@@ -11,7 +11,9 @@ namespace PanzerSim
         APCBC,   // mit Panzerkappe + ballistischer Haube, meist mit Sprengladung
         APHEBC,  // stumpfe Spitze + ballistische Haube (sowjetisch, z. B. BR-365)
         HE,      // Sprenggranate: explodiert beim Aufschlag, Druckwelle schlaegt nur duenne Platten durch
-        HEAT     // Hohlladung: Metallstrahl, Durchschlag unabhaengig von Entfernung/Geschwindigkeit
+        HEAT,    // Hohlladung: Metallstrahl, Durchschlag unabhaengig von Entfernung/Geschwindigkeit
+        APDS,    // Treibspiegel: duenner Hartkern (Wolframkarbid), Treibspiegel faellt nach der Muendung ab
+        APFSDS   // Treibspiegel + Leitwerk: langer Pfeil, sehr schnell, schlaegt auch schraege Platten gut durch
     }
 
     [System.Serializable]
@@ -29,6 +31,7 @@ namespace PanzerSim
         public float fuseSensitivityMm = 15f; // so dick muss eine Platte sein, damit der Zuender scharf wird
 
         public float heatPenMm;               // nur HEAT: Durchschlag des Strahls senkrecht (mm RHA)
+        public float penRefMm;                // nur APDS/APFSDS: Durchschlag senkrecht an der Muendung (mm RHA, aus Beschusstafeln)
         public bool guided;                   // Lenkrakete (TOW): fliegt der Visierlinie nach statt ballistisch
         public float wireRange = 3750f;       // Lenkrakete: Drahtlaenge (danach ungelenkt)
 
@@ -36,6 +39,8 @@ namespace PanzerSim
         public bool HasFiller => fillerKg > 0f;
         public bool IsHE => type == ShellType.HE;
         public bool IsHEAT => type == ShellType.HEAT;
+        /// <summary>Treibspiegelgeschoss: caliberMm und massKg gelten fuer das fliegende Geschoss (ohne Treibspiegel).</summary>
+        public bool IsSabot => type == ShellType.APDS || type == ShellType.APFSDS;
         /// <summary>Explodiert beim Aufschlag (kein Eindringen des Geschosskoerpers, kein Steckenbleiben).</summary>
         public bool ImpactFuze => IsHE || IsHEAT;
 
@@ -117,6 +122,10 @@ namespace PanzerSim
             // Sherman Firefly: 17-Pfuender (76,2 mm L/55); dazu APCBC Mk8 (Index 5)
             new ShellData("APC Mk4", "17-Pfuender (Firefly)", ShellType.APC, 76.2f, 7.70f, 884f, 0f),   // 42  Vollgeschoss mit Panzerkappe
             new ShellData("HE Mk1",  "17-Pfuender (Firefly)", ShellType.HE,  76.2f, 6.98f, 610f, 0.585f) { dragCoefficient = 0.33f },   // 43
+            // ---- Treibspiegelgeschosse: Kaliber und Masse = fliegendes Geschoss ohne Treibspiegel ----
+            new ShellData("APDS Mk1", "17-Pfuender (Firefly)", ShellType.APDS, 47f, 2.0f, 1204f, 0f) { penRefMm = 245f, dragCoefficient = 0.30f },   // 44  ab Ende 1944, Wolframkarbid-Kern
+            new ShellData("3BM8",  "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.APDS,   46f, 3.65f, 1415f, 0f) { penRefMm = 360f, dragCoefficient = 0.28f },   // 45  1967, ~290 mm auf 2 km
+            new ShellData("3BM25 \"Isomer\"", "100 mm D-10T (T-44-100/T-54/T-55A)", ShellType.APFSDS, 30f, 3.6f, 1475f, 0f) { penRefMm = 360f, dragCoefficient = 0.30f },   // 46  1978, Pfeil, ~330 mm auf 2 km
         };
     }
 }

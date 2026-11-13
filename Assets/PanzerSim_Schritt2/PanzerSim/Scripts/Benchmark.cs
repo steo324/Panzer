@@ -42,6 +42,26 @@ namespace PanzerSim
             }
             if (cam != null && pl != null) cam.SetView(pl.transform.eulerAngles.y + camOff, camPitch);   // Standard: zum Horizont schauen
 
+            // -benchammo: alle Granaten des Panzers mit Durchschlag auf 0/500/1000/2000 m ins Protokoll, letzte Granate laden
+            if (System.Array.IndexOf(args, "-benchammo") >= 0 && pl != null)
+            {
+                foreach (int ai2 in pl.AmmoLoadout)
+                {
+                    var a = AmmoLibrary.All[ai2];
+                    string line = $"BENCH-AMMO: {a.name} ({a.type}, {a.muzzleVelocity:0} m/s):";
+                    foreach (float d in new[] { 1f, 500f, 1000f, 2000f })
+                    {
+                        Ballistics.SimulateFlat(a, d, out float vAt, out _, out float tAt);
+                        line += $"  {d:0} m: {Penetration.FlatPenetration(a, vAt):0} mm ({vAt:0} m/s, {tAt:0.00} s)";
+                    }
+                    // gegen 100 mm bei 60 Grad (T-54/T-55-Bug) aus 1000 m
+                    Ballistics.SimulateFlat(a, 1000f, out float v1k, out _, out _);
+                    var hr = Penetration.Evaluate(a, new Vector3(0f, 0f, v1k), Quaternion.Euler(-60f, 0f, 0f) * Vector3.back, 100f, ArmorMaterial.RHA);
+                    Debug.Log(line + $"  | 100 mm/60 Grad aus 1 km: {hr.outcome} (wirksam {hr.effectiveArmorMm:0} mm)");
+                    pl.ammoIndex = ai2;
+                }
+            }
+
             // Startpunkt-Auswahl (-benchspawn): Bild der Karte, dann Startpunkt 3 waehlen (Enter-Weg ueber Abbrechen)
             if (System.Array.IndexOf(args, "-benchspawn") >= 0)
             {

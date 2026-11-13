@@ -502,7 +502,7 @@ namespace PanzerSim
             turretFront = new Armor(76, 30, ArmorMaterial.Cast), turretSide = new Armor(51, 5, ArmorMaterial.Cast),
             turretRear = new Armor(51, 0, ArmorMaterial.Cast), turretRoof = new Armor(25, 0), mantlet = new Armor(89, 0, ArmorMaterial.Cast),
             traverseDegS = 24f, elevationDegS = 5f, minElevation = -5f, maxElevation = 20f,   // hydraulisch wie beim Sherman
-            ammoIndex = 5, ammo = new[] { 5, 42, 43 }, reloadS = 7f, barrelLength = 3.53f, muzzleBrake = true, gunPivotFromModel = true, mgType = 4,
+            ammoIndex = 5, ammo = new[] { 5, 44, 42, 43 }, reloadS = 7f, barrelLength = 3.53f, muzzleBrake = true, gunPivotFromModel = true, mgType = 4,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             // Zielfernrohr No. 43 x3 ML: 3-fach, 13 Grad
             sightType = SightType.US, sightFov = 13f, sightMag = 3f, sightName = "No. 43 x3 ML",
@@ -728,7 +728,7 @@ namespace PanzerSim
             turretFront = new Armor(200, 0, ArmorMaterial.Cast), turretSide = new Armor(160, 30, ArmorMaterial.Cast),
             turretRear = new Armor(65, 0, ArmorMaterial.Cast), turretRoof = new Armor(30, 0), mantlet = new Armor(200, 0, ArmorMaterial.Cast),
             traverseDegS = 18f, elevationDegS = 4f, minElevation = -5f, maxElevation = 18f,
-            ammoIndex = 40, ammo = new[] { 40, 38, 39 }, reloadS = 8.5f, barrelLength = 3.8f, gunPivotFromModel = true, mgType = 5,
+            ammoIndex = 40, ammo = new[] { 40, 45, 38, 39 }, reloadS = 8.5f, barrelLength = 3.8f, gunPivotFromModel = true, mgType = 5,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             // TSh-20: 3,5-fach, 18 Grad
             sightType = SightType.Soviet, sightFov = 18f, sightMag = 3.5f, sightName = "TSh-20",
@@ -755,7 +755,7 @@ namespace PanzerSim
             turretFront = new Armor(205, 0, ArmorMaterial.Cast), turretSide = new Armor(160, 30, ArmorMaterial.Cast),
             turretRear = new Armor(65, 0, ArmorMaterial.Cast), turretRoof = new Armor(30, 0), mantlet = new Armor(205, 0, ArmorMaterial.Cast),
             traverseDegS = 20f, elevationDegS = 4.5f, minElevation = -5f, maxElevation = 18f,   // Stabilisator "Zyklon"
-            ammoIndex = 40, ammo = new[] { 40, 41, 39 }, reloadS = 8f, barrelLength = 3.86f, gunPivotFromModel = true, mgType = 5,
+            ammoIndex = 40, ammo = new[] { 40, 45, 46, 41, 39 }, reloadS = 8f, barrelLength = 3.86f, gunPivotFromModel = true, mgType = 5,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             // TSh2B-32P: umschaltbar 3,5- / 7-fach
             sightType = SightType.Soviet, sightFov = 18f, sightMag = 3.5f, sightName = "TSh2B-32P",
