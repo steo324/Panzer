@@ -170,6 +170,67 @@ namespace PanzerSim
         };
 
         /// <summary>
+        /// Panzer III Ausf. L (Sd.Kfz. 141/1, 1942): 5 cm KwK 39 L/60. Modell: "Panzer III Medium Tank - Toshueyi" von Joanthan To
+        /// (sketchfab.com/jonathanto99), CC BY 4.0 - gerigged und bemalt mit Tools/Blender/rig_toshueyi.py.
+        /// </summary>
+        public static TankSpec PanzerIII => new TankSpec
+        {
+            name = "Panzer III Ausf. L",
+            // Maybach HL 120 TRM, 300 PS; 22,7 t; 40 km/h
+            massT = 22.7f, powerPS = 300f, maxSpeedKmh = 40f, reverseKmh = 8f, turnRateDegS = 34f,
+            hullLength = 5.45f, hullWidth = 2.4f, hullHeight = 1.25f, clearance = 0.38f,
+            trackWidth = 0.40f, trackInset = 0.18f,      // Kettenmitte bei x = 1,22 m
+            hullFront = new Armor(50, 9), hullRear = new Armor(50, 10), hullSide = new Armor(30, 0),
+            hullRoof = new Armor(16, 0), hullBottom = new Armor(16, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(50, 21), hullGlacis = new Armor(25, 72), hullLowerSide = new Armor(30, 0),
+            turretLength = 2.2f, turretWidth = 1.9f, turretHeight = 0.75f, turretOffsetZ = -0.02f,
+            turretFront = new Armor(57, 15), turretSide = new Armor(30, 25), turretRear = new Armor(30, 12),
+            turretRoof = new Armor(10, 0), mantlet = new Armor(50, 0),
+            traverseDegS = 10f, elevationDegS = 5f, minElevation = -10f, maxElevation = 20f,
+            ammoIndex = 21, ammo = new[] { 21, 22 }, reloadS = 4.5f, barrelLength = 2.6f, gunPivotFromModel = true,
+            sightType = SightType.German, sightFov = 25f, sightMag = 2.5f, sightName = "TZF 5e",
+            modelResource = "Modelle/PanzerIII", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            // Leitrad hinten (radL0), 6 Laufrollen (520 mm, Drehstab), Antriebsrad vorne (radL7), 3 Stuetzrollen
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.26f,
+            linkTracks = true, idlerRadius = 0.37f, sprocketRadius = 0.42f,
+            trackPitch = 0.12f, trackShoeWidth = 0.40f, trackThickness = 0.04f, trackSag = 0.03f,
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 3, returnRollerRadius = 0.16f
+        };
+
+        /// <summary>
+        /// Panther Ausf. A (Sd.Kfz. 171, 1943/44, mit Zimmerit und Schuerzen): 7,5 cm KwK 42 L/70, schraeger Bug 80 mm.
+        /// Modell: "Panzer V Panther Medium Tank" von Joanthan To (sketchfab.com/jonathanto99), CC BY 4.0 - gerigged und bemalt mit Tools/Blender/rig_toshueyi.py.
+        /// </summary>
+        public static TankSpec Panther => new TankSpec
+        {
+            name = "Panther Ausf. A",
+            // Maybach HL 230 P30, 700 PS; 44,8 t; 46 km/h
+            massT = 44.8f, powerPS = 700f, maxSpeedKmh = 46f, reverseKmh = 10f, turnRateDegS = 26f,
+            hullLength = 6.7f, hullWidth = 2.6f, hullHeight = 1.4f, clearance = 0.52f,
+            trackWidth = 0.66f, trackInset = 0.38f,      // Kettenmitte bei x = 1,25 m
+            hullFront = new Armor(80, 55), hullRear = new Armor(40, 30), hullSide = new Armor(40, 40),
+            hullRoof = new Armor(16, 0), hullBottom = new Armor(16, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(60, 55), hullGlacis = new Armor(80, 55), hullLowerSide = new Armor(40, 0),
+            turretLength = 2.9f, turretWidth = 2.3f, turretHeight = 0.95f, turretOffsetZ = -0.12f,
+            turretFront = new Armor(110, 11, ArmorMaterial.Cast), turretSide = new Armor(45, 25), turretRear = new Armor(45, 25),
+            turretRoof = new Armor(16, 0), mantlet = new Armor(100, 0, ArmorMaterial.Cast),
+            traverseDegS = 18f, elevationDegS = 5f, minElevation = -8f, maxElevation = 18f,   // hydraulisch, abhaengig von der Motordrehzahl
+            ammoIndex = 23, ammo = new[] { 23, 24 }, reloadS = 6.5f, barrelLength = 3.97f, muzzleBrake = true, gunPivotFromModel = true,
+            // TZF 12a: umschaltbar 2,5- / 5-fach
+            sightType = SightType.German, sightFov = 30f, sightMag = 2.5f, sightName = "TZF 12a",
+            sightZoomFov = new[] { 30f, 15f }, sightZoomMag = new[] { 2.5f, 5f },
+            modelResource = "Modelle/Panther", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            // Leitrad hinten (radL0), 8 Achsen mit verschachtelten Laufrollen (860 mm), Antriebsrad vorne (radL9)
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 10, wheelRadius = 0.41f,
+            linkTracks = true, idlerRadius = 0.29f, sprocketRadius = 0.41f,
+            trackPitch = 0.153f, trackShoeWidth = 0.66f, trackThickness = 0.05f, trackSag = 0.05f
+        };
+
+        /// <summary>
         /// Panzer IV Ausf. F2 (Sd.Kfz. 161/1, 1942): erste Version mit der langen 7,5 cm KwK 40 L/43
         /// (Kugel-Muendungsbremse), noch ohne Zusatzpanzerung und Schuerzen. Modell: Tools/Blender/rig_panzer4.py.
         /// </summary>

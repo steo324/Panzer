@@ -85,6 +85,12 @@ namespace PanzerSim
             new ShellData("PzGr. 39/43", "8,8 cm KwK 43 L/71 (Tiger II)", ShellType.APCBC, 88f, 10.16f, 1000f, 0.059f),   // 18
             new ShellData("Sprgr. 43",   "8,8 cm KwK 43 L/71 (Tiger II)", ShellType.HE,    88f, 9.40f,  750f, 1.0f) { dragCoefficient = 0.32f },   // 19
             new ShellData("Gr. 39/43 HL", "8,8 cm KwK 43 L/71 (Tiger II)", ShellType.HEAT, 88f, 7.65f,  600f, 0.8f) { heatPenMm = 100f, dragCoefficient = 0.35f },   // 20
+            // Panzer III Ausf. L: 5 cm KwK 39 L/60
+            new ShellData("PzGr. 39 (5 cm)", "5 cm KwK 39 L/60 (Panzer III)", ShellType.APCBC, 50f, 2.06f, 835f, 0.017f),   // 21
+            new ShellData("Sprgr. 38 (5 cm)", "5 cm KwK 39 L/60 (Panzer III)", ShellType.HE, 50f, 1.82f, 550f, 0.17f) { dragCoefficient = 0.33f },   // 22
+            // Panther: 7,5 cm KwK 42 L/70
+            new ShellData("PzGr. 39/42", "7,5 cm KwK 42 L/70 (Panther)", ShellType.APCBC, 75f, 6.80f, 935f, 0.018f),   // 23
+            new ShellData("Sprgr. 42",   "7,5 cm KwK 42 L/70 (Panther)", ShellType.HE,    75f, 5.74f, 700f, 0.725f) { dragCoefficient = 0.33f },   // 24
         };
     }
 }
