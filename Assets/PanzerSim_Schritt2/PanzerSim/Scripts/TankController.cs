@@ -181,6 +181,7 @@ namespace PanzerSim
             else if (net != null) mgFire = !destroyed && net.MgFiring;
             MachineGun.Tick(this, mgFire, dt);
             UpdateExhaust(dt);
+            UpdateTrackDust(dt);
 
             if (destroyed) { throttle = 0f; steer = 0f; brake = true; return; }
 
@@ -219,7 +220,29 @@ namespace PanzerSim
         }
 
         // Auspuff: laufender Motor qualmt leicht (mehr beim Gasgeben); ausgeschaltete Panzer nicht mehr - man sieht, dass der Motor aus ist
-        float exhaustAcc, lastSpeed;
+        float exhaustAcc, lastSpeed, dustAcc;
+
+        /// <summary>Staubfahne hinter den Ketten: je schneller, desto dichter; nur am Boden und in Kameranaehe.</summary>
+        void UpdateTrackDust(float dt)
+        {
+            if (NetSync.Headless || GameSettings.Effects < 1) return;
+            float kmh = SpeedKmh;
+            if (kmh < 6f) { dustAcc = 0f; return; }
+            dustAcc += dt;
+            float interval = Mathf.Lerp(0.16f, 0.035f, Mathf.InverseLerp(6f, 50f, kmh));
+            if (dustAcc < interval) return;
+            dustAcc = 0f;
+            if (Camera.main != null && (Camera.main.transform.position - transform.position).sqrMagnitude > 700f * 700f) return;
+            float halfW = (spec.hullWidth + spec.trackWidth) / 2f - spec.trackInset;
+            float strength = Mathf.InverseLerp(6f, 55f, kmh);
+            for (int s = -1; s <= 1; s += 2)
+            {
+                Vector3 p = transform.TransformPoint(new Vector3(s * halfW, 0.25f, -spec.hullLength * 0.5f));
+                if (!RaycastGround(p + Vector3.up, Vector3.down, 2.5f, out RaycastHit hit)) continue;   // in der Luft (Sprung, Bruecke)
+                Vector3 vel = -transform.forward * (1f + kmh * 0.04f) + (rb != null ? rb.linearVelocity * 0.25f : Vector3.zero);
+                Effects.TrackDust(hit.point + Vector3.up * 0.3f, vel, strength);
+            }
+        }
         void UpdateExhaust(float dt)
         {
             if (NetSync.Headless || destroyed || !Working(ModuleType.Engine)) return;

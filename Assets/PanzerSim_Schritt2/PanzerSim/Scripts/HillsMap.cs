@@ -326,6 +326,11 @@ namespace PanzerSim
                                 int gz = tz * (TileRes - 1) + Mathf.RoundToInt(iz * (TileRes - 1) / (float)(AlphaPerTile - 1));
                                 float wx = gx * Cell - Half, wz = gz * Cell - Half;
                                 Weights(surf[Idx(gx, gz)], road[Idx(gx, gz)], wx, wz, out float w0, out float w1, out float w2, out float w3);
+                                // steile Haenge: Gras haelt nicht, offene Erde (Bodenart "Weg") - je steiler, desto mehr
+                                int x0 = Mathf.Max(gx - 1, 0), x1 = Mathf.Min(gx + 1, G - 1), z0 = Mathf.Max(gz - 1, 0), z1 = Mathf.Min(gz + 1, G - 1);
+                                float slope = new Vector2((H[Idx(x1, gz)] - H[Idx(x0, gz)]) / ((x1 - x0) * Cell), (H[Idx(gx, z1)] - H[Idx(gx, z0)]) / ((z1 - z0) * Cell)).magnitude;
+                                float steep = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.6f, 1.0f, slope));
+                                if (steep > 0f) { float k = 1f - steep; w0 *= k; w1 *= k; w3 *= k; w2 = w2 * k + steep; }
                                 a[iz, ix, 0] = w0; a[iz, ix, 1] = w1; a[iz, ix, 2] = w2; a[iz, ix, 3] = w3;
                             }
                         td.SetAlphamaps(0, 0, a);

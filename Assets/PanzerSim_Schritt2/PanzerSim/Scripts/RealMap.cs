@@ -259,6 +259,15 @@ namespace PanzerSim
             if (sh != null) { terrainMat = new Material(sh); if (hd) PlainsMap.SetTerrainDetail(terrainMat, GameSettings.Effects >= 1); }
         }
 
+        /// <summary>Steigung (Hoehe pro Meter) aus dem Hoehenraster an dieser Stelle.</summary>
+        float SlopeAt(float wx, float wz)
+        {
+            int gx = Mathf.Clamp(Mathf.RoundToInt((wx + half) / cell), 1, G - 2), gz = Mathf.Clamp(Mathf.RoundToInt((wz + half) / cell), 1, G - 2);
+            float dx = (H[gz * G + gx + 1] - H[gz * G + gx - 1]) / (2f * cell);
+            float dz = (H[(gz + 1) * G + gx] - H[(gz - 1) * G + gx]) / (2f * cell);
+            return Mathf.Sqrt(dx * dx + dz * dz);
+        }
+
         void Weights(byte s, out float w0, out float w1, out float w2, out float w3)
         {
             w0 = w1 = w2 = w3 = 0f;
@@ -309,6 +318,9 @@ namespace PanzerSim
                             {
                                 float wx = x0 + ix * tsize / (ares - 1), wz = z0 + iz * tsize / (ares - 1);
                                 Weights(SurfAt(wx, wz), out a[iz, ix, 0], out a[iz, ix, 1], out a[iz, ix, 2], out a[iz, ix, 3]);
+                                // steile Boeschungen (Bahndaemme, Steinbrueche, Hangkanten): offene Erde statt Gras
+                                float steep = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.5f, 1.0f, SlopeAt(wx, wz)));
+                                if (steep > 0f) { float k = 1f - steep; a[iz, ix, 0] *= k; a[iz, ix, 1] *= k; a[iz, ix, 3] *= k; a[iz, ix, 2] = a[iz, ix, 2] * k + steep; }
                             }
                         });
                         td.SetAlphamaps(0, 0, a);

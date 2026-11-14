@@ -22,6 +22,7 @@ namespace PanzerSim.EditorTools
             ShaderIncludes.Ensure();   // Laufzeit-Shader (URP Lit, Terrain) muessen mit in den Build, sonst wird alles pink
             ModelPrefabs.RunAll();     // Modell-Prefabs (Sherman, Panzer IV) aus Geometrie + komprimierten Texturen
             NetPrefabs.Ensure();       // Netzwerk-Prefabs fuer den Mehrspieler
+            GraphicsSetup.Ensure();    // Hoehennebel- und Decal-Feature im Renderer, Staub-Material
             StampVersion();            // Update-Nummer (1.0, 1.1 ...) fuer Auto-Update und Versionspruefung
 
             // Nur den Inhalt leeren: der Ordner selbst kann gesperrt sein (Explorer, Terminal ...)

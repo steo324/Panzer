@@ -50,6 +50,10 @@ namespace PanzerSim
                 if (muzzleBrake && i % 3 == 0) v = side * (i % 2 == 0 ? 1 : -1) * Random.Range(6f, 12f) + Random.insideUnitSphere * 2f;
                 EmitOne(smoke, pos + Random.insideUnitSphere * 0.3f, v, Random.Range(1.2f, 2.4f) * s, Random.Range(2.5f, 5f), Gray(0.78f, 0.55f));
             }
+            // Treibladungsqualm, der noch einige Sekunden in der Luft haengt und langsam abtreibt
+            for (int i = 0; i < 8; i++)
+                EmitOne(smoke, pos + dir * Random.Range(2f, 8f) * s + Random.insideUnitSphere * 0.8f, dir * Random.Range(0.5f, 2f) + Vector3.up * Random.Range(0.2f, 0.6f) + Random.insideUnitSphere * 0.4f,
+                        Random.Range(2.2f, 3.6f) * s, Random.Range(6f, 11f), Gray(0.82f, 0.28f));
             AddLight(pos + dir * 1f, new Color(1f, 0.75f, 0.45f), 9f * s, 25f, 0.08f);
 
             // Staub am Boden unter/vor der Muendung (je naeher am Boden, desto mehr)
@@ -70,6 +74,14 @@ namespace PanzerSim
             Blast(pos + dir * 2f, 14f * s, 0.8f);
             CameraShake.Add(pos, 0.5f * s, 30f);
             Sfx.Cannon(pos, caliberMm);
+        }
+
+        /// <summary>Staubfahne hinter einer Kette (strength 0..1 nach Tempo).</summary>
+        public static void TrackDust(Vector3 pos, Vector3 vel, float strength)
+        {
+            if (!Ensure()) return;
+            EmitOne(dust, pos + Random.insideUnitSphere * 0.35f, vel + Vector3.up * Random.Range(0.4f, 1.4f) + Random.insideUnitSphere * 0.7f,
+                Random.Range(1.3f, 2.6f) * (0.6f + strength * 0.7f), Random.Range(2.5f, 5.5f), Dust(0.14f + 0.26f * strength));
         }
 
         /// <summary>Splitter (Spall): kleine schwarze Teilchen, die von origin in Richtung dir bis zur Entfernung dist fliegen.</summary>
@@ -539,8 +551,12 @@ namespace PanzerSim
                         for (int i = 0; i < 2; i++)
                             EmitOne(fire, p + Random.insideUnitSphere * 0.6f, Vector3.up * Random.Range(1.5f, 4f) + Random.insideUnitSphere * 0.6f,
                                     Random.Range(0.8f, 1.6f) * k, Random.Range(0.4f, 0.9f), new Color(1f, 0.55f, 0.2f, 1f));
-                        if (Random.value < 0.4f)
-                            EmitOne(embers, p, Vector3.up * Random.Range(2f, 5f) + Random.insideUnitSphere, 0.06f, Random.Range(1f, 2.5f), new Color(1f, 0.6f, 0.2f, 1f));
+                        if (Random.value < 0.6f)
+                            EmitOne(embers, p + Random.insideUnitSphere * 0.5f, Vector3.up * Random.Range(2f, 6f) + Random.insideUnitSphere * 1.2f, Random.Range(0.04f, 0.09f), Random.Range(1.5f, 3.5f), new Color(1f, 0.6f, 0.2f, 1f));
+                        // gelegentlich knackt es im Wrack: Funkenregen (Munition, Hydraulik, Gluehendes)
+                        if (Random.value < 0.012f * k)
+                            for (int s = 0; s < 18; s++)
+                                EmitOne(sparks, p + Random.insideUnitSphere * 0.4f, (Vector3.up * Random.Range(3f, 9f) + Random.insideUnitSphere * 5f), 0.05f, Random.Range(0.5f, 1.4f), new Color(1f, 0.75f, 0.35f, 1f));
                     }
                     // Rauch auch noch nach dem Feuer (duenner)
                     float sm = Mathf.Max(k, 0.25f * Mathf.Clamp01((timeLeft + 20f) / 20f));

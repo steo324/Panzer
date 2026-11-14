@@ -88,6 +88,7 @@ namespace PanzerSim
                 b.preset = int.TryParse(Arg("-preset"), out int bp) ? Mathf.Clamp(bp, 0, 3) : -1;
                 TankController.BenchDrive = Has("-benchdrive");
                 TankController.BenchMg = Has("-benchmg");
+                if (int.TryParse(Arg("-tageszeit"), out int tod)) GameSettings.TimeOfDay = Mathf.Clamp(tod, 0, 3);   // Test: Tageszeit fuer Bilder
                 TankCamera.BenchSight = Has("-benchsight");
                 TankCamera.BenchThermal = Has("-benchthermal");
                 TankCamera.BenchArty = Has("-bencharty");
@@ -118,6 +119,7 @@ namespace PanzerSim
             RenderSettings.fogColor = new Color(0.72f, 0.78f, 0.84f);
             RenderSettings.fogStartDistance = map.FogStart;
             RenderSettings.fogEndDistance = map.FogEnd;
+            if (!NetSync.Headless) Visuals.OnMapBuilt(map.GroundY(0f, 0f), map.Fog ? 1f : 0.4f);   // Hoehennebel, Spiegelung
         }
 
         void EnterPlaying()
@@ -947,7 +949,9 @@ namespace PanzerSim
                 if (GameSettings.RenderScale < 0.99f && Toggle("Hochskalieren mit FSR", ref GameSettings.Fsr)) custom = true;
                 if (Selector("Kantenglaettung", ref GameSettings.AntiAliasing, GameSettings.AaNames)) custom = true;
                 if (Selector("Schatten", ref GameSettings.Shadows, GameSettings.ShadowNames)) custom = true;
-                if (Selector("Bildeffekte (Licht, Farbe, SSAO)", ref GameSettings.Effects, GameSettings.EffectNames)) custom = true;
+                if (Selector("Bildeffekte (Licht, Farbe, SSAO, Dunst)", ref GameSettings.Effects, GameSettings.EffectNames)) custom = true;
+                if (Selector("Tageszeit", ref GameSettings.TimeOfDay, Visuals.TimeNames)) changed = true;
+                GUILayout.Label("Tageszeit: Sonnenstand, Licht und Dunst (Morgen mit Bodennebel). Nur bei dir sichtbar.", note);
 
                 GUILayout.Space(10);
                 GUILayout.Label("WEIZEN UND SICHTWEITE", head);

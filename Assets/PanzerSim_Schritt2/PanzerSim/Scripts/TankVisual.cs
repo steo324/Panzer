@@ -132,6 +132,10 @@ namespace PanzerSim
                     foreach (var p in parts.plates)
                         if (p != null && !p.name.StartsWith("Kette")) p.gameObject.layer = ArmorPlate.PhysicsOnlyLayer;
             }
+
+            // Optik: matter Lack statt Chrom
+            Visuals.MatteTank(renderers);
+            // (Staubschicht per Decal getestet: auf den glTF-Materialien der Modelle nicht zuverlaessig sichtbar - vorerst aus)
         }
 
         /// <summary>Alle sichtbaren Teile des Modells (z. B. fuers Waermebild).</summary>

@@ -22,7 +22,8 @@ namespace PanzerSim
         public static int Preset;                     // 0 Niedrig, 1 Mittel, 2 Hoch, 3 Ultra, 4 Benutzerdefiniert
         public static float RenderScale = 1f;         // 0.5 .. 2.0 (ueber 1 = Supersampling, schaerfer)
         public static bool Fsr = true;                // Hochskalierung mit FSR statt einfach unscharf
-        public static int AntiAliasing = 2;           // 0 Aus, 1 FXAA, 2 SMAA, 3 MSAA 4x + SMAA
+        public static int AntiAliasing = 2;           // 0 Aus, 1 FXAA, 2 SMAA, 3 MSAA 4x + SMAA, 4 TAA (zeitlich: ruhigstes Bild, kein Flimmern)
+        public static int TimeOfDay = 2;              // 0 Morgen (Dunst), 1 Mittag, 2 Nachmittag, 3 Abend (nur Optik, jeder Spieler fuer sich)
         public static int Shadows = 2;                // 0 Aus, 1 Niedrig, 2 Mittel, 3 Hoch
         public static int Effects = 2;                // Bildeffekte: 0 Niedrig (nur Farbe), 1 Mittel (+Bloom, SSAO halb), 2 Hoch (+SSAO, Vignette), 3 Ultra
         public static float WheatDensity = 1f;        // 0.25 .. 1
@@ -42,7 +43,7 @@ namespace PanzerSim
         public static float UiFactor => Mathf.Max(0.5f, Screen.height / 1080f) * UiScale;
 
         public static readonly string[] PresetNames = { "Niedrig", "Mittel", "Hoch", "Ultra", "Benutzerdefiniert" };
-        public static readonly string[] AaNames = { "Aus", "FXAA (schnell)", "SMAA", "MSAA 4x + SMAA" };
+        public static readonly string[] AaNames = { "Aus", "FXAA (schnell)", "SMAA", "MSAA 4x + SMAA", "TAA (kein Flimmern)" };
         public static readonly string[] ShadowNames = { "Aus", "Niedrig", "Mittel", "Hoch" };
         public static readonly string[] EffectNames = { "Niedrig", "Mittel", "Hoch", "Ultra" };
         public static readonly string[] WindowNames = { "Vollbild (randloses Fenster)", "Vollbild (exklusiv)", "Fenster" };
@@ -67,7 +68,7 @@ namespace PanzerSim
                 WindowMode = PlayerPrefs.GetInt("s.window"); VSync = PlayerPrefs.GetInt("s.vsync") == 1;
                 FpsLimit = PlayerPrefs.GetInt("s.fps"); Preset = PlayerPrefs.GetInt("s.preset");
                 RenderScale = PlayerPrefs.GetFloat("s.scale", 1f); Fsr = PlayerPrefs.GetInt("s.fsr", 1) == 1;
-                AntiAliasing = PlayerPrefs.GetInt("s.aa", 2); Shadows = PlayerPrefs.GetInt("s.shadows", 2); Effects = PlayerPrefs.GetInt("s.fx", 2);
+                AntiAliasing = PlayerPrefs.GetInt("s.aa", 2); TimeOfDay = PlayerPrefs.GetInt("s.time", 2); Shadows = PlayerPrefs.GetInt("s.shadows", 2); Effects = PlayerPrefs.GetInt("s.fx", 2);
                 WheatDensity = PlayerPrefs.GetFloat("s.wDens", 1f); WheatDistance = PlayerPrefs.GetFloat("s.wDist", 105f);
                 ViewDistance = PlayerPrefs.GetFloat("s.view", 750f); WheatShadows = PlayerPrefs.GetFloat("s.wShadow", 15f);
                 Fov = PlayerPrefs.GetFloat("s.fov", 60f); MouseSens = PlayerPrefs.GetFloat("s.sens", 1f);
@@ -113,7 +114,7 @@ namespace PanzerSim
             PlayerPrefs.SetInt("s.window", WindowMode); PlayerPrefs.SetInt("s.vsync", VSync ? 1 : 0);
             PlayerPrefs.SetInt("s.fps", FpsLimit); PlayerPrefs.SetInt("s.preset", Preset);
             PlayerPrefs.SetFloat("s.scale", RenderScale); PlayerPrefs.SetInt("s.fsr", Fsr ? 1 : 0);
-            PlayerPrefs.SetInt("s.aa", AntiAliasing); PlayerPrefs.SetInt("s.shadows", Shadows); PlayerPrefs.SetInt("s.fx", Effects);
+            PlayerPrefs.SetInt("s.aa", AntiAliasing); PlayerPrefs.SetInt("s.time", TimeOfDay); PlayerPrefs.SetInt("s.shadows", Shadows); PlayerPrefs.SetInt("s.fx", Effects);
             PlayerPrefs.SetFloat("s.wDens", WheatDensity); PlayerPrefs.SetFloat("s.wDist", WheatDistance);
             PlayerPrefs.SetFloat("s.view", ViewDistance); PlayerPrefs.SetFloat("s.wShadow", WheatShadows);
             PlayerPrefs.SetFloat("s.fov", Fov); PlayerPrefs.SetFloat("s.sens", MouseSens);
@@ -140,7 +141,7 @@ namespace PanzerSim
                 case 0: RenderScale = 0.7f; Fsr = true; AntiAliasing = 1; Shadows = 1; WheatDensity = 0.5f; WheatDistance = 55f; ViewDistance = 400f; WheatShadows = 0f; break;
                 case 1: RenderScale = 0.85f; Fsr = true; AntiAliasing = 2; Shadows = 2; WheatDensity = 0.75f; WheatDistance = 80f; ViewDistance = 600f; WheatShadows = 8f; break;
                 case 2: RenderScale = 1f; Fsr = true; AntiAliasing = 2; Shadows = 2; WheatDensity = 1f; WheatDistance = 105f; ViewDistance = 750f; WheatShadows = 15f; break;
-                case 3: RenderScale = 1.25f; Fsr = true; AntiAliasing = 2; Shadows = 3; WheatDensity = 1f; WheatDistance = 105f; ViewDistance = 900f; WheatShadows = 20f; break;
+                case 3: RenderScale = 1.25f; Fsr = true; AntiAliasing = 4; Shadows = 3; WheatDensity = 1f; WheatDistance = 105f; ViewDistance = 900f; WheatShadows = 20f; break;
             }
         }
 
@@ -187,8 +188,17 @@ namespace PanzerSim
             var data = cam.GetUniversalAdditionalCameraData();
             if (data == null) return;
             data.antialiasing = AntiAliasing == 0 ? AntialiasingMode.None
-                : AntiAliasing == 1 ? AntialiasingMode.FastApproximateAntialiasing : AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+                : AntiAliasing == 1 ? AntialiasingMode.FastApproximateAntialiasing
+                : AntiAliasing == 4 ? AntialiasingMode.TemporalAntiAliasing : AntialiasingMode.SubpixelMorphologicalAntiAliasing;
             data.antialiasingQuality = AntialiasingQuality.High;
+            if (AntiAliasing == 4)
+            {
+                // TAA: Kanten ueber mehrere Bilder geglaettet - Gras, Weizen, Zaeune und Antennen flimmern nicht mehr
+                ref var taa = ref data.taaSettings;
+                taa.quality = TemporalAAQuality.High;
+                taa.baseBlendFactor = 0.88f;     // etwas weniger Nachziehen bei schnellen Schwenks
+                taa.contrastAdaptiveSharpening = 0.35f;   // gegen die leichte TAA-Unschaerfe
+            }
             data.dithering = true;   // feines Rauschen gegen Farbstufen im Himmel (Banding)
             data.renderShadows = Shadows > 0;
             cam.allowMSAA = AntiAliasing == 3;
