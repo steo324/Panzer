@@ -678,7 +678,7 @@ namespace PanzerSim
             // Update-Hinweis und Version
             if (!string.IsNullOrEmpty(GameUpdater.Status))
                 GUI.Label(new Rect(W - 490, 720, 430, 26), $"<color=#fd6>{GameUpdater.Status}</color>", small);
-            GUI.Label(new Rect(W - 490, 916, 430, 22), $"Version {GameVersion.Current}", small);
+            GUI.Label(new Rect(W - 490, 916, 430, 22), GameVersion.Display, small);
 
             // ---- Start ----
             if (GUI.Button(new Rect(W - 490, 750, 430, 90), "LOS GEHT'S", big)) StartGame();

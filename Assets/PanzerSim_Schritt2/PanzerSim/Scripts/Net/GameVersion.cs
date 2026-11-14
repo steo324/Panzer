@@ -3,7 +3,7 @@ using UnityEngine;
 namespace PanzerSim
 {
     /// <summary>
-    /// Versionsnummer des Builds (Datum + Uhrzeit in UTC, z. B. "2026.11.11.1542"). Das Build-Skript schreibt sie nach
+    /// Update-Nummer des Builds (z. B. "1.4"; bis November 2026 Datum + Uhrzeit). Das Build-Skript schreibt sie nach
     /// Assets/Resources/version.txt. Server und Spieler muessen dieselbe Version haben; das Auto-Update vergleicht sie
     /// mit dem neuesten GitHub-Release.
     /// </summary>
@@ -22,6 +22,9 @@ namespace PanzerSim
                 return current;
             }
         }
+        /// <summary>Fuer die Anzeige: "Update 1.4" (alte Datums-Versionen: "Version 2026.11.13.2025").</summary>
+        public static string Display => Current.Split('.').Length == 2 ? "Update " + Current : "Version " + Current;
+
         /// <summary>Im Editor oder ohne Versionsdatei: keine Updates, keine strenge Versionspruefung.</summary>
         public static bool IsDev => Application.isEditor || Current == "dev";
     }

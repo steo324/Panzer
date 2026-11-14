@@ -22,7 +22,7 @@ namespace PanzerSim.EditorTools
             ShaderIncludes.Ensure();   // Laufzeit-Shader (URP Lit, Terrain) muessen mit in den Build, sonst wird alles pink
             ModelPrefabs.RunAll();     // Modell-Prefabs (Sherman, Panzer IV) aus Geometrie + komprimierten Texturen
             NetPrefabs.Ensure();       // Netzwerk-Prefabs fuer den Mehrspieler
-            StampVersion();            // Versionsnummer (Datum/Uhrzeit UTC) fuer Auto-Update und Versionspruefung
+            StampVersion();            // Update-Nummer (1.0, 1.1 ...) fuer Auto-Update und Versionspruefung
 
             // Nur den Inhalt leeren: der Ordner selbst kann gesperrt sein (Explorer, Terminal ...)
             Directory.CreateDirectory(outDir);
@@ -61,13 +61,51 @@ namespace PanzerSim.EditorTools
             if (!Application.isBatchMode) EditorUtility.RevealInFinder(zip);
         }
 
-        /// <summary>Schreibt Assets/Resources/version.txt (z. B. 2026.11.11.1542, UTC). Spiel und Server desselben Builds teilen sie.</summary>
+        /// <summary>
+        /// Schreibt Assets/Resources/version.txt: Update-Nummer "Haupt.Neben" (1.0, 1.1, 1.2 ...). Die Nummer ist immer
+        /// "letztes veroeffentlichtes Update + 1" (GitHub-Release); Testbuilds dazwischen behalten dieselbe Nummer.
+        /// Vor dem Wechsel trugen die Releases das Datum (2026.11.13.2025) - danach geht es mit 1.0 los.
+        /// Die Updater vergleichen nur "gleich/ungleich", darum klappt der Wechsel ohne Zutun der Spieler.
+        /// </summary>
         static void StampVersion()
         {
-            string v = System.DateTime.UtcNow.ToString("yyyy.MM.dd.HHmm");
-            File.WriteAllText(Path.Combine(Application.dataPath, "Resources", "version.txt"), v);
+            string path = Path.Combine(Application.dataPath, "Resources", "version.txt");
+            string v = NextUpdateNumber(File.Exists(path) ? File.ReadAllText(path).Trim() : "");
+            File.WriteAllText(path, v);
             AssetDatabase.ImportAsset("Assets/Resources/version.txt", ImportAssetOptions.ForceUpdate);
             Debug.Log("VERSION: " + v);
+        }
+
+        const string Repo = "steo324/Panzer";
+
+        /// <summary>Naechste Update-Nummer aus dem neuesten GitHub-Release; ohne Netz: bisherige Nummer behalten.</summary>
+        static string NextUpdateNumber(string current)
+        {
+            string latest = null;
+            try
+            {
+                using (var http = new System.Net.Http.HttpClient())
+                {
+                    http.Timeout = System.TimeSpan.FromSeconds(10);
+                    http.DefaultRequestHeaders.UserAgent.ParseAdd("BallistikBuild");
+                    string json = http.GetStringAsync($"https://api.github.com/repos/{Repo}/releases/latest").Result;
+                    var m = System.Text.RegularExpressions.Regex.Match(json, "\"tag_name\"\\s*:\\s*\"v?([^\"]+)\"");
+                    if (m.Success) latest = m.Groups[1].Value;
+                }
+            }
+            catch (System.Exception e) { Debug.LogWarning("Update-Nummer: GitHub nicht erreichbar (" + e.Message + ")"); }
+
+            if (latest == null) return IsUpdateNumber(current, out _, out _) ? current : "1.0";
+            if (!IsUpdateNumber(latest, out int major, out int minor)) return "1.0";   // letztes Release noch mit Datum
+            return $"{major}.{minor + 1}";
+        }
+
+        /// <summary>"1.4" ja, "2026.11.13.2025" (altes Datum) nein.</summary>
+        static bool IsUpdateNumber(string s, out int major, out int minor)
+        {
+            major = minor = 0;
+            var p = (s ?? "").Split('.');
+            return p.Length == 2 && int.TryParse(p[0], out major) && int.TryParse(p[1], out minor) && major < 1000;
         }
 
         /// <summary>
