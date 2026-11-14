@@ -324,6 +324,7 @@ namespace PanzerSim
 
         void BuildPreview()
         {
+            Visuals.MenuMode();   // kein Hoehennebel am Podest
             if (stage == null)
             {
                 stage = new GameObject("Menue-Vorschau").transform;

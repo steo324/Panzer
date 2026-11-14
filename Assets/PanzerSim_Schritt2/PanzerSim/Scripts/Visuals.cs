@@ -122,6 +122,13 @@ namespace PanzerSim
             RenderReflections();
         }
 
+        /// <summary>Hauptmenue: Podest liegt 2000 m unter der Karte - dort kein Hoehennebel (sonst ist alles weiss).</summary>
+        public static void MenuMode()
+        {
+            fogScale = 0f;
+            UpdateFog();
+        }
+
         static void UpdateFog()
         {
             var d = Day;

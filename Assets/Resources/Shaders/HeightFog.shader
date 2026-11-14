@@ -50,8 +50,10 @@ Shader "Hidden/PanzerSim/HeightFog"
                 // Integral der Dichte d(h) = d0 * exp(-k (h - h0)) entlang des Strahls
                 float k = _PzFogParams.y;
                 float dy = dir.y * dist;
-                float start = _PzFogParams.x * exp(-k * (cam.y - _PzFogParams.z));
-                float t = k * dy;
+                // Hoehe ueber dem Nebelboden begrenzen: weit darunter (z. B. Menue-Podest) wuerde exp() explodieren -> alles weiss
+                float camH = clamp(cam.y - _PzFogParams.z, -60, 4000);
+                float start = _PzFogParams.x * exp(-k * camH);
+                float t = clamp(k * dy, -20, 80);   // gegen Ueberlauf bei weit nach unten gerichteten Strahlen
                 float integral = abs(t) > 1e-4 ? start * dist * (1 - exp(-t)) / t : start * dist;
                 float amount = saturate(1 - exp(-integral)) * _PzFogParams.w;
 
