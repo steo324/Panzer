@@ -1055,6 +1055,7 @@ namespace PanzerSim
                 GUILayout.Label("Das Visier hat immer das echte Sichtfeld des jeweiligen Zielfernrohrs.", note);
                 if (Slider("Mausempfindlichkeit", ref GameSettings.MouseSens, 0.2f, 3f, $"{GameSettings.MouseSens:0.00}", 0.05f)) changed = true;
                 if (Toggle("Maus Y umkehren", ref GameSettings.InvertY)) changed = true;
+                if (Toggle("Trefferkamera (eigene Treffer mit Roentgenblick)", ref GameSettings.HitCam)) changed = true;
             }
             GUILayout.EndScrollView();
             if (custom) { GameSettings.Preset = 4; changed = true; }

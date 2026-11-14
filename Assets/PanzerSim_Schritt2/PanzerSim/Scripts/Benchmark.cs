@@ -42,6 +42,21 @@ namespace PanzerSim
             }
             if (cam != null && pl != null) cam.SetView(pl.transform.eulerAngles.y + camOff, camPitch);   // Standard: zum Horizont schauen
 
+            // -benchhitcam: warten, bis die Trefferkamera aufgeht (mit -autofire), dann Bild
+            if (System.Array.IndexOf(args, "-benchhitcam") >= 0)
+            {
+                for (int k = 0; k < 2; k++)
+                {
+                    while (HitCam.Active) yield return null;   // auf einen NEUEN Treffer warten
+                    float w = 0f;
+                    while (!HitCam.Active && w < 40f) { w += Time.unscaledDeltaTime; yield return null; }
+                    yield return new WaitForSecondsRealtime(0.8f);
+                    if (!string.IsNullOrEmpty(outDir)) { System.IO.Directory.CreateDirectory(outDir); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, $"trefferkamera_{k}.png")); }
+                    Debug.Log($"BENCH-HITCAM: aktiv {HitCam.Active} nach {w:0.0} s");
+                    while (HitCam.Active) yield return null;
+                }
+            }
+
             // -benchwaves: Wellen-Modus laufen lassen und alle 8 s protokollieren (mit -autofire schiesst der Spieler zurueck)
             if (System.Array.IndexOf(args, "-benchwaves") >= 0 && pl != null)
             {

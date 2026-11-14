@@ -36,6 +36,7 @@ namespace PanzerSim
         public static float MouseSens = 1f;
         public static bool InvertY;
         public static bool DetailTrees = true;        // neue Baeume (sonst einfache Kugelbaeume)
+        public static bool HitCam = true;             // Trefferkamera bei eigenen Treffern
         public static bool DevMode;                   // Entwickler-Modus: Test-Fahrzeuge in der Auswahl
         public static float UiScale = 1f;             // 0.75 .. 1.5, zusaetzlich zur automatischen Anpassung an die Aufloesung
 
@@ -74,7 +75,7 @@ namespace PanzerSim
                 Fov = PlayerPrefs.GetFloat("s.fov", 60f); MouseSens = PlayerPrefs.GetFloat("s.sens", 1f);
                 InvertY = PlayerPrefs.GetInt("s.invY") == 1;
                 UiScale = PlayerPrefs.GetFloat("s.ui", 1f); DevMode = PlayerPrefs.GetInt("s.dev") == 1;
-                DetailTrees = PlayerPrefs.GetInt("s.trees", 1) == 1;
+                DetailTrees = PlayerPrefs.GetInt("s.trees", 1) == 1; HitCam = PlayerPrefs.GetInt("s.hitcam", 1) == 1;
             }
             Apply(true);
         }
@@ -109,7 +110,7 @@ namespace PanzerSim
         public static void Save()
         {
             PlayerPrefs.SetInt("s.version", 2);
-            PlayerPrefs.SetInt("s.trees", DetailTrees ? 1 : 0);
+            PlayerPrefs.SetInt("s.trees", DetailTrees ? 1 : 0); PlayerPrefs.SetInt("s.hitcam", HitCam ? 1 : 0);
             PlayerPrefs.SetInt("s.resW", ResW); PlayerPrefs.SetInt("s.resH", ResH);
             PlayerPrefs.SetInt("s.window", WindowMode); PlayerPrefs.SetInt("s.vsync", VSync ? 1 : 0);
             PlayerPrefs.SetInt("s.fps", FpsLimit); PlayerPrefs.SetInt("s.preset", Preset);

@@ -44,6 +44,8 @@ namespace PanzerSim
         public const float StuckChance = 0.3f;
 
         bool ghost;   // Mehrspieler: nur Optik (der Server rechnet die echte Granate)
+        public bool fromPlayer;   // eigene Granate: Trefferkamera zeigt den ersten Panzertreffer
+        TankController hitcamTank;
 
         /// <param name="speed">Muendungsgeschwindigkeit fuer diesen Schuss (Artillerie: je nach Treibladung); 0 = Standard der Munition</param>
         public static Shell Fire(ShellData d, Vector3 position, Vector3 direction, bool ghost = false, float speed = 0f)
@@ -193,6 +195,7 @@ namespace PanzerSim
                 string who = tank != null ? tank.spec.name + ": " : "";
                 report.Add($"{data.name} -> {who}{plateName} ({plateMm:0} mm)\n   {r.note}. {r.penetrationMm:0} mm Durchschlag gegen " +
                            $"{r.effectiveArmorMm:0} mm effektiv, Winkel {r.impactAngleDeg:0}°, {Vector3.Distance(origin, pos):0} m");
+                if (fromPlayer && tank != null && hitcamTank == null) { hitcamTank = tank; HitCam.Begin(tank, pos, dir, r, plateName); }
 
                 // Spreng- und Hohlladungsgranaten explodieren beim Aufschlag - eigene Wirkung statt Weiterfliegen
                 if ((data.IsHE || data.IsHEAT && r.outcome != HitOutcome.Ricochet) && !plateName.StartsWith("Kette"))
@@ -527,6 +530,7 @@ namespace PanzerSim
             finished = true;
             if (damage.Count > 0) report.Add("   Schaden: " + string.Join(", ", damage.Values));
             if (report.Count > 0) RangeLog.Add(string.Join("\n", report));
+            if (hitcamTank != null) HitCam.Details(hitcamTank, damage.Values);
             enabled = false;
             if (stuck) { Destroy(gameObject, 120f); return; }   // steckende Granate bleibt eine Weile liegen
             if (body != null) body.SetActive(false);

@@ -377,9 +377,9 @@ namespace PanzerSim
             if (net != null && NetSync.Active)
             {
                 net.RequestFire(ammoIndex, origin, dir, speed);                       // Server rechnet die echte Granate
-                if (!NetSync.IsServer) Shell.Fire(Ammo, origin, dir, true, speed);     // eigene Geister-Granate sofort sehen
+                if (!NetSync.IsServer) { var gs = Shell.Fire(Ammo, origin, dir, true, speed); if (gs != null) gs.fromPlayer = isPlayer; }   // eigene Geister-Granate sofort sehen
             }
-            else Shell.Fire(Ammo, origin, dir, false, speed);
+            else { var s0 = Shell.Fire(Ammo, origin, dir, false, speed); if (s0 != null) s0.fromPlayer = isPlayer; }
             // Rueckstoss: Granate + Treibgase (ca. 1,5x Geschossimpuls); die Rohrbremse daempft ihn ueber den Ruecklauf
             rb.AddForceAtPosition(-parts.gunPivot.forward * Ammo.massKg * Ammo.muzzleVelocity * 0.45f,
                                   parts.gunPivot.position, ForceMode.Impulse);
@@ -1026,6 +1026,8 @@ namespace PanzerSim
         readonly Dictionary<Renderer, Material> plateMats = new Dictionary<Renderer, Material>();
 
         /// <summary>Halb durchsichtiges Material fuer die Panzerplatten-Ansicht (URP Lit, transparent).</summary>
+        /// <summary>Glas-Material (Roentgenblick), auch fuer die Trefferkamera.</summary>
+        public static Material Glass() => GlassMaterial();
         static Material GlassMaterial()
         {
             if (glassMat != null) return glassMat;
