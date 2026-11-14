@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace PanzerSim
@@ -12,6 +13,9 @@ namespace PanzerSim
         /// Splitterkegel: count Strahlen in einem Kegel um dir. Splitter treffen Innenteile
         /// und werden von Panzerplatten gestoppt.
         /// </summary>
+        /// <summary>Trefferkamera: solange gesetzt, werden die Splitterbahnen (Anfang, Ende) hier gesammelt.</summary>
+        public static List<(Vector3 a, Vector3 b)> Record;
+
         public static void Fragments(Vector3 origin, Vector3 dir, int count, float coneDeg, float damage, float range,
                                      Action<TankModule, string> report)
         {
@@ -42,6 +46,7 @@ namespace PanzerSim
                     }
                 }
                 if (ShowFragments) Effects.Spall(origin, d, end);
+                Record?.Add((origin, origin + d * end));
             }
         }
 

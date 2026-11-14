@@ -80,8 +80,8 @@ namespace PanzerSim
             // Rohr als Trefferzone und Hindernis: fester Collider (stoesst an Waende/Panzer), getroffen wird das Teil "Rohr"
             // (beschaedigt = streut, zerstoert = Kanone schiesst nicht mehr). Beginnt vor der Blende, endet an der Muendung.
             {
-                float start = Mathf.Min(0.6f, s.barrelLength * 0.3f), len = Mathf.Max(0.3f, s.barrelLength - start);
-                float d = Mathf.Clamp(cal * 2.2f, 0.08f, 0.32f);
+                float start = Mathf.Min(1.1f, s.barrelLength * 0.35f), len = Mathf.Max(0.3f, s.barrelLength - start);   // erst vor der Blende
+                float d = Mathf.Clamp(cal * 1.5f, 0.07f, 0.22f);   // so dick wie das Rohr (aussen ~1,5 Kaliber)
                 var bgo = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 bgo.name = "Rohr (Trefferzone)";
                 bgo.transform.SetParent(gun, false);

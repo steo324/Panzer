@@ -377,9 +377,9 @@ namespace PanzerSim
             if (net != null && NetSync.Active)
             {
                 net.RequestFire(ammoIndex, origin, dir, speed);                       // Server rechnet die echte Granate
-                if (!NetSync.IsServer) { var gs = Shell.Fire(Ammo, origin, dir, true, speed); if (gs != null) gs.fromPlayer = isPlayer; }   // eigene Geister-Granate sofort sehen
+                if (!NetSync.IsServer) { var gs = Shell.Fire(Ammo, origin, dir, true, speed); if (gs != null) { gs.fromPlayer = isPlayer; gs.shooter = this; } }   // eigene Geister-Granate sofort sehen
             }
-            else { var s0 = Shell.Fire(Ammo, origin, dir, false, speed); if (s0 != null) s0.fromPlayer = isPlayer; }
+            else { var s0 = Shell.Fire(Ammo, origin, dir, false, speed); if (s0 != null) { s0.fromPlayer = isPlayer; s0.shooter = this; } }
             // Rueckstoss: Granate + Treibgase (ca. 1,5x Geschossimpuls); die Rohrbremse daempft ihn ueber den Ruecklauf
             rb.AddForceAtPosition(-parts.gunPivot.forward * Ammo.massKg * Ammo.muzzleVelocity * 0.45f,
                                   parts.gunPivot.position, ForceMode.Impulse);

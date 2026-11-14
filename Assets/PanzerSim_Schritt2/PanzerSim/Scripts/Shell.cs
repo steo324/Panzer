@@ -46,6 +46,8 @@ namespace PanzerSim
         bool ghost;   // Mehrspieler: nur Optik (der Server rechnet die echte Granate)
         public bool fromPlayer;   // eigene Granate: Trefferkamera zeigt den ersten Panzertreffer
         TankController hitcamTank;
+        readonly List<(Vector3 a, Vector3 b)> spall = new List<(Vector3 a, Vector3 b)>();   // Splitterbahnen fuer die Trefferkamera
+        public TankController shooter;   // eigener Panzer: wird von der eigenen Granate nie getroffen
 
         /// <param name="speed">Muendungsgeschwindigkeit fuer diesen Schuss (Artillerie: je nach Treibladung); 0 = Standard der Munition</param>
         public static Shell Fire(ShellData d, Vector3 position, Vector3 direction, bool ghost = false, float speed = 0f)
@@ -92,15 +94,35 @@ namespace PanzerSim
             if (len > 0.2f) Tracers.Streak(p, velocity, len, 0.06f, Tracers.Shell);
         }
 
+        static bool BelongsTo(Collider c, TankController t)
+        {
+            if (c.attachedRigidbody != null && c.attachedRigidbody == t.rb) return true;
+            if (c.GetComponentInParent<TankController>() == t) return true;
+            var plate = c.GetComponentInParent<ArmorPlate>();
+            if (plate != null && plate.Tank == t) return true;
+            var part = c.GetComponentInParent<DestructiblePart>();
+            return part != null && part.owner == t;
+        }
+
         void FixedUpdate()
         {
             if (finished) return;
-            // Fehler beim Einschlag: Granate trotzdem beenden, sonst "trifft" sie jeden Physik-Takt erneut (Riesenexplosion, Ruckeln)
-            if (!ghost) { try { Step(); } catch (System.Exception e) { Debug.LogException(e); Finish(); } return; }
-            NetSync.GhostActive = true;      // Geister-Granate: Effekte ja, Schaden/Marken/Protokoll nein
-            try { Step(); }
-            catch (System.Exception e) { Debug.LogException(e); Finish(); }
-            finally { NetSync.GhostActive = false; }
+            Damage.Record = hitcamTank != null ? spall : null;   // Trefferkamera: Splitterbahnen dieser Granate sammeln
+            int spallBefore = spall.Count;
+            try
+            {
+                // Fehler beim Einschlag: Granate trotzdem beenden, sonst "trifft" sie jeden Physik-Takt erneut (Riesenexplosion, Ruckeln)
+                if (!ghost) { try { Step(); } catch (System.Exception e) { Debug.LogException(e); Finish(); } return; }
+                NetSync.GhostActive = true;      // Geister-Granate: Effekte ja, Schaden/Marken/Protokoll nein
+                try { Step(); }
+                catch (System.Exception e) { Debug.LogException(e); Finish(); }
+                finally { NetSync.GhostActive = false; }
+            }
+            finally
+            {
+                Damage.Record = null;
+                if (hitcamTank != null && spall.Count > spallBefore) HitCam.SetSpall(hitcamTank, spall);
+            }
         }
 
         void Step()
@@ -119,6 +141,8 @@ namespace PanzerSim
             while (remaining > 0f && guard++ < 8 &&
                    Physics.Raycast(pos, dir, out RaycastHit hit, remaining, ArmorPlate.ShotMask, QueryTriggerInteraction.Ignore))
             {
+                // eigener Panzer (Rohr, Blende, Anbauteile ...): die eigene Granate fliegt durch
+                if (shooter != null && BelongsTo(hit.collider, shooter)) { remaining -= hit.distance + 0.02f; pos = hit.point + dir * 0.02f; continue; }
                 HitModules(pos, hit.point);
                 if (velocity.sqrMagnitude < 900f) { Stop(hit.point); return; }
 
@@ -195,7 +219,7 @@ namespace PanzerSim
                 string who = tank != null ? tank.spec.name + ": " : "";
                 report.Add($"{data.name} -> {who}{plateName} ({plateMm:0} mm)\n   {r.note}. {r.penetrationMm:0} mm Durchschlag gegen " +
                            $"{r.effectiveArmorMm:0} mm effektiv, Winkel {r.impactAngleDeg:0}°, {Vector3.Distance(origin, pos):0} m");
-                if (fromPlayer && tank != null && hitcamTank == null) { hitcamTank = tank; HitCam.Begin(tank, pos, dir, r, plateName); }
+                if (fromPlayer && tank != null && hitcamTank == null) { hitcamTank = tank; HitCam.Begin(tank, pos, dir, r, plateName); Damage.Record = spall; }
 
                 // Spreng- und Hohlladungsgranaten explodieren beim Aufschlag - eigene Wirkung statt Weiterfliegen
                 if ((data.IsHE || data.IsHEAT && r.outcome != HitOutcome.Ricochet) && !plateName.StartsWith("Kette"))

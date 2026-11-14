@@ -45,7 +45,43 @@ namespace PanzerSim
             line.SetPosition(0, impactLocal - dirLocal * 1.5f);
             line.SetPosition(1, impactLocal + dirLocal * (r.outcome == HitOutcome.Penetration ? 4f : 0.05f));
             line.transform.SetParent(tank.transform, false);
+            spallUsed = 0;   // Splitter des vorigen Treffers weg
             cam.enabled = true;
+        }
+
+        // ---------- Splitter (Spall): Bahnen als orange Linien, nur in der Trefferkamera ----------
+        static readonly List<LineRenderer> spallLines = new List<LineRenderer>();
+        static int spallUsed;
+        static Material spallMat;
+
+        /// <summary>Splitterbahnen der Granate (Welt-Koordinaten) anzeigen - fahren mit dem Panzer mit.</summary>
+        public static void SetSpall(TankController tank, List<(Vector3 a, Vector3 b)> rays)
+        {
+            if (tank != target || cam == null || !cam.enabled) return;
+            if (spallMat == null)
+            {
+                spallMat = new Material(Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default"));
+                spallMat.color = new Color(1f, 0.62f, 0.15f);
+            }
+            int n = Mathf.Min(rays.Count, 80);
+            while (spallLines.Count < n)
+            {
+                var go = new GameObject("Splitterbahn");
+                Object.DontDestroyOnLoad(go);
+                var l = go.AddComponent<LineRenderer>();
+                l.useWorldSpace = false; l.positionCount = 2; l.startWidth = 0.025f; l.endWidth = 0.008f;
+                l.sharedMaterial = spallMat; l.shadowCastingMode = ShadowCastingMode.Off; l.enabled = false;
+                spallLines.Add(l);
+            }
+            for (int i = 0; i < n; i++)
+            {
+                var l = spallLines[i];
+                l.transform.SetParent(tank.transform, false);
+                l.SetPosition(0, tank.transform.InverseTransformPoint(rays[i].a));
+                l.SetPosition(1, tank.transform.InverseTransformPoint(rays[i].b));
+            }
+            spallUsed = n;
+            if (n > 0 && !details.Contains("Splitter")) details += $"\nSplitter: {n} Bahnen im Kampfraum";
         }
 
         /// <summary>Granate fertig: Schaden nachtragen.</summary>
@@ -121,6 +157,7 @@ namespace PanzerSim
                 r.enabled = true;
             }
             if (line != null) line.enabled = true;
+            for (int i = 0; i < spallUsed && i < spallLines.Count; i++) if (spallLines[i] != null) spallLines[i].enabled = true;
         }
 
         static void OnEnd(ScriptableRenderContext ctx, Camera c)
@@ -130,6 +167,7 @@ namespace PanzerSim
             foreach (var (r, on) in modules) if (r != null) r.enabled = on;
             swapped.Clear(); modules.Clear();
             if (line != null) line.enabled = false;
+            foreach (var l in spallLines) if (l != null) l.enabled = false;
         }
 
         class Runner : MonoBehaviour
