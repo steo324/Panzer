@@ -23,6 +23,7 @@ namespace PanzerSim
 
         int tankIndex, mapIndex;
         int nationTab = -1;   // Reiter in der Panzerauswahl (-1 = Nation des gewaehlten Panzers)
+        bool waveMode;        // Einzelspieler: Wellen gegen KI-Panzer statt Zielpanzer
         static readonly string[] NationNames = { "Deutschland", "USA", "UdSSR", "UK" };
         GameMap map;
         public GameMap CurrentMap => map;
@@ -88,6 +89,7 @@ namespace PanzerSim
                 b.preset = int.TryParse(Arg("-preset"), out int bp) ? Mathf.Clamp(bp, 0, 3) : -1;
                 TankController.BenchDrive = Has("-benchdrive");
                 TankController.BenchMg = Has("-benchmg");
+                if (Has("-waves")) waveMode = true;   // Test: Wellen-Modus
                 if (int.TryParse(Arg("-tageszeit"), out int tod)) GameSettings.TimeOfDay = Mathf.Clamp(tod, 0, 3);   // Test: Tageszeit fuer Bilder
                 TankCamera.BenchSight = Has("-benchsight");
                 TankCamera.BenchThermal = Has("-benchthermal");
@@ -358,7 +360,8 @@ namespace PanzerSim
         {
             BuildMap(mapIndex);
             SpawnPlayer();
-            SpawnTargets();
+            if (waveMode) { foreach (var t in targets) if (t != null) Destroy(t.gameObject); targets.Clear(); WaveMode.Begin(map, () => player); }
+            else { WaveMode.Stop(); SpawnTargets(); }
             EnterPlaying();
             OpenSpawnSelect();
         }
@@ -401,6 +404,7 @@ namespace PanzerSim
                 if (go.name == "Treffer" || go.name == "Splitter") Destroy(go);
             RenderSettings.fog = false;
             RangeLog.Lines.Clear();
+            WaveMode.Stop();
         }
 
         // ================= Eingabe =================
@@ -468,6 +472,17 @@ namespace PanzerSim
             {
                 // Mehrspieler: neuer Panzer nur, wenn der eigene zerstoert ist (Server erzeugt ihn)
                 if (localNet != null && (player == null || player.destroyed)) localNet.RequestRespawn();
+            }
+            else if (Inp.Down(KeyCode.N) && WaveMode.On)
+            {
+                // Wellen-Modus: N nur nach dem Ende (eigener Panzer ausgeschaltet) - dann neues Spiel ab Welle 1
+                if (player == null || player.destroyed)
+                {
+                    SpawnPlayer();
+                    WaveMode.Restart();
+                    RangeLog.Lines.Clear();
+                    OpenSpawnSelect();
+                }
             }
             else if (Inp.Down(KeyCode.N))
             {
@@ -647,6 +662,14 @@ namespace PanzerSim
                 if (GUILayout.Button(maps[i].Name, i == mapIndex ? btnSel : btn, GUILayout.Height(44))) mapIndex = i;
             GUILayout.Space(14);
             GUILayout.Label(maps[mapIndex].Description, text);
+
+            // ---- Spielmodus (Einzelspieler) ----
+            GUILayout.Space(10);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Freies Spiel", !waveMode ? btnSel : btn, GUILayout.Height(40))) waveMode = false;
+            if (GUILayout.Button("Wellen gegen KI", waveMode ? btnSel : btn, GUILayout.Height(40))) waveMode = true;
+            GUILayout.EndHorizontal();
+            if (waveMode) GUILayout.Label("KI-Panzer greifen in Wellen an, jede Welle mehr und staerker. Zwischen den Wellen wird repariert.", text);
 
             // ---- Mehrspieler ----
             GUILayout.Space(16);

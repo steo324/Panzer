@@ -213,11 +213,23 @@ namespace PanzerSim
 
                 AimTurret(dt);
             }
+            else if (ai != null)
+            {
+                ai.Tick(dt);       // KI setzt Gas/Lenkung, Zielpunkt, Visier-Entfernung und feuert
+                AimTurret(dt);
+            }
             else
             {
                 throttle = 0f; steer = 0f; brake = true;
             }
         }
+
+        // ---- KI-Steuerung (Wellen-Modus) ----
+        [HideInInspector] public TankAI ai;
+        public void AiControl(float th, float st, bool br) { throttle = Mathf.Clamp(th, -1f, 1f); steer = Mathf.Clamp(st, -1f, 1f); brake = br; }
+        public void AiFire() { if (reloadLeft <= 0f && !destroyed) TryFire(); }
+        /// <summary>Alles reparieren (Wellen-Modus: nach jeder geschafften Welle).</summary>
+        public void FullRepair() => RepairAll();
 
         // Auspuff: laufender Motor qualmt leicht (mehr beim Gasgeben); ausgeschaltete Panzer nicht mehr - man sieht, dass der Motor aus ist
         float exhaustAcc, lastSpeed, dustAcc;

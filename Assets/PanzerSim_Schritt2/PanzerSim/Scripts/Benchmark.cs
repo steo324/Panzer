@@ -42,6 +42,21 @@ namespace PanzerSim
             }
             if (cam != null && pl != null) cam.SetView(pl.transform.eulerAngles.y + camOff, camPitch);   // Standard: zum Horizont schauen
 
+            // -benchwaves: Wellen-Modus laufen lassen und alle 8 s protokollieren (mit -autofire schiesst der Spieler zurueck)
+            if (System.Array.IndexOf(args, "-benchwaves") >= 0 && pl != null)
+            {
+                for (int s = 0; s < 12; s++)
+                {
+                    yield return new WaitForSeconds(8f);
+                    string near = "";
+                    foreach (var e in WaveMode.Enemies)
+                        if (e != null) near += $" [{e.spec.name}: {Vector3.Distance(e.transform.position, pl.transform.position):0} m, {e.SpeedKmh:0} km/h, Laden {e.reloadLeft:0.0}, {(e.ai != null ? e.ai.DebugText : "")}]";
+                    Debug.Log($"BENCH-WAVES t={(s + 1) * 8}s: Welle {WaveMode.Wave}, Gegner {WaveMode.EnemyCount}, Abschuesse {WaveMode.Kills}, Spieler zerstoert {pl.destroyed}{near}");
+                    if (s == 3 && !string.IsNullOrEmpty(outDir)) { System.IO.Directory.CreateDirectory(outDir); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, "welle.png")); }
+                }
+                for (int i = RangeLog.Lines.Count - 1; i >= 0 && i > RangeLog.Lines.Count - 25; i--) Debug.Log("BENCH-WAVES Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
+            }
+
             // -benchwobble: Zittern von Wanne und Rohr waehrend der Fahrt messen (Abweichung vom geglaetteten Neigungswinkel)
             if (System.Array.IndexOf(args, "-noroughness") >= 0) TankController.GroundRoughness = 0f;
             if (System.Array.IndexOf(args, "-benchwobble") >= 0 && pl != null)
