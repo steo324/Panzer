@@ -289,6 +289,12 @@ namespace PanzerSim
             Transform hull = parts.turret.parent;
             Vector3 local = hull.InverseTransformPoint(aim) - parts.turret.localPosition;
             float wantYaw = Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg;
+            // Ohne Stabilisator kurbelt der Richtschuetze von Hand nach: in Fahrt kommt er den Stoessen der Wanne nur verzoegert
+            // hinterher (bis ~0,3 s), das Rohr schaukelt mit. Im Stand keine Verzoegerung.
+            float lagTau = spec.stabilizer ? 0f : Mathf.Lerp(0f, 0.3f, Mathf.InverseLerp(2f, 20f, SpeedKmh));
+            float lagA = lagTau > 0.001f ? 1f - Mathf.Exp(-dt / lagTau) : 1f;
+            if (!hasLag) { lagYaw = wantYaw; }
+            lagYaw = Mathf.LerpAngle(lagYaw, wantYaw, lagA); wantYaw = lagYaw;
             float yaw = parts.turret.localEulerAngles.y;
             if (stab) { Vector3 h = hull.InverseTransformDirection(lastGunDir); yaw = Mathf.Atan2(h.x, h.z) * Mathf.Rad2Deg; }
             yaw = Mathf.MoveTowardsAngle(yaw, wantYaw, traverse * dt);
@@ -299,6 +305,8 @@ namespace PanzerSim
             float wantElev = Mathf.Atan2(g.y, new Vector2(g.x, g.z).magnitude) * Mathf.Rad2Deg + superElevationDeg;
             // Freigang ueber der Wanne (z. B. erhoehtes Motordeck hinten): je nach Turmwinkel hoechstens so tief
             float minE = MinElevationAt(yaw);
+            if (!hasLag) { lagElev = wantElev; hasLag = true; }
+            lagElev = Mathf.Lerp(lagElev, wantElev, lagA); wantElev = lagElev;
             wantElev = Mathf.Clamp(wantElev, minE, spec.maxElevation);
             float elev = -parts.gunPivot.localEulerAngles.x;
             elev = Mathf.DeltaAngle(0f, elev);
@@ -327,6 +335,7 @@ namespace PanzerSim
         }
 
         Vector3 lastGunDir; bool hasLastGunDir;
+        float lagYaw, lagElev; bool hasLag;   // Handrichtung ohne Stabilisator: verzoegerte Sollwerte
         /// <summary>Feuerleitrechner: beim Lasern gemessene Zielgeschwindigkeit (Vorhalt), gilt bis leadUntil.</summary>
         [HideInInspector] public Vector3 leadVelocity;
         [HideInInspector] public float leadUntil;
@@ -605,6 +614,19 @@ namespace PanzerSim
         }
 
         // =============== Fahrphysik ===============
+        /// <summary>
+        /// Rauer Boden: kleine Unebenheiten unter jeder Laufrolle (m), fest an der Weltposition - im Stand ruhig, in Fahrt
+        /// folgen sie immer schneller aufeinander und die Wanne nickt/schaukelt. Ohne Stabilisator wackelt damit das Rohr.
+        /// ~5 cm Wellen alle 1-2 m, dazu ~1,5 cm feines Gerappel.
+        /// </summary>
+        public static float GroundRoughness = 1f;
+        static float GroundBump(Vector3 p)
+        {
+            float big = Mathf.PerlinNoise(p.x * 0.62f + 113.1f, p.z * 0.62f + 57.3f) - 0.5f;
+            float fine = Mathf.PerlinNoise(p.x * 2.9f + 7.7f, p.z * 2.9f + 301.9f) - 0.5f;
+            return (big * 0.10f + fine * 0.03f) * GroundRoughness;
+        }
+
         void FixedUpdate()
         {
             if (spec == null) return;
@@ -650,7 +672,7 @@ namespace PanzerSim
 
                 // Federung (Kettenspitzen: beginnen erst hoeher zu greifen, dafuer steifer)
                 float ch = contactHeights[i];
-                float compression = rest - ch - h.distance;
+                float compression = rest - ch - h.distance + GroundBump(h.point);
                 if (ch > 0.001f) compression *= 2f;
                 if (compression <= 0f) continue;
                 float vN = Vector3.Dot(pv, h.normal);

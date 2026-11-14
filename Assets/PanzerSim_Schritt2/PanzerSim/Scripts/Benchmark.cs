@@ -42,6 +42,24 @@ namespace PanzerSim
             }
             if (cam != null && pl != null) cam.SetView(pl.transform.eulerAngles.y + camOff, camPitch);   // Standard: zum Horizont schauen
 
+            // -benchwobble: Zittern von Wanne und Rohr waehrend der Fahrt messen (Abweichung vom geglaetteten Neigungswinkel)
+            if (System.Array.IndexOf(args, "-noroughness") >= 0) TankController.GroundRoughness = 0f;
+            if (System.Array.IndexOf(args, "-benchwobble") >= 0 && pl != null)
+            {
+                yield return new WaitForSeconds(4f);   // anfahren
+                float emaH = 0f, emaG = 0f, sumH = 0f, sumG = 0f, sumV = 0f; int cnt = 0; bool first = true;
+                for (float w = 0f; w < 8f; w += Time.deltaTime)
+                {
+                    float hp = Mathf.Asin(Mathf.Clamp(pl.transform.forward.y, -1f, 1f)) * Mathf.Rad2Deg;
+                    float gp = Mathf.Asin(Mathf.Clamp(pl.parts.gunPivot.forward.y, -1f, 1f)) * Mathf.Rad2Deg;
+                    if (first) { emaH = hp; emaG = gp; first = false; }
+                    emaH = Mathf.Lerp(emaH, hp, 0.05f); emaG = Mathf.Lerp(emaG, gp, 0.05f);
+                    sumH += Mathf.Abs(hp - emaH); sumG += Mathf.Abs(gp - emaG); sumV += pl.SpeedKmh; cnt++;
+                    yield return null;
+                }
+                Debug.Log($"BENCH-WOBBLE: {pl.spec.name} (Stabilisator {pl.spec.stabilizer}, Rauheit {TankController.GroundRoughness}) bei {sumV / cnt:0} km/h: Wanne {sumH / cnt:0.000} Grad, Rohr {sumG / cnt:0.000} Grad");
+            }
+
             // -benchbarrel: auf das Rohr des naechsten Zielpanzers schiessen, Motor beschaedigen, Reparatur pruefen
             if (System.Array.IndexOf(args, "-benchbarrel") >= 0 && pl != null)
             {
