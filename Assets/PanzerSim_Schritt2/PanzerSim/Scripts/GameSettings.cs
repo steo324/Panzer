@@ -148,6 +148,9 @@ namespace PanzerSim
 
         // ---------------- Anwenden ----------------
 
+        /// <summary>Randloses Vollbild mit kleinerer Aufloesung: Anteil der Bildschirmaufloesung (1 = volle).</summary>
+        public static float ResFactor = 1f;
+
         public static void Apply(bool includeResolution)
         {
             QualitySettings.vSyncCount = VSync ? 1 : 0;
@@ -156,18 +159,31 @@ namespace PanzerSim
             if (includeResolution)
             {
                 var mode = WindowMode == 0 ? FullScreenMode.FullScreenWindow : WindowMode == 1 ? FullScreenMode.ExclusiveFullScreen : FullScreenMode.Windowed;
+                // Linux kennt kein echtes exklusives Vollbild: wie randlos behandeln
+                if (mode == FullScreenMode.ExclusiveFullScreen && Application.platform == RuntimePlatform.LinuxPlayer) mode = FullScreenMode.FullScreenWindow;
                 int w = ResW, h = ResH;
-                if (w <= 0 || h <= 0) { w = Screen.currentResolution.width; h = Screen.currentResolution.height; }
+                int nw = Screen.currentResolution.width, nh = Screen.currentResolution.height;
+                ResFactor = 1f;
+                if (mode == FullScreenMode.FullScreenWindow && w > 0 && h > 0 && nh > 0)
+                {
+                    // Randlos: Fenster bleibt so gross wie der Bildschirm (sonst skaliert das System hoch und die Maus trifft
+                    // unter Linux nicht mehr - nichts laesst sich anklicken); die gewaehlte Aufloesung wirkt als Render-Aufloesung
+                    ResFactor = Mathf.Clamp((float)h / nh, 0.25f, 1f);
+                    w = nw; h = nh;
+                }
+                if (w <= 0 || h <= 0) { w = nw; h = nh; }
                 if (WindowMode == 2 && ResW <= 0) { w = Mathf.RoundToInt(w * 0.8f); h = Mathf.RoundToInt(h * 0.8f); }
                 if (!Application.isEditor) Screen.SetResolution(w, h, mode);
+                Debug.Log($"Aufloesung: Fenster {w} x {h} ({mode}), intern {ResFactor * 100f:0} %");
             }
 
             var urp = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
             if (urp != null)
             {
                 Remember(urp);
-                urp.renderScale = Mathf.Clamp(RenderScale, 0.5f, 2f);
-                SetProp(urp, "upscalingFilter", RenderScale < 0.99f && Fsr ? 3 : 0);   // 3 = FSR, 0 = Automatisch
+                float eff = RenderScale * ResFactor;   // randlos mit kleinerer Aufloesung: intern kleiner rechnen
+                urp.renderScale = Mathf.Clamp(eff, 0.25f, 2f);
+                SetProp(urp, "upscalingFilter", eff < 0.99f && Fsr ? 3 : 0);   // 3 = FSR, 0 = Automatisch
                 urp.msaaSampleCount = AntiAliasing == 3 ? 4 : 1;
                 SetPropObj(urp, "supportsMainLightShadows", Shadows > 0);
                 urp.shadowDistance = Shadows switch { 1 => 120f, 2 => 250f, _ => 400f };
