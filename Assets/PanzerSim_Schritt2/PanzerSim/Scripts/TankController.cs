@@ -89,23 +89,54 @@ namespace PanzerSim
         public string WeaponName => weapon == 1 && Gun2 != null ? Gun2.gunName : "Hauptwaffe";
         // ---- Maschinenkanone (z. B. Gepard): Dauerfeuer, Gurte je Munitionssorte, Zwillingsrohre ----
         public bool AutoGun => spec.autoFireRate > 0f && weapon == 0;
-        int[] rounds;          // Schuss im Gurt je Munitionssorte (Index wie spec.ammo)
         bool fxRight;          // Zwillingskanone: welches Rohr zuletzt
-        int AmmoSlotIndex => spec.ammo != null ? System.Array.IndexOf(spec.ammo, ammoIndex) : -1;
-        /// <summary>Schuss im Gurt der geladenen Sorte (-1 = keine Maschinenkanone).</summary>
-        public int RoundsLeft { get { int i = AmmoSlotIndex; return AutoGun && rounds != null && i >= 0 && i < rounds.Length ? rounds[i] : -1; } }
-        /// <summary>Laedt gerade (Maschinenkanone: nur beim Gurtwechsel/Nachladen, nicht zwischen zwei Schuessen).</summary>
+        /// <summary>Laedt gerade (Maschinenkanone: nicht zwischen zwei Schuessen).</summary>
         public bool Reloading => reloadLeft > (AutoGun ? 0.25f : 0f);
+
+        // ---- Munitionsvorrat: Granaten je Sorte an Bord (Spieler: eigene Mischung aus dem Menue, sonst Standard) ----
+        int[] rounds, rounds2;   // Index wie spec.ammo bzw. Gun2.gunAmmo
         void EnsureRounds()
         {
-            if (rounds != null || spec.magazine == null) return;
-            rounds = (int[])spec.magazine.Clone();
+            if (rounds != null) return;
+            rounds = isPlayer ? Loadouts.Main(spec) : Loadouts.DefaultMain(spec);
+            rounds2 = Gun2 != null ? (isPlayer ? Loadouts.Gun2Load(spec) : Loadouts.DefaultGun2(spec)) : null;
+            // geladene Sorte leer (z. B. Gepard nur mit Hartkern): erste Sorte mit Granaten nehmen
+            int[] list = AmmoLoadout; int i = System.Array.IndexOf(list, ammoIndex);
+            if (weapon == 0 && i >= 0 && i < rounds.Length && rounds[i] == 0)
+                for (int k = 0; k < rounds.Length && k < list.Length; k++) if (rounds[k] > 0) { ammoIndex = list[k]; break; }
         }
+        int CountIndex(out int[] arr)
+        {
+            EnsureRounds();
+            arr = weapon == 1 ? rounds2 : rounds;
+            return System.Array.IndexOf(AmmoLoadout, ammoIndex);
+        }
+        /// <summary>Granaten der geladenen Sorte an Bord (-1 = unbegrenzt).</summary>
+        public int RoundsLeft { get { int i = CountIndex(out var a); return a != null && i >= 0 && i < a.Length ? a[i] : -1; } }
+        /// <summary>Granaten einer Sorte (Taste 1, 2 ... = slot 0, 1 ...) der gewaehlten Waffe.</summary>
+        public int RoundsInSlot(int slot) { CountIndex(out var a); return a != null && slot >= 0 && slot < a.Length ? a[slot] : -1; }
+        /// <summary>Eine Granate entnehmen; false = keine mehr von dieser Sorte.</summary>
+        bool TakeRound()
+        {
+            int i = CountIndex(out var a);
+            if (a == null || i < 0 || i >= a.Length) return true;
+            if (a[i] <= 0) { if (isPlayer && Time.time > emptyMsgT) { RangeLog.AddLocal($"Keine {Ammo.name} mehr an Bord! (1, 2 ...: andere Sorte)"); emptyMsgT = Time.time + 2f; } return false; }
+            a[i]--;
+            return true;
+        }
+        float emptyMsgT;
+        /// <summary>Munition wieder auffuellen (Wellen-Modus zwischen den Wellen).</summary>
+        public void RefillAmmo() { rounds = null; rounds2 = null; }
 
         void SwitchWeapon()
         {
             var g = Gun2; if (g == null) return;
-            if (ammoOther < 0) { ammoOther = g.gunAmmo[0]; reloadOther = 0f; }
+            if (ammoOther < 0)
+            {
+                EnsureRounds();
+                ammoOther = g.gunAmmo[0]; reloadOther = 0f;
+                if (rounds2 != null) for (int k = 0; k < rounds2.Length; k++) if (rounds2[k] > 0) { ammoOther = g.gunAmmo[k]; break; }
+            }
             int a = ammoIndex; ammoIndex = ammoOther; ammoOther = a;
             float r = reloadLeft; reloadLeft = reloadOther; reloadOther = r;
             weapon = 1 - weapon;
@@ -264,7 +295,7 @@ namespace PanzerSim
         public void AiControl(float th, float st, bool br) { throttle = Mathf.Clamp(th, -1f, 1f); steer = Mathf.Clamp(st, -1f, 1f); brake = br; }
         public void AiFire() { if (reloadLeft <= 0f && !destroyed) TryFire(); }
         /// <summary>Alles reparieren (Wellen-Modus: nach jeder geschafften Welle).</summary>
-        public void FullRepair() => RepairAll();
+        public void FullRepair() { RepairAll(); RefillAmmo(); }
 
         // Auspuff: laufender Motor qualmt leicht (mehr beim Gasgeben); ausgeschaltete Panzer nicht mehr - man sieht, dass der Motor aus ist
         float exhaustAcc, lastSpeed, dustAcc;
@@ -399,6 +430,7 @@ namespace PanzerSim
             if (!SeatActive(ModuleType.Gunner)) { RangeLog.Add(SeatOk(ModuleType.Gunner) ? "Richtschuetze bewusstlos!" : "Kein Richtschuetze!"); return; }
             if (Ammo.guided)
             {
+                if (!TakeRound()) return;
                 reloadLeft = spec.reloadS;
                 activeMissile = GuidedMissile.Launch(this, ammoIndex);
                 return;
@@ -407,21 +439,13 @@ namespace PanzerSim
 
             if (!Working(ModuleType.Barrel)) { RangeLog.Add("Rohr zerstoert - Kanone kann nicht feuern! [G] reparieren"); return; }
 
+            if (!TakeRound()) return;
             reloadLeft = spec.reloadS;   // zuerst: auch wenn danach ein Effekt scheitert, wird nachgeladen
             Vector3 origin = parts.muzzle.position, dir = parts.gunPivot.forward;
             if (AutoGun)
             {
-                // Maschinenkanone: naechster Schuss nach 1/Kadenz; Gurt leer -> Nachladen (reloadS)
-                EnsureRounds();
-                int si = AmmoSlotIndex;
-                if (rounds != null && si >= 0 && si < rounds.Length)
-                {
-                    if (rounds[si] <= 0) { rounds[si] = spec.magazine[si]; RangeLog.AddLocal($"{Ammo.name}: Gurt nachgeladen"); return; }
-                    rounds[si]--;
-                    reloadLeft = rounds[si] > 0 ? 1f / spec.autoFireRate : spec.reloadS;
-                    if (rounds[si] == 0 && isPlayer) RangeLog.AddLocal($"{Ammo.name} leer - lade nach ({spec.reloadS:0} s)");
-                }
-                else reloadLeft = 1f / spec.autoFireRate;
+                // Maschinenkanone: naechster Schuss nach 1/Kadenz
+                reloadLeft = 1f / spec.autoFireRate;
                 dir = Quaternion.Euler(Random.Range(-1f, 1f) * 0.12f, Random.Range(-1f, 1f) * 0.12f, 0f) * dir;   // Streuung der Waffe
             }
             if (spec.twinGunX > 0f) origin += parts.gunPivot.right * ((!fxRight) ? spec.twinGunX : -spec.twinGunX);   // PlayFireEffects schaltet fxRight gleich um
@@ -447,6 +471,7 @@ namespace PanzerSim
             var g = Gun2;
             if (visual == null || !visual.GunMount(out Vector3 origin, out Vector3 fwd)) { RangeLog.AddLocal(g.gunName + ": nicht bereit"); return; }
             if (!SeatActive(ModuleType.Commander) && !SeatActive(ModuleType.Gunner)) { RangeLog.Add("Niemand am " + g.gunName + "!"); return; }
+            if (!TakeRound()) return;
             reloadLeft = g.gunReloadS;
             float range = Mathf.Max(20f, Vector3.Distance(origin, aimPoint));
             Vector3 right = Vector3.Cross(Vector3.up, fwd);

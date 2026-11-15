@@ -55,7 +55,8 @@ namespace PanzerSim
         public int[] ammo;          // Granaten, die diese Kanone verschiesst (Indizes in AmmoLibrary.All); Taste 1, 2, ...
         public float reloadS;
         public float autoFireRate;           // Maschinenkanone: Schuss/s, solange die linke Maustaste gedrueckt ist (0 = Einzelschuss)
-        public int[] magazine;               // Maschinenkanone: Schuss je Munitionssorte (wie ammo); leer -> reloadS lang nachladen
+        public int ammoCapacity;             // Granaten an Bord (echter Vorrat); die Mischung stellt der Spieler im Menue ein
+        public int[] defaultLoad;            // Standard-Mischung (wie ammo); ohne Angabe: erste Sorte die Haelfte, Rest gleich verteilt
         public float twinGunX;               // Zwillingskanone: Schuesse abwechselnd aus dem linken/rechten Rohr (Abstand zur Mitte, m)
         public float barrelLength;
         public bool noGun;                   // (noch) keine Hauptwaffe: Feuern und MG aus (Wiesel: TOW-Lenkrakete folgt)
@@ -137,6 +138,7 @@ namespace PanzerSim
         // zweite Kanone auf dieser Lafette (Taste T schaltet um): Munition, Ladezeit, Name
         public int[] gunAmmo;
         public float gunReloadS = 3f;
+        public int gunCapacity;               // Granaten fuer diese Kanone an Bord
         public string gunName;
     }
 
@@ -159,7 +161,7 @@ namespace PanzerSim
             turretFront = new Armor(100, 0), turretSide = new Armor(80, 0), turretRear = new Armor(80, 0),
             turretRoof = new Armor(25, 0), mantlet = new Armor(110, 0),
             traverseDegS = 7f, elevationDegS = 4f, minElevation = -8f, maxElevation = 15f,
-            ammoIndex = 1, ammo = new[] { 1, 11, 12 }, reloadS = 8.5f, barrelLength = 3.9f, muzzleBrake = true, gunPivotFromModel = true,
+            ammoCapacity = 92, ammoIndex = 1, ammo = new[] { 1, 11, 12 }, reloadS = 8.5f, barrelLength = 3.9f, muzzleBrake = true, gunPivotFromModel = true,
             sightType = SightType.German, sightFov = 25f, sightMag = 2.5f, sightName = "TZF 9c",
             sightZoomFov = new[] { 25f, 14f }, sightZoomMag = new[] { 2.5f, 5f },
             modelResource = "Modelle/Tiger", modelScale = 1f,
@@ -193,7 +195,7 @@ namespace PanzerSim
             turretFront = new Armor(180, 9), turretSide = new Armor(80, 21), turretRear = new Armor(80, 20),
             turretRoof = new Armor(44, 0), mantlet = new Armor(150, 0, ArmorMaterial.Cast),   // "Saukopf"-Blende
             traverseDegS = 6f, elevationDegS = 4f, minElevation = -8f, maxElevation = 15f,    // hydraulisch, vom Motor angetrieben
-            ammoIndex = 18, ammo = new[] { 18, 19, 20 }, reloadS = 8f, barrelLength = 4.6f, muzzleBrake = true, gunPivotFromModel = true,
+            ammoCapacity = 86, ammoIndex = 18, ammo = new[] { 18, 19, 20 }, reloadS = 8f, barrelLength = 4.6f, muzzleBrake = true, gunPivotFromModel = true,
             // TZF 9d: umschaltbar 3- / 6-fach
             sightType = SightType.German, sightFov = 23f, sightMag = 3f, sightName = "TZF 9d",
             sightZoomFov = new[] { 23f, 11.5f }, sightZoomMag = new[] { 3f, 6f },
@@ -224,7 +226,7 @@ namespace PanzerSim
             turretFront = new Armor(57, 15), turretSide = new Armor(30, 25), turretRear = new Armor(30, 12),
             turretRoof = new Armor(10, 0), mantlet = new Armor(50, 0),
             traverseDegS = 10f, elevationDegS = 5f, minElevation = -10f, maxElevation = 20f,
-            ammoIndex = 21, ammo = new[] { 21, 22 }, reloadS = 4.5f, barrelLength = 2.6f, gunPivotFromModel = true,
+            ammoCapacity = 84, ammoIndex = 21, ammo = new[] { 21, 22 }, reloadS = 4.5f, barrelLength = 2.6f, gunPivotFromModel = true,
             sightType = SightType.German, sightFov = 25f, sightMag = 2.5f, sightName = "TZF 5e",
             modelResource = "Modelle/PanzerIII", modelScale = 1f,
             modelTurretBone = "turret", modelGunBone = "cannon",
@@ -254,7 +256,7 @@ namespace PanzerSim
             turretFront = new Armor(110, 11, ArmorMaterial.Cast), turretSide = new Armor(45, 25), turretRear = new Armor(45, 25),
             turretRoof = new Armor(16, 0), mantlet = new Armor(100, 0, ArmorMaterial.Cast),
             traverseDegS = 18f, elevationDegS = 5f, minElevation = -8f, maxElevation = 18f,   // hydraulisch, abhaengig von der Motordrehzahl
-            ammoIndex = 23, ammo = new[] { 23, 24 }, reloadS = 6.5f, barrelLength = 3.97f, muzzleBrake = true, gunPivotFromModel = true,
+            ammoCapacity = 79, ammoIndex = 23, ammo = new[] { 23, 24 }, reloadS = 6.5f, barrelLength = 3.97f, muzzleBrake = true, gunPivotFromModel = true,
             // TZF 12a: umschaltbar 2,5- / 5-fach
             sightType = SightType.German, sightFov = 30f, sightMag = 2.5f, sightName = "TZF 12a",
             sightZoomFov = new[] { 30f, 15f }, sightZoomMag = new[] { 2.5f, 5f },
@@ -294,7 +296,7 @@ namespace PanzerSim
             traverseDegS = 40f, elevationDegS = 16f, minElevation = -9f, maxElevation = 20f,   // elektrisch, 360 Grad in ~9 s
             stabilizer = true, fireControl = true, hasRangefinder = true, hasThermal = true,
             // Ladeschuetze von Hand: ~5 s
-            ammoIndex = 47, ammo = new[] { 47, 48, 49 }, reloadS = 5f, barrelLength = 5.1f, gunPivotFromModel = true, mgType = 6,
+            ammoCapacity = 42, ammoIndex = 47, ammo = new[] { 47, 48, 49 }, reloadS = 5f, barrelLength = 5.1f, gunPivotFromModel = true, mgType = 6,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             // EMES 15: Tagkanal 12-fach, Waermebild (Taste V) umschaltbar 4- / 12-fach
             sightType = SightType.German, sightFov = 5f, sightMag = 12f, sightName = "EMES 15",
@@ -331,7 +333,7 @@ namespace PanzerSim
             traverseDegS = 36f, elevationDegS = 14f, minElevation = -8f, maxElevation = 18f,
             stabilizer = true, fireControl = true, hasRangefinder = true, hasThermal = true,
             // Ladeautomat fuer die getrennte 140-mm-Munition: ~7 s
-            ammoIndex = 50, ammo = new[] { 50, 51, 52 }, reloadS = 7f, barrelLength = 5.9f, gunPivotFromModel = true, mgType = 6,
+            ammoCapacity = 32, ammoIndex = 50, ammo = new[] { 50, 51, 52 }, reloadS = 7f, barrelLength = 5.9f, gunPivotFromModel = true, mgType = 6,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             sightType = SightType.German, sightFov = 5f, sightMag = 12f, sightName = "EMES 15",
             sightZoomFov = new[] { 14f, 5f }, sightZoomMag = new[] { 4f, 12f },
@@ -365,7 +367,7 @@ namespace PanzerSim
             turretFront = new Armor(90, 15), turretSide = new Armor(75, 15), turretRear = new Armor(75, 15),
             turretRoof = new Armor(30, 0), mantlet = new Armor(90, 0, ArmorMaterial.Cast),
             traverseDegS = 12f, elevationDegS = 5f, minElevation = -5f, maxElevation = 25f,   // elektrischer Turmantrieb
-            ammoIndex = 25, ammo = new[] { 25, 26 }, reloadS = 6f, barrelLength = 1.73f, gunPivotFromModel = true, mgType = 1,
+            ammoCapacity = 111, ammoIndex = 25, ammo = new[] { 25, 26 }, reloadS = 6f, barrelLength = 1.73f, gunPivotFromModel = true, mgType = 1,
             // TOD-6: 2,5-fach, 26 Grad
             sightType = SightType.Soviet, sightFov = 26f, sightMag = 2.5f, sightName = "TOD-6",
             modelResource = "Modelle/KV1", modelScale = 1f,
@@ -392,7 +394,7 @@ namespace PanzerSim
             turretFront = new Armor(100, 0, ArmorMaterial.Cast), turretSide = new Armor(90, 20, ArmorMaterial.Cast),
             turretRear = new Armor(90, 30, ArmorMaterial.Cast), turretRoof = new Armor(30, 0), mantlet = new Armor(100, 0, ArmorMaterial.Cast),
             traverseDegS = 14f, elevationDegS = 5f, minElevation = -5f, maxElevation = 25f,
-            ammoIndex = 27, ammo = new[] { 27, 28, 29 }, reloadS = 8f, barrelLength = 2.79f, gunPivotFromModel = true, mgType = 1,
+            ammoCapacity = 59, ammoIndex = 27, ammo = new[] { 27, 28, 29 }, reloadS = 8f, barrelLength = 2.79f, gunPivotFromModel = true, mgType = 1,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             // TSh-17: 4-fach, 16 Grad
             sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-17",
@@ -421,7 +423,7 @@ namespace PanzerSim
             turretRear = new Armor(90, 30, ArmorMaterial.Cast), turretRoof = new Armor(30, 0), mantlet = new Armor(100, 0, ArmorMaterial.Cast),
             traverseDegS = 14f, elevationDegS = 4f, minElevation = -3f, maxElevation = 20f,
             // getrennte Munition (Geschoss + Kartusche), Keilverschluss: 2-3 Schuss/min
-            ammoIndex = 31, ammo = new[] { 31, 30, 32 }, reloadS = 20f, barrelLength = 4.1f, muzzleBrake = true, gunPivotFromModel = true, mgType = 1,
+            ammoCapacity = 28, ammoIndex = 31, ammo = new[] { 31, 30, 32 }, reloadS = 20f, barrelLength = 4.1f, muzzleBrake = true, gunPivotFromModel = true, mgType = 1,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-17",
             modelResource = "Modelle/IS2", modelScale = 1f,
@@ -448,7 +450,7 @@ namespace PanzerSim
             turretFront = new Armor(220, 0, ArmorMaterial.Cast), turretSide = new Armor(150, 30, ArmorMaterial.Cast),
             turretRear = new Armor(100, 30, ArmorMaterial.Cast), turretRoof = new Armor(30, 0), mantlet = new Armor(250, 0, ArmorMaterial.Cast),
             traverseDegS = 14f, elevationDegS = 4f, minElevation = -3f, maxElevation = 20f,
-            ammoIndex = 31, ammo = new[] { 31, 30, 32 }, reloadS = 20f, barrelLength = 4.16f, muzzleBrake = true, gunPivotFromModel = true, mgType = 1,
+            ammoCapacity = 28, ammoIndex = 31, ammo = new[] { 31, 30, 32 }, reloadS = 20f, barrelLength = 4.16f, muzzleBrake = true, gunPivotFromModel = true, mgType = 1,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-17",
             modelResource = "Modelle/IS3", modelScale = 1f,
@@ -476,7 +478,7 @@ namespace PanzerSim
             turretRear = new Armor(80, 30, ArmorMaterial.Cast), turretRoof = new Armor(40, 0), mantlet = new Armor(250, 0, ArmorMaterial.Cast),
             traverseDegS = 16f, elevationDegS = 4f, minElevation = -3f, maxElevation = 17f,
             // Ansetzer: 3-4 Schuss/min
-            ammoIndex = 31, ammo = new[] { 31, 30, 32 }, reloadS = 15f, barrelLength = 3.47f, muzzleBrake = true, gunPivotFromModel = true, mgType = 2,
+            ammoCapacity = 30, ammoIndex = 31, ammo = new[] { 31, 30, 32 }, reloadS = 15f, barrelLength = 3.47f, muzzleBrake = true, gunPivotFromModel = true, mgType = 2,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             // TSh2-27: umschaltbar 3,1- / 6,2-fach
             sightType = SightType.Soviet, sightFov = 22f, sightMag = 3.1f, sightName = "TSh2-27",
@@ -506,7 +508,7 @@ namespace PanzerSim
             turretRear = new Armor(80, 30, ArmorMaterial.Cast), turretRoof = new Armor(40, 0), mantlet = new Armor(250, 0, ArmorMaterial.Cast),
             traverseDegS = 18f, elevationDegS = 5f, minElevation = -3f, maxElevation = 17f,   // Stabilisator "Liwen"
             // mechanisierte Ladehilfe: ~5 Schuss/min
-            ammoIndex = 33, ammo = new[] { 33, 35, 34 }, reloadS = 12f, barrelLength = 4.2f, muzzleBrake = true, gunPivotFromModel = true, mgType = 3,
+            ammoCapacity = 30, ammoIndex = 33, ammo = new[] { 33, 35, 34 }, reloadS = 12f, barrelLength = 4.2f, muzzleBrake = true, gunPivotFromModel = true, mgType = 3,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             // T2S-29-14: stabilisiertes Periskop, 3,1- / 8-fach
             sightType = SightType.Soviet, sightFov = 20f, sightMag = 3.1f, sightName = "T2S-29-14",
@@ -540,7 +542,7 @@ namespace PanzerSim
             turretFront = new Armor(50, 11), turretSide = new Armor(30, 25), turretRear = new Armor(30, 15),
             turretRoof = new Armor(10, 0), mantlet = new Armor(50, 0),
             traverseDegS = 14f, elevationDegS = 5f, minElevation = -8f, maxElevation = 20f,   // elektrischer Turmantrieb
-            ammoIndex = 8, ammo = new[] { 8, 9, 10 }, reloadS = 6.5f, barrelLength = 2.73f, muzzleBrake = true,   // sichtbarer Teil ab Schildzapfen
+            ammoCapacity = 87, ammoIndex = 8, ammo = new[] { 8, 9, 10 }, reloadS = 6.5f, barrelLength = 2.73f, muzzleBrake = true,   // sichtbarer Teil ab Schildzapfen
             // Turmzielfernrohr TZF 5f: 2,5-fach, 25 Grad Sehfeld
             sightType = SightType.German, sightFov = 25f, sightMag = 2.5f, sightName = "TZF 5f",
             modelResource = "Modelle/PanzerIV_F2", modelScale = 1f,
@@ -577,7 +579,7 @@ namespace PanzerSim
             mantlet = new Armor(89, 0, ArmorMaterial.Cast),           // Blende M34A1: Schild 51 mm + Rotor 38 mm
             traverseDegS = 24f, elevationDegS = 5f, minElevation = -10f, maxElevation = 25f,   // hydraulisch 360 Grad in 15 s
             // 75 mm M3: M61 APC (mit Sprengladung) und M72 AP (Vollgeschoss)
-            ammoIndex = 2, ammo = new[] { 2, 6, 13 }, reloadS = 6f, barrelLength = 1.93f, mgType = 4,   // sichtbarer Teil ab Schildzapfen
+            ammoCapacity = 90, ammoIndex = 2, ammo = new[] { 2, 6, 13 }, reloadS = 6f, barrelLength = 1.93f, mgType = 4,   // sichtbarer Teil ab Schildzapfen
             // Richtschuetze: Zielfernrohr M70F in der Blende M34A1, 3-fach, 12,7 Grad Sehfeld
             sightType = SightType.US, sightFov = 12.7f, sightMag = 3f, sightName = "M70F",
             modelResource = "Modelle/M4A1E9", modelScale = 1f,
@@ -610,7 +612,7 @@ namespace PanzerSim
             turretFront = new Armor(76, 30, ArmorMaterial.Cast), turretSide = new Armor(51, 5, ArmorMaterial.Cast),
             turretRear = new Armor(51, 0, ArmorMaterial.Cast), turretRoof = new Armor(25, 0), mantlet = new Armor(89, 0, ArmorMaterial.Cast),
             traverseDegS = 24f, elevationDegS = 5f, minElevation = -5f, maxElevation = 20f,   // hydraulisch wie beim Sherman
-            ammoIndex = 5, ammo = new[] { 5, 44, 42, 43 }, reloadS = 7f, barrelLength = 3.53f, muzzleBrake = true, gunPivotFromModel = true, mgType = 4,
+            ammoCapacity = 77, ammoIndex = 5, ammo = new[] { 5, 44, 42, 43 }, reloadS = 7f, barrelLength = 3.53f, muzzleBrake = true, gunPivotFromModel = true, mgType = 4,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             // Zielfernrohr No. 43 x3 ML: 3-fach, 13 Grad
             sightType = SightType.US, sightFov = 13f, sightMag = 3f, sightName = "No. 43 x3 ML",
@@ -647,7 +649,7 @@ namespace PanzerSim
             traverseDegS = 36f, elevationDegS = 14f, minElevation = -10f, maxElevation = 20f,
             stabilizer = true, fireControl = true, hasRangefinder = true, hasThermal = true,
             // getrennte Munition, Ladeschuetze: ~6 s
-            ammoIndex = 53, ammo = new[] { 53, 54 }, reloadS = 6f, barrelLength = 4.95f, gunPivotFromModel = true, mgType = 7,
+            ammoCapacity = 49, ammoIndex = 53, ammo = new[] { 53, 54 }, reloadS = 6f, barrelLength = 4.95f, gunPivotFromModel = true, mgType = 7,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             // Gunner's Primary Sight: 4- / 10-fach, Waermebild TOGS II (Taste V)
             sightType = SightType.US, sightFov = 15f, sightMag = 4f, sightName = "GPS / TOGS II",
@@ -685,7 +687,7 @@ namespace PanzerSim
             traverseDegS = 6f, elevationDegS = 4f, minElevation = -6f, maxElevation = 12f,
             traverseLeft = 5f, traverseRight = 11f,
             // 7,5 cm PaK 39 L/48 (gleiche Ballistik wie KwK 40 L/48); enger Kampfraum
-            ammoIndex = 57, ammo = new[] { 57, 55, 56 }, reloadS = 8f, barrelLength = 2.2f, gunPivotFromModel = true, mgType = 0,
+            ammoCapacity = 41, ammoIndex = 57, ammo = new[] { 57, 55, 56 }, reloadS = 8f, barrelLength = 2.2f, gunPivotFromModel = true, mgType = 0,
             crew = new[] { ModuleType.Commander, ModuleType.Gunner, ModuleType.Loader, ModuleType.Driver }, crewInHull = true,
             // Selbstfahrlafetten-Zielfernrohr Sfl.ZF 1a: 5-fach, 8 Grad
             sightType = SightType.German, sightFov = 8f, sightMag = 5f, sightName = "Sfl.ZF 1a",
@@ -722,7 +724,7 @@ namespace PanzerSim
             mantlet = new Armor(15, 0),
             traverseDegS = 90f, elevationDegS = 50f, minElevation = -10f, maxElevation = 85f,
             // 35 mm KDA: Spreng-Brand (640 Schuss) und Hartkern (40 Schuss), Taste 1/2 wechselt den Gurt
-            ammoIndex = 64, ammo = new[] { 64, 65 }, magazine = new[] { 640, 40 }, reloadS = 30f, autoFireRate = 18.3f, twinGunX = 0.97f,
+            ammoCapacity = 680, ammoIndex = 64, ammo = new[] { 64, 65 }, defaultLoad = new[] { 640, 40 }, reloadS = 3f, autoFireRate = 18.3f, twinGunX = 0.97f,
             barrelLength = 3.85f, gunPivotFromModel = true, noMg = true,
             crew = new[] { ModuleType.Commander, ModuleType.Gunner, ModuleType.Driver },
             stabilizer = true, fireControl = true, hasRangefinder = true,   // Folgeradar misst die Entfernung, Rechner haelt vor
@@ -761,7 +763,7 @@ namespace PanzerSim
             traverseDegS = 8f, elevationDegS = 4f, minElevation = -9f, maxElevation = 20f,
             traverseLeft = 15f, traverseRight = 15f,
             // 75 mm M3 L/40: M61 APC, M72 AP, M48 HE
-            ammoIndex = 2, ammo = new[] { 2, 6, 13 }, reloadS = 6f, barrelLength = 1.33f, gunPivotFromModel = true, mgType = 4,
+            ammoCapacity = 46, ammoIndex = 2, ammo = new[] { 2, 6, 13 }, reloadS = 6f, barrelLength = 1.33f, gunPivotFromModel = true, mgType = 4,
             crew = new[] { ModuleType.Commander, ModuleType.Gunner, ModuleType.Loader, ModuleType.Driver, ModuleType.RadioOperator }, crewInHull = true,
             // Periskop-Visier M1 mit Zielfernrohr M21A1: 3-fach
             sightType = SightType.US, sightFov = 12f, sightMag = 3f, sightName = "M21A1",
@@ -769,7 +771,7 @@ namespace PanzerSim
             modelTurretBone = "turret", modelGunBone = "cannon",
             // 37-mm-Turm (dreht rundum, Panzerung dreht mit) mit Koaxial-MG M1919
             mounts = new[] { new Mount { yawBone = "turm37", pitchBone = "kanone37", mg = true, armor = true, muzzle = 0.7f, degS = 25f, minPitch = -7f, maxPitch = 60f,
-                gunAmmo = new[] { 61, 62, 63 }, gunReloadS = 3f, gunName = "37 mm" } },   // 37 mm M6: Taste T
+                gunAmmo = new[] { 61, 62, 63 }, gunReloadS = 3f, gunCapacity = 178, gunName = "37 mm" } },   // 37 mm M6: Taste H
             // Leitrad hinten (radL0), 6 Laufrollen (VVSS, 508 mm), Antriebsrad vorne (radL7), 3 Stuetzrollen
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.255f,
             returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 3, returnRollerRadius = 0.09f,
@@ -795,7 +797,7 @@ namespace PanzerSim
             turretRoof = new Armor(4, 0), mantlet = new Armor(6, 0),
             traverseDegS = 30f, elevationDegS = 15f, minElevation = -10f, maxElevation = 25f,
             // TOW-2 und TOW; Nachladen von Hand durch die Luke (~20 s), nur eine Rakete gleichzeitig im Flug (Draht)
-            ammoIndex = 16, ammo = new[] { 16, 15 }, reloadS = 20f, barrelLength = 0.85f, devOnly = true, noMg = true,
+            ammoCapacity = 8, ammoIndex = 16, ammo = new[] { 16, 15 }, reloadS = 20f, barrelLength = 0.85f, devOnly = true, noMg = true,
             // 3 Mann: Fahrer (vorne links), Richtschuetze (hinten rechts unter dem Werfer), Kommandant (hinten links)
             crew = new[] { ModuleType.Driver, ModuleType.Gunner, ModuleType.Commander }, crewInHull = true,
             gunPivotFromModel = true,
@@ -830,7 +832,7 @@ namespace PanzerSim
             turretRoof = new Armor(15, 0), mantlet = new Armor(20, 0),
             traverseDegS = 20f, elevationDegS = 10f, minElevation = -2.5f, maxElevation = 65f,
             // Ladeautomat: Feuerstoss 3 Schuss in ~10 s
-            ammoIndex = 17, ammo = new[] { 17 }, reloadS = 3.5f, barrelLength = 5.9f, muzzleBrake = true, noMg = true,
+            ammoCapacity = 60, ammoIndex = 17, ammo = new[] { 17 }, reloadS = 3.5f, barrelLength = 5.9f, muzzleBrake = true, noMg = true,
             gunPivotFromModel = true, hasRangefinder = true, artillery = true, devOnly = true,
             sightType = SightType.US, sightFov = 7f, sightMag = 8f, sightName = "Richtaufsatz (direktes Feuer)",
             modelResource = "Modelle/PzH2000", modelScale = 1f,
@@ -857,7 +859,7 @@ namespace PanzerSim
             turretRear = new Armor(52, 10, ArmorMaterial.Cast), turretRoof = new Armor(20, 0),
             mantlet = new Armor(40, 0, ArmorMaterial.Cast),
             traverseDegS = 20f, elevationDegS = 5f, minElevation = -5f, maxElevation = 22f,
-            ammoIndex = 4, ammo = new[] { 4, 7, 14 }, reloadS = 8f, barrelLength = 3.2f, mgType = 1,
+            ammoCapacity = 55, ammoIndex = 4, ammo = new[] { 4, 7, 14 }, reloadS = 8f, barrelLength = 3.2f, mgType = 1,
             sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-16",
             modelResource = "Modelle/T34_85", modelScale = 1f,
             modelTurretPivotShift = new Vector3(0f, 0f, 0.25f),   // Turmring-Mitte liegt 25 cm vor dem Turmgelenk des Modells (sonst Loch beim Drehen)
@@ -889,7 +891,7 @@ namespace PanzerSim
             turretFront = new Armor(60, 20, ArmorMaterial.Cast), turretSide = new Armor(52, 20, ArmorMaterial.Cast),
             turretRear = new Armor(52, 10, ArmorMaterial.Cast), turretRoof = new Armor(20, 0), mantlet = new Armor(52, 0, ArmorMaterial.Cast),
             traverseDegS = 24f, elevationDegS = 6f, minElevation = -5f, maxElevation = 30f,
-            ammoIndex = 36, ammo = new[] { 36, 37 }, reloadS = 6f, barrelLength = 1.77f, gunPivotFromModel = true, mgType = 1,
+            ammoCapacity = 77, ammoIndex = 36, ammo = new[] { 36, 37 }, reloadS = 6f, barrelLength = 1.77f, gunPivotFromModel = true, mgType = 1,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.RadioOperator },   // Kommandant war zugleich Richtschuetze
             // TMFD-7: 2,5-fach, 15 Grad
             sightType = SightType.Soviet, sightFov = 15f, sightMag = 2.5f, sightName = "TMFD-7",
@@ -915,7 +917,7 @@ namespace PanzerSim
             turretFront = new Armor(90, 20, ArmorMaterial.Cast), turretSide = new Armor(75, 20, ArmorMaterial.Cast),
             turretRear = new Armor(52, 10, ArmorMaterial.Cast), turretRoof = new Armor(20, 0), mantlet = new Armor(40, 0, ArmorMaterial.Cast),
             traverseDegS = 20f, elevationDegS = 5f, minElevation = -5f, maxElevation = 22f,
-            ammoIndex = 4, ammo = new[] { 4, 7, 14 }, reloadS = 8f, barrelLength = 3.24f, gunPivotFromModel = true, mgType = 1,
+            ammoCapacity = 55, ammoIndex = 4, ammo = new[] { 4, 7, 14 }, reloadS = 8f, barrelLength = 3.24f, gunPivotFromModel = true, mgType = 1,
             sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-16",
             modelResource = "Modelle/T3485", modelScale = 1f,
             modelTurretBone = "turret", modelGunBone = "cannon",
@@ -940,7 +942,7 @@ namespace PanzerSim
             turretFront = new Armor(120, 0, ArmorMaterial.Cast), turretSide = new Armor(90, 20, ArmorMaterial.Cast),
             turretRear = new Armor(75, 10, ArmorMaterial.Cast), turretRoof = new Armor(20, 0), mantlet = new Armor(120, 0, ArmorMaterial.Cast),
             traverseDegS = 15f, elevationDegS = 5f, minElevation = -5f, maxElevation = 25f,
-            ammoIndex = 4, ammo = new[] { 4, 7, 14 }, reloadS = 8f, barrelLength = 3.33f, gunPivotFromModel = true, mgType = 1,
+            ammoCapacity = 58, ammoIndex = 4, ammo = new[] { 4, 7, 14 }, reloadS = 8f, barrelLength = 3.33f, gunPivotFromModel = true, mgType = 1,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             sightType = SightType.Soviet, sightFov = 16f, sightMag = 4f, sightName = "TSh-16",
             modelResource = "Modelle/T44", modelScale = 1f,
@@ -965,7 +967,7 @@ namespace PanzerSim
             turretFront = new Armor(120, 0, ArmorMaterial.Cast), turretSide = new Armor(90, 20, ArmorMaterial.Cast),
             turretRear = new Armor(75, 10, ArmorMaterial.Cast), turretRoof = new Armor(20, 0), mantlet = new Armor(120, 0, ArmorMaterial.Cast),
             traverseDegS = 14f, elevationDegS = 4f, minElevation = -5f, maxElevation = 20f,
-            ammoIndex = 38, ammo = new[] { 38, 39 }, reloadS = 10f, barrelLength = 4.09f, gunPivotFromModel = true, mgType = 1,
+            ammoCapacity = 40, ammoIndex = 38, ammo = new[] { 38, 39 }, reloadS = 10f, barrelLength = 4.09f, gunPivotFromModel = true, mgType = 1,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             sightType = SightType.Soviet, sightFov = 18f, sightMag = 3.5f, sightName = "TSh-20",
             modelResource = "Modelle/T44100", modelScale = 1f,
@@ -991,7 +993,7 @@ namespace PanzerSim
             turretFront = new Armor(200, 0, ArmorMaterial.Cast), turretSide = new Armor(160, 30, ArmorMaterial.Cast),
             turretRear = new Armor(65, 0, ArmorMaterial.Cast), turretRoof = new Armor(30, 0), mantlet = new Armor(200, 0, ArmorMaterial.Cast),
             traverseDegS = 18f, elevationDegS = 4f, minElevation = -5f, maxElevation = 18f,
-            ammoIndex = 40, ammo = new[] { 40, 45, 38, 39 }, reloadS = 8.5f, barrelLength = 3.8f, gunPivotFromModel = true, mgType = 5,
+            ammoCapacity = 34, ammoIndex = 40, ammo = new[] { 40, 45, 38, 39 }, reloadS = 8.5f, barrelLength = 3.8f, gunPivotFromModel = true, mgType = 5,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             // TSh-20: 3,5-fach, 18 Grad
             sightType = SightType.Soviet, sightFov = 18f, sightMag = 3.5f, sightName = "TSh-20",
@@ -1018,7 +1020,7 @@ namespace PanzerSim
             turretFront = new Armor(205, 0, ArmorMaterial.Cast), turretSide = new Armor(160, 30, ArmorMaterial.Cast),
             turretRear = new Armor(65, 0, ArmorMaterial.Cast), turretRoof = new Armor(30, 0), mantlet = new Armor(205, 0, ArmorMaterial.Cast),
             traverseDegS = 20f, elevationDegS = 4.5f, minElevation = -5f, maxElevation = 18f,   // Stabilisator "Zyklon"
-            ammoIndex = 40, ammo = new[] { 40, 45, 46, 41, 39 }, reloadS = 8f, barrelLength = 3.86f, gunPivotFromModel = true, mgType = 5,
+            ammoCapacity = 43, ammoIndex = 40, ammo = new[] { 40, 45, 46, 41, 39 }, reloadS = 8f, barrelLength = 3.86f, gunPivotFromModel = true, mgType = 5,
             crew = new[] { ModuleType.Gunner, ModuleType.Driver, ModuleType.Loader, ModuleType.Commander },
             // TSh2B-32P: umschaltbar 3,5- / 7-fach
             sightType = SightType.Soviet, sightFov = 18f, sightMag = 3.5f, sightName = "TSh2B-32P",

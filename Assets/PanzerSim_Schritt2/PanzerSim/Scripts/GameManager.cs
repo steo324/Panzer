@@ -81,6 +81,7 @@ namespace PanzerSim
             if (float.TryParse(Arg("-trackoutset"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float tro)) TankVisual.DebugTrackOutset = tro;
             if (ushort.TryParse(Arg("-port"), out ushort p)) portText = p.ToString();
             autoFire = Has("-autofire");
+            ammoTestPending = Has("-ammodialog");   // Test: Munitionsfenster des gewaehlten Panzers oeffnen
             if (Arg("-playername") != null) GameSettings.NameOverride = Arg("-playername");
             if (int.TryParse(Arg("-team"), out int tmo)) GameSettings.TeamOverride = Mathf.Clamp(tmo, 0, 1);
             NetSync.ServerName = Arg("-name") ?? $"Ballistik-Server ({System.Environment.MachineName})";
@@ -436,6 +437,7 @@ namespace PanzerSim
         // ================= Eingabe =================
         void Update()
         {
+            if (ammoTestPending && Time.realtimeSinceStartup > 4f) { ammoTestPending = false; OpenAmmoTest(); }
             // Konto: gesperrt / Timeout mitten im Spiel -> zurueck zur Anmeldung
             if (Accounts.Required)
             {
@@ -637,6 +639,7 @@ namespace PanzerSim
 
             if (Accounts.Required && !Accounts.LoggedIn && state == State.Menu) DrawLogin(W, H);   // ohne Konto kein Spiel
             else if (accountsOpen) DrawAccountList(W, H);
+            else if (ammoOpen && state == State.Menu) DrawAmmo(W, H);
             else if (settingsOpen) DrawSettings(W, H);
             else if (state == State.Menu) DrawMenu(W, H);
             else DrawPause(W, H);
@@ -714,6 +717,11 @@ namespace PanzerSim
             GUILayout.EndHorizontal();
             if (waveMode) GUILayout.Label("KI-Panzer greifen in Wellen an, jede Welle mehr und staerker. Zwischen den Wellen wird repariert.", text);
             if (jetMode) GUILayout.Label("Jet (Test): ueber die Zielpanzer fliegen, 5-t-Bomben werfen (rotes X = Einschlag), 20-mm-Kanone. Shift/Strg Schub, W/S, A/D, Q/E.", text);
+            if (!jetMode)
+            {
+                var ts = Tanks[tankIndex]();
+                if (!ts.noGun && GUILayout.Button($"Munition einstellen  ({Loadouts.Capacity(ts)} Granaten an Bord)", btn, GUILayout.Height(40))) OpenAmmo(ts);
+            }
 
             // ---- Mehrspieler ----
             GUILayout.Space(16);
@@ -889,6 +897,70 @@ namespace PanzerSim
             if (GUILayout.Button("Aktualisieren", btn, GUILayout.Height(46))) Accounts.LoadList();
             GUI.enabled = true;
             if (GUILayout.Button("Schliessen", btnSel, GUILayout.Height(46))) { accountsOpen = false; timeoutFor = ""; }
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+        }
+
+        // ================= Munition einstellen =================
+        bool ammoOpen;
+        TankSpec ammoSpec;
+        int[] ammoEdit, ammoEdit2;
+
+        bool ammoTestPending;
+        void OpenAmmoTest() => OpenAmmo(Tanks[tankIndex]());
+        void OpenAmmo(TankSpec s)
+        {
+            ammoSpec = s; ammoEdit = Loadouts.Main(s); ammoEdit2 = Loadouts.Gun2Load(s); ammoOpen = true;
+        }
+
+        /// <summary>Eine Kanone: je Sorte - / + Knoepfe, zusammen hoechstens cap.</summary>
+        void AmmoRows(string title, int[] ammo, int[] edit, int cap)
+        {
+            int sum = 0; foreach (int n in edit) sum += n;
+            GUILayout.Label($"{title}   <b>{sum} / {cap}</b> Granaten" + (sum < cap ? $"   <color=#fd6>({cap - sum} Plaetze frei)</color>" : ""), text);
+            int step = cap >= 300 ? 20 : 5;
+            for (int i = 0; i < ammo.Length; i++)
+            {
+                var d = AmmoLibrary.All[ammo[i]];
+                GUILayout.BeginHorizontal();
+                GUILayout.Label($"<b>{i + 1}</b>  {d.name}  <color=#aaa>({d.type})</color>", text, GUILayout.Width(330), GUILayout.Height(34));
+                if (GUILayout.Button("0", btn, GUILayout.Width(44), GUILayout.Height(34))) edit[i] = 0;
+                if (GUILayout.Button("-" + step, btn, GUILayout.Width(60), GUILayout.Height(34))) edit[i] = Mathf.Max(0, edit[i] - step);
+                if (GUILayout.Button("-1", btn, GUILayout.Width(50), GUILayout.Height(34))) edit[i] = Mathf.Max(0, edit[i] - 1);
+                GUILayout.Label($"<b>{edit[i]}</b>", valueLabel ?? text, GUILayout.Width(70), GUILayout.Height(34));
+                int free = cap - sum;
+                if (GUILayout.Button("+1", btn, GUILayout.Width(50), GUILayout.Height(34)) && free > 0) edit[i] += 1;
+                if (GUILayout.Button("+" + step, btn, GUILayout.Width(60), GUILayout.Height(34)) && free > 0) edit[i] += Mathf.Min(step, free);
+                if (GUILayout.Button("Rest", btn, GUILayout.Width(70), GUILayout.Height(34)) && free > 0) edit[i] += free;
+                if (GUILayout.Button("Nur diese", btn, GUILayout.Width(110), GUILayout.Height(34))) { for (int k = 0; k < edit.Length; k++) edit[k] = 0; edit[i] = cap; }
+                GUILayout.EndHorizontal();
+                sum = 0; foreach (int n in edit) sum += n;
+            }
+        }
+
+        void DrawAmmo(float W, float H)
+        {
+            if (valueLabel == null) valueLabel = new GUIStyle(text) { fontSize = 17, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+            GUI.DrawTexture(new Rect(0, 0, W, H), texShade);
+            var s = ammoSpec;
+            var g2 = Loadouts.Gun2(s);
+            float h = 300 + (s.ammo != null ? s.ammo.Length : 1) * 40 + (g2 != null ? 90 + g2.gunAmmo.Length * 40 : 0);
+            var r = new Rect(W / 2f - 520, 540 - h / 2f, 1040, h);
+            GUI.Box(r, GUIContent.none, panel);
+            GUILayout.BeginArea(new Rect(r.x + 28, r.y + 22, r.width - 56, r.height - 44));
+            GUILayout.Label("MUNITION: " + s.name, head);
+            GUILayout.Label("So viele Granaten nimmst du jeder Sorte mit (echter Vorrat). Im Spiel waehlst du mit 1, 2 ... die Sorte; ist sie verschossen, ist sie weg.", small);
+            GUILayout.Space(8);
+            AmmoRows(g2 != null ? "Hauptwaffe" : "Kanone", s.ammo ?? new[] { s.ammoIndex }, ammoEdit, Loadouts.Capacity(s));
+            if (g2 != null && ammoEdit2 != null)
+            {
+                GUILayout.Space(12);
+                AmmoRows(g2.gunName + " (Taste H)", g2.gunAmmo, ammoEdit2, Loadouts.Capacity2(s));
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Standard", btn, GUILayout.Height(46))) { ammoEdit = Loadouts.DefaultMain(s); ammoEdit2 = Loadouts.DefaultGun2(s); }
+            if (GUILayout.Button("Fertig", btnSel, GUILayout.Height(46))) { Loadouts.Save(s, ammoEdit, ammoEdit2); ammoOpen = false; }
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
         }

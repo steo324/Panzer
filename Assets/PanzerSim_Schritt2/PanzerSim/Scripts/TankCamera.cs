@@ -267,6 +267,7 @@ namespace PanzerSim
                        $"<b>{t.spec.name}</b>   {t.SpeedKmh:0} km/h\n" +
                        (t.Gun2 != null ? $"Waffe: <b>{t.WeaponName}</b>   (H: umschalten)\n" : "") +
                        $"Munition [{t.AmmoSlot}/{t.AmmoLoadout.Length}]: {a.name} ({a.type}, {a.gun})" + (t.RoundsLeft >= 0 ? $"   <b>{t.RoundsLeft}</b> Schuss" : "") + "\n" +
+                       AmmoStock(t) +
                        (a.IsHE ? $"Sprenggranate: Druckwelle schlaegt bis {Penetration.FlatPenetration(a, vAt):0} mm durch\n"
                         : a.IsHEAT ? $"Hohlladung: {Penetration.FlatPenetration(a, vAt):0} mm auf jede Entfernung\n"
                         : $"Durchschlag auf {t.sightRange:0} m: {Penetration.FlatPenetration(a, vAt):0} mm\n") +
@@ -330,6 +331,19 @@ namespace PanzerSim
             dot = MakeCircle(32, 0f, 1.0f);
             tri = MakeTriangle(64);
             vignette = MakeVignette(512);
+        }
+
+        /// <summary>Vorrat je Sorte der gewaehlten Waffe: "1: 40  2: 30  3: 0" (leere Sorten rot).</summary>
+        static string AmmoStock(TankController t)
+        {
+            var list = t.AmmoLoadout; if (list.Length < 2 || t.RoundsLeft < 0) return "";
+            var sb = new System.Text.StringBuilder("Vorrat: ");
+            for (int i = 0; i < list.Length; i++)
+            {
+                int n = t.RoundsInSlot(i);
+                sb.Append(n == 0 ? $"<color=#f77>{i + 1}: {AmmoLibrary.All[list[i]].name} 0</color>   " : $"{i + 1}: {AmmoLibrary.All[list[i]].name} {n}   ");
+            }
+            return sb.ToString().TrimEnd() + "\n";
         }
 
         /// <summary>Kettenzustand fuer die Anzeige: gerissen (mit Reparaturhinweis) oder Reparatur laeuft.</summary>
@@ -698,8 +712,8 @@ namespace PanzerSim
             // Unten: Name des Visiers und Ladezustand
             var msl = target.activeMissile;
             string state = msl != null ? (msl.Guided ? $"RAKETE {msl.Distance:0} m  {msl.flightTime:0.0} s - ZIEL HALTEN" : "DRAHT GERISSEN - Rakete ungelenkt")
-                         : target.Reloading ? $"Laedt {target.reloadLeft * target.ReloadMultiplier():0.0} s" : "GELADEN";
-            sightText.normal.textColor = msl != null ? new Color(0.75f, 0.45f, 0.05f) : target.Reloading ? new Color(0.6f, 0.1f, 0.05f) : new Color(0.05f, 0.35f, 0.05f);
+                         : target.RoundsLeft == 0 ? "LEER" : target.Reloading ? $"Laedt {target.reloadLeft * target.ReloadMultiplier():0.0} s" : "GELADEN";
+            sightText.normal.textColor = msl != null ? new Color(0.75f, 0.45f, 0.05f) : target.RoundsLeft == 0 || target.Reloading ? new Color(0.6f, 0.1f, 0.05f) : new Color(0.05f, 0.35f, 0.05f);
             if (ThermalVision.Active) sightText.normal.textColor = Color.Lerp(sightText.normal.textColor, Color.white, 0.6f);
             GUI.Label(new Rect(cx - 400f, top + size * 0.83f, 800f, size * 0.03f), state, sightText);
             sightText.normal.textColor = new Color(0f, 0f, 0f, 0.55f);
