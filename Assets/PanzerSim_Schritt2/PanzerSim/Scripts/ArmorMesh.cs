@@ -218,12 +218,15 @@ namespace PanzerSim
             Transform root = tc.transform;
             Transform turretT = FindChild(model, s.modelTurretBone);
             Transform gunT = FindChild(model, s.modelGunBone);
-            Transform[] space = { model, turretT != null ? turretT : model, gunT != null ? gunT : (turretT != null ? turretT : model) };
+            // Teil 3: Nebenturm auf einer Lafette (Mount.armor) - Turmpanzerung, dreht mit der Lafette
+            Transform mountT = null;
+            if (s.mounts != null) foreach (var m in s.mounts) if (m.armor) { mountT = FindChild(model, m.yawBone); if (mountT != null) break; }
+            Transform[] space = { model, turretT != null ? turretT : model, gunT != null ? gunT : (turretT != null ? turretT : model), mountT != null ? mountT : model };
 
-            var pv = new[] { new List<Vector3>(), new List<Vector3>(), new List<Vector3>() };
-            var pn = new[] { new List<Vector3>(), new List<Vector3>(), new List<Vector3>() };
-            var tris = new[] { new List<int>(), new List<int>(), new List<int>() };
-            var tz = new[] { new List<byte>(), new List<byte>(), new List<byte>() };
+            var pv = new[] { new List<Vector3>(), new List<Vector3>(), new List<Vector3>(), new List<Vector3>() };
+            var pn = new[] { new List<Vector3>(), new List<Vector3>(), new List<Vector3>(), new List<Vector3>() };
+            var tris = new[] { new List<int>(), new List<int>(), new List<int>(), new List<int>() };
+            var tz = new[] { new List<byte>(), new List<byte>(), new List<byte>(), new List<byte>() };
             float hullTop = s.clearance + s.hullHeight;
             float gunZ = gunT != null ? root.InverseTransformPoint(gunT.position).z : s.hullLength / 2f;
             Vector3 gunPos = gunT != null ? root.InverseTransformPoint(gunT.position) : new Vector3(0f, hullTop, gunZ);
@@ -231,7 +234,7 @@ namespace PanzerSim
 
             // 1. Durchgang: welche Meshes gehoeren zu welchem Teil, und wo ist die Mitte jedes Teils?
             var meshParts = new List<(MeshFilter mf, int part)>();
-            var bounds = new Bounds[3]; var hasBounds = new bool[3];
+            var bounds = new Bounds[4]; var hasBounds = new bool[4];
             foreach (var mf in model.GetComponentsInChildren<MeshFilter>())
             {
                 var mesh = mf.sharedMesh;
@@ -241,7 +244,10 @@ namespace PanzerSim
                 if (!string.IsNullOrEmpty(s.returnRollerLeft) && (n.StartsWith(s.returnRollerLeft) || n.StartsWith(s.returnRollerRight))) continue; // Stuetzrollen auch nicht
                 if (n.StartsWith("anbau")) continue; // Anbauteile (Kotfluegel, Kaesten ...) sind zerstoerbar, keine Panzerung
                 if (!mesh.isReadable) { Debug.LogWarning("Mesh-Panzerung: " + n + " ist nicht lesbar."); continue; }
-                int p = gunT != null && (mf.transform == gunT || mf.transform.IsChildOf(gunT)) ? 2
+                bool inMount = InMount(mf.transform, s, out bool mountArmor);
+                if (inMount && !(mountArmor && mountT != null)) continue;   // Dach-MG o. ae.: keine Panzerung
+                int p = inMount ? 3
+                      : gunT != null && (mf.transform == gunT || mf.transform.IsChildOf(gunT)) ? 2
                       : turretT != null && (mf.transform == turretT || mf.transform.IsChildOf(turretT)) ? 1 : 0;
                 meshParts.Add((mf, p));
                 Matrix4x4 m = root.worldToLocalMatrix * mf.transform.localToWorldMatrix;
@@ -290,7 +296,7 @@ namespace PanzerSim
                         foreach (int q in new[] { a, b, c })
                             if (Vector3.Dot(pn[part][baseIndex + q], fnPart) < 0f) pn[part][baseIndex + q] = -pn[part][baseIndex + q];
                         tris[part].Add(baseIndex + a); tris[part].Add(baseIndex + b); tris[part].Add(baseIndex + c);
-                        tz[part].Add(Classify(part, cen, fn.normalized, s, hullTop, gunZ));
+                        tz[part].Add(Classify(part == 3 ? 1 : part, cen, fn.normalized, s, hullTop, gunZ));
                     }
                 }
                 used++;
@@ -301,8 +307,8 @@ namespace PanzerSim
             var follower = go.AddComponent<ArmorMeshFollower>();
             follower.owner = tc;
             var zones = MakeZones(s);
-            for (int part = 0; part < 3; part++)
-                if (tris[part].Count > 0) follower.AddPart(tc, zones, part, pv[part], pn[part], tris[part], tz[part], space[part]);
+            for (int part = 0; part < 4; part++)
+                if (tris[part].Count > 0) follower.AddPart(tc, zones, part == 3 ? 1 : part, pv[part], pn[part], tris[part], tz[part], space[part]);
             follower.Sync();
             return follower;
         }
@@ -313,6 +319,17 @@ namespace PanzerSim
             if (t.name == name) return t;
             foreach (Transform c in t) { var f = FindChild(c, name); if (f != null) return f; }
             return null;
+        }
+
+        /// <summary>Gehoert dieses Teil zu einer Lafette (TankSpec.mounts)? armor = Lafette zaehlt als Panzerung.</summary>
+        static bool InMount(Transform t, TankSpec s, out bool armor)
+        {
+            armor = false;
+            if (s.mounts == null) return false;
+            for (; t != null; t = t.parent)
+                foreach (var m in s.mounts)
+                    if (t.name == m.yawBone || t.name == m.pitchBone) { armor = m.armor; return true; }
+            return false;
         }
 
         static Armor Or(Armor a, Armor fallback) => a.mm >= 0f ? a : fallback;

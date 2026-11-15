@@ -112,6 +112,24 @@ namespace PanzerSim
         public float trackThickness = 0.05f; // Dicke in m
         public float trackSag = 0.05f;       // Durchhang oben in m
         public float trackOutset = 0f;       // Gliederkette seitlich nach aussen ruecken (m), falls sie im Modell zu weit innen sitzt
+
+        // Lafetten: Dach-MG (Hetzer) oder Nebenturm (M3 Grant, 37 mm) - drehen sich von selbst zum Zielpunkt
+        public Mount[] mounts;
+    }
+
+    /// <summary>
+    /// Bewegliche Lafette im Modell, unabhaengig von Turm/Kanone: dreht sich (Gelenk yawBone) und richtet sich in der Hoehe
+    /// (pitchBone, optional) zum Zielpunkt. mg: das MG (rechte Maustaste) schiesst von hier statt koaxial.
+    /// armor: die Teile der Lafette zaehlen als Turmpanzerung (Nebenturm) und drehen mit.
+    /// </summary>
+    [System.Serializable]
+    public class Mount
+    {
+        public string yawBone, pitchBone;
+        public bool mg, armor;
+        public float muzzle = 0.6f;           // Muendung vor dem Hoehengelenk (m, Modell)
+        public float degS = 60f;              // Schwenk-/Richtgeschwindigkeit (Grad/s)
+        public float minPitch = -10f, maxPitch = 50f;
     }
 
     /// <summary>
@@ -665,10 +683,52 @@ namespace PanzerSim
             sightType = SightType.German, sightFov = 8f, sightMag = 5f, sightName = "Sfl.ZF 1a",
             modelResource = "Modelle/Hetzer", modelScale = 1f,
             modelTurretBone = "turret", modelGunBone = "cannon",
+            // Dach-MG 34 mit Schild (fernbedient, dreht rundum): zielt selbst dorthin, wohin du schaust (rechte Maustaste)
+            mounts = new[] { new Mount { yawBone = "lafette_mg", pitchBone = "lafette_mg_rohr", mg = true, muzzle = 0.6f, degS = 70f, minPitch = -8f, maxPitch = 45f } },
             // Leitrad hinten (radL0), 4 grosse Laufrollen (775 mm), Antriebsrad vorne (radL5)
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 6, wheelRadius = 0.39f,
             linkTracks = true, idlerRadius = 0.27f, sprocketRadius = 0.29f,
             trackPitch = 0.10f, trackShoeWidth = 0.35f, trackThickness = 0.04f, trackSag = 0.03f
+        };
+
+        /// <summary>
+        /// M3 Grant (britische Ausfuehrung des M3 Lee, Nordafrika 1942): 75 mm im Erker rechts (schwenkt nur 15 Grad je Seite),
+        /// darueber ein kleiner Turm mit 37 mm M6 und Koaxial-MG, der sich von selbst zum Zielpunkt dreht (MG = rechte Maustaste).
+        /// Modell: "M3 Grant Medium Tank - Toshueyi" von Joanthan To (sketchfab.com/Toshueyi), CC BY 4.0 - gerigged mit Tools/Blender/rig_grant.py.
+        /// </summary>
+        public static TankSpec Grant => new TankSpec
+        {
+            name = "M3 Grant", nation = Nation.UK,
+            // Continental R975 Sternmotor, 340 PS; 27,2 t; 39 km/h
+            massT = 27.2f, powerPS = 340f, maxSpeedKmh = 39f, reverseKmh = 6f, turnRateDegS = 26f,
+            hullLength = 5.64f, hullWidth = 2.72f, hullHeight = 1.70f, clearance = 0.43f,
+            trackWidth = 0.42f, trackInset = 0.54f,      // Kettenmitte auf den Laufrollen (x = 1,03 m)
+            // genietete Walzplatten: Bug 51 mm, Seiten/Heck 38 mm; Bugnase Guss
+            hullFront = new Armor(51, 30), hullRear = new Armor(38, 0), hullSide = new Armor(38, 0),
+            hullRoof = new Armor(13, 0), hullBottom = new Armor(13, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(51, 45, ArmorMaterial.Cast), hullGlacis = new Armor(51, 30), hullLowerSide = new Armor(38, 0),
+            // "turret" ist nur der Drehpunkt der 75 mm im Erker (kleiner Kasten fuer Zusammenstoesse); die Turmpanzerung gilt fuer den 37-mm-Turm
+            turretLength = 0.6f, turretWidth = 0.6f, turretHeight = 0.4f, turretOffsetZ = 0.3f,
+            turretFront = new Armor(57, 30, ArmorMaterial.Cast), turretSide = new Armor(51, 10, ArmorMaterial.Cast),
+            turretRear = new Armor(51, 0, ArmorMaterial.Cast), turretRoof = new Armor(22, 0),
+            mantlet = new Armor(51, 0, ArmorMaterial.Cast),      // Kugelblende der 75 mm
+            traverseDegS = 8f, elevationDegS = 4f, minElevation = -9f, maxElevation = 20f,
+            traverseLeft = 15f, traverseRight = 15f,
+            // 75 mm M3 L/40: M61 APC, M72 AP, M48 HE
+            ammoIndex = 2, ammo = new[] { 2, 6, 13 }, reloadS = 6f, barrelLength = 1.33f, gunPivotFromModel = true, mgType = 4,
+            crew = new[] { ModuleType.Commander, ModuleType.Gunner, ModuleType.Loader, ModuleType.Driver, ModuleType.RadioOperator }, crewInHull = true,
+            // Periskop-Visier M1 mit Zielfernrohr M21A1: 3-fach
+            sightType = SightType.US, sightFov = 12f, sightMag = 3f, sightName = "M21A1",
+            modelResource = "Modelle/M3Grant", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            // 37-mm-Turm (dreht rundum, Panzerung dreht mit) mit Koaxial-MG M1919
+            mounts = new[] { new Mount { yawBone = "turm37", pitchBone = "kanone37", mg = true, armor = true, muzzle = 0.7f, degS = 25f, minPitch = -7f, maxPitch = 60f } },
+            // Leitrad hinten (radL0), 6 Laufrollen (VVSS, 508 mm), Antriebsrad vorne (radL7), 3 Stuetzrollen
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.255f,
+            returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 3, returnRollerRadius = 0.09f,
+            linkTracks = true, idlerRadius = 0.27f, sprocketRadius = 0.31f,
+            trackPitch = 0.152f, trackShoeWidth = 0.42f, trackThickness = 0.05f, trackSag = 0.04f
         };
 
         /// <summary>

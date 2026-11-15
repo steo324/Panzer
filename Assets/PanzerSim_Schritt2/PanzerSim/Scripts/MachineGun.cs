@@ -64,9 +64,22 @@ namespace PanzerSim
             // Rohr ist fuer die Kanonengranate ueberhoeht; das MG braucht (meist) mehr: Visierlinie + MG-Ueberhoehung
             // (AngleAxis um "rechts" mit positivem Winkel senkt die Richtung - darum Kanone minus MG)
             var round = RoundFor(tc.spec);
-            Vector3 dir = Quaternion.AngleAxis(tc.SuperElevation - Superelevation(round, tc.sightRange), p.gunPivot.right) * p.gunPivot.forward;
+            Vector3 dir, pos;
+            if (tc.visual != null && tc.visual.MgMount(out Vector3 mpos, out Vector3 mfwd))
+            {
+                // Lafetten-MG (Dach-MG, Nebenturm): zeigt selbst zum Zielpunkt, ueberhoeht fuer dessen Entfernung
+                float range = tc.isPlayer || tc.net == null ? Vector3.Distance(mpos, tc.aimPoint) : tc.sightRange;
+                Vector3 right = Vector3.Cross(Vector3.up, mfwd);
+                if (right.sqrMagnitude < 1e-6f) right = p.gunPivot.right;
+                dir = Quaternion.AngleAxis(-Superelevation(round, range), right.normalized) * mfwd;
+                pos = mpos;
+            }
+            else
+            {
+                dir = Quaternion.AngleAxis(tc.SuperElevation - Superelevation(round, tc.sightRange), p.gunPivot.right) * p.gunPivot.forward;
+                pos = p.gunPivot.position + p.gunPivot.right * 0.32f + p.gunPivot.forward * 1.1f;
+            }
             dir = (dir + Random.insideUnitSphere * Spread).normalized;
-            Vector3 pos = p.gunPivot.position + p.gunPivot.right * 0.32f + p.gunPivot.forward * 1.1f;
             bullets.Add(new Bullet { pos = pos, start = pos, vel = dir * round.muzzleVelocity + (tc.rb != null ? tc.rb.linearVelocity : Vector3.zero), tracer = tracer, color = Tracers.MgColor(tc.spec.sightType), owner = tc, round = round });
             Sfx.MG(pos, round.caliberMm);
             if (tc.isPlayer) CameraShake.Add(pos, 0.04f, 5f);

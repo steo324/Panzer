@@ -33,7 +33,7 @@ M = Matrix.Rotation(math.radians(-90), 4, "Z") @ Matrix.Scale(0.01, 4)      # cm
 for o in tc.meshes():
     o.data.transform(M)
     a = o.data.attributes.new("teil", "INT", "FACE")
-    a.data.foreach_set("value", [3 if o.name == "Object_4" else 0] * len(o.data.polygons))
+    a.data.foreach_set("value", [3 if o.name == "Object_4" else 5 if o.name == "Object_5" else 0] * len(o.data.polygons))   # Object_5 = Dach-MG
 tc.select_only(tc.meshes()); bpy.ops.object.join()
 big = bpy.context.view_layer.objects.active; me = big.data
 mats = [m.name if m else "" for m in me.materials]
@@ -89,12 +89,22 @@ bv = co[sorted(bv)] if bv else gv
 print(f"HZ Blende: {len(blende)} Teile, y {bv[:, 1].min():.2f}..{bv[:, 1].max():.2f}")
 
 # ---- Flaechen verteilen ----
-names = ["Wanne", "cannon"] + [f"rad{sn}{k}" for sn in "LR" for k in range(len(START))]
+names = ["Wanne", "cannon", "lafette_mg", "lafette_mg_rohr"] + [f"rad{sn}{k}" for sn in "LR" for k in range(len(START))]
 idx = {n: k for k, n in enumerate(names)}
 fg = np.full(len(fv), -1, dtype=np.int64)
+# Dach-MG (Fernbedienung, dreht rundum): Schild + Halter auf dem Drehsockel = "lafette_mg", MG selbst = "lafette_mg_rohr" (Hoehe)
+G = -GROUND
+def mg_mount(x, y, z):
+    if not (0.33 < x < 0.92 and -0.20 < y < 0.42 and 2.07 + G < z < 2.5 + G): return False
+    return not (0.61 < x < 0.67 and y > 0.25 and z < 2.12 + G)        # Griff auf dem Dach bleibt
+MGPIV = Vector((0.5535, -0.085, 2.11 + G)); MGROHR = Vector((0.5535, -0.085, 2.20 + G))
 for f in range(len(fv)):
     x, y, z = fc[f]
-    if mi[f] == TRACK:
+    if teil[f] == 5:
+        fg[f] = idx["lafette_mg_rohr"]
+    elif mi[f] == mats.index("Hull") and teil[f] != 3 and mg_mount(x, y, z):
+        fg[f] = idx["lafette_mg"]
+    elif mi[f] == TRACK:
         fg[f] = -1 if z < 1.1 else 0          # Kette weg, Ersatzglieder oben bleiben
     elif (teil[f] == 3 and math.hypot(x - AX, z - AZ) < 0.42) or isbl[f]:   # (Object_4 enthaelt auch den MG-Buegel auf dem Dach)
         fg[f] = 1
@@ -128,6 +138,7 @@ if len(body) < 10: body = bv
 GPIV = Vector((AX, float(body[:, 1].max() - (body[:, 1].max() - body[:, 1].min()) * 0.3), AZ))
 print(f"HZ Blendenkoerper y {body[:, 1].min():.2f}..{body[:, 1].max():.2f}")
 set_origin(objs["cannon"], GPIV)
+set_origin(objs["lafette_mg"], MGPIV); set_origin(objs["lafette_mg_rohr"], MGROHR)
 for sn in "LR":
     for k, (wy, wz, wr, x0, x1) in enumerate(ST[sn]): set_origin(objs[f"rad{sn}{k}"], Vector(((x0 + x1) / 2, wy, wz)))
 turret = bpy.data.objects.new("turret", None); bpy.context.scene.collection.objects.link(turret); turret.location = GPIV
@@ -164,7 +175,7 @@ print("HZ Bilder:", {k: v for k, v in used.items()})
 
 # ---- weniger Dreiecke ----
 for nm, o in objs.items():
-    if nm == "cannon": continue   # Rohr nicht vereinfachen: der lange duenne Zylinder zerfaellt sonst in Streifen
+    if nm in ("cannon", "lafette_mg_rohr"): continue   # Rohre nicht vereinfachen: der lange duenne Zylinder zerfaellt sonst in Streifen
     md = o.modifiers.new("dec", "DECIMATE"); md.ratio = 0.30 if nm.startswith("rad") else 0.40
     md.use_collapse_triangulate = True
     tc.select_only([o]); bpy.ops.object.modifier_apply(modifier="dec")
@@ -172,6 +183,7 @@ for nm, o in objs.items():
 # ---- Hierarchie, Export ----
 bpy.context.view_layer.update()
 objs["cannon"].parent = turret; objs["cannon"].matrix_parent_inverse = turret.matrix_world.inverted()
+objs["lafette_mg_rohr"].parent = objs["lafette_mg"]; objs["lafette_mg_rohr"].matrix_parent_inverse = objs["lafette_mg"].matrix_world.inverted()
 root = bpy.data.objects.new("Hetzer", None); bpy.context.scene.collection.objects.link(root)
 for o in list(objs.values()) + [turret]:
     if o.parent is None: mw = o.matrix_world.copy(); o.parent = root; o.matrix_world = mw

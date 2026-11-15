@@ -112,6 +112,7 @@ namespace PanzerSim
                 gunOffset = Quaternion.Inverse(parts.gunPivot.rotation) * gunBone.rotation;
             else Debug.LogWarning($"Kanonengelenk '{s.modelGunBone}' im Modell nicht gefunden.");
 
+            SetupMounts(tc);
             SetupWheels(tc);
             try { ComputeDepressionTable(tc); } catch (System.Exception e) { Debug.LogWarning("Rohr-Freigang: " + e.Message); }
             SetupTracks();
@@ -331,7 +332,81 @@ namespace PanzerSim
                 gunBone.rotation = parts.gunPivot.rotation * gunOffset;
                 if (tank.RecoilOffset > 0.0001f) gunBone.position -= parts.gunPivot.forward * tank.RecoilOffset;   // Rohrruecklauf
             }
+            UpdateMounts();
             UpdateWheelsAndTracks();
+        }
+
+        // ---------------- Lafetten (Dach-MG, Nebenturm) ----------------
+        class MountState
+        {
+            public Mount def; public Transform yaw, pitch;
+            public Quaternion yawRest, pitchRest;
+            public Vector3 upY, fwdY, rightY;     // Achsen im Elternraum des Schwenkgelenks (Ruhelage)
+            public Vector3 rightP;                // Hoehenachse im Elternraum des Hoehengelenks
+            public Vector3 fwdTip;                // "vorne" im Raum des vordersten Gelenks
+            public float yawDeg, pitchDeg;
+        }
+        readonly System.Collections.Generic.List<MountState> mounts = new System.Collections.Generic.List<MountState>();
+
+        void SetupMounts(TankController tc)
+        {
+            if (tc.spec.mounts == null) return;
+            Vector3 f = tc.transform.forward, u = tc.transform.up, r = tc.transform.right;
+            foreach (var d in tc.spec.mounts)
+            {
+                var y = Find(model, d.yawBone);
+                if (y == null) { Debug.LogWarning($"Lafette '{d.yawBone}' im Modell nicht gefunden."); continue; }
+                var p = string.IsNullOrEmpty(d.pitchBone) ? null : Find(model, d.pitchBone);
+                var m = new MountState { def = d, yaw = y, pitch = p, yawRest = y.localRotation, pitchRest = p != null ? p.localRotation : Quaternion.identity };
+                Transform yp = y.parent;
+                m.upY = yp.InverseTransformDirection(u).normalized; m.fwdY = yp.InverseTransformDirection(f).normalized; m.rightY = yp.InverseTransformDirection(r).normalized;
+                if (p != null) m.rightP = p.parent.InverseTransformDirection(r).normalized;
+                m.fwdTip = (p != null ? p : y).InverseTransformDirection(f).normalized;
+                mounts.Add(m);
+            }
+        }
+
+        void UpdateMounts()
+        {
+            if (mounts.Count == 0) return;
+            float dt = Time.deltaTime;
+            // Ziel: eigener Panzer / KI kennen den Zielpunkt; fremde Panzer im Netz zeigen in Kanonenrichtung
+            bool knowsAim = tank.isPlayer || tank.net == null;
+            foreach (var m in mounts)
+            {
+                if (m.yaw == null) continue;
+                Transform tip = m.pitch != null ? m.pitch : m.yaw;
+                Vector3 dirW = knowsAim ? tank.aimPoint - tip.position : tank.parts.gunPivot.forward;
+                if (tank.destroyed || dirW.sqrMagnitude < 0.01f) dirW = tank.transform.forward;
+                Vector3 d = m.yaw.parent.InverseTransformDirection(dirW).normalized;
+                Vector3 flat = Vector3.ProjectOnPlane(d, m.upY);
+                float wantYaw = flat.sqrMagnitude > 1e-6f ? Vector3.SignedAngle(m.fwdY, flat, m.upY) : m.yawDeg;
+                float wantPitch = Mathf.Clamp(Mathf.Asin(Mathf.Clamp(Vector3.Dot(d, m.upY), -1f, 1f)) * Mathf.Rad2Deg, m.def.minPitch, m.def.maxPitch);
+                m.yawDeg = Mathf.MoveTowardsAngle(m.yawDeg, wantYaw, m.def.degS * dt);
+                m.pitchDeg = Mathf.MoveTowards(m.pitchDeg, wantPitch, m.def.degS * dt);
+                Quaternion qy = Quaternion.AngleAxis(m.yawDeg, m.upY);
+                if (m.pitch != null)
+                {
+                    m.yaw.localRotation = qy * m.yawRest;
+                    m.pitch.localRotation = Quaternion.AngleAxis(-m.pitchDeg, m.rightP) * m.pitchRest;
+                }
+                else m.yaw.localRotation = qy * Quaternion.AngleAxis(-m.pitchDeg, m.rightY) * m.yawRest;
+            }
+        }
+
+        /// <summary>MG auf einer Lafette: Muendung und Richtung (Welt). false = kein Lafetten-MG.</summary>
+        public bool MgMount(out Vector3 pos, out Vector3 fwd)
+        {
+            foreach (var m in mounts)
+            {
+                if (!m.def.mg || m.yaw == null) continue;
+                Transform tip = m.pitch != null ? m.pitch : m.yaw;
+                fwd = tip.TransformDirection(m.fwdTip).normalized;
+                pos = tip.position + fwd * m.def.muzzle * scale;
+                return true;
+            }
+            pos = fwd = Vector3.zero;
+            return false;
         }
 
         public void SetVisible(bool on)
