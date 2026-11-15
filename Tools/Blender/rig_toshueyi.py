@@ -25,7 +25,7 @@ CFG = {
         idler=(2.51, -0.26, 0.29), road=[(y, -0.505, 0.41) for y in (1.865, 1.34, 0.83, 0.29, -0.23, -0.77, -1.315, -1.84)], sprocket=(-2.65, -0.20, 0.41),
         rollers=[],
         wheel_x=(0.95, 1.53), wheel_zmax=0.25,
-        deck=0.92, rise=1.35, axis_filter=True, decimate=0.55, turret_x=1.22, turret_y=(-1.65, 1.75), gun_front=-1.10, gun_x=0.6,
+        deck=0.92, rise=1.35, axis_filter=True, decimate=0.55, hatches=True, tex=4096, camo_edge=0.008, camo_detail=5, turret_x=1.22, turret_y=(-1.65, 1.75), gun_front=-1.10, gun_x=0.6,
         paint={"cream": "tarn", "zimerit": "tarn", "rubber": (24, 23, 22), "RUBBER": (24, 23, 22), "metal": (55, 52, 48), "cable": (60, 50, 42),
                "ESPIP": (95, 55, 32), "MG34": (30, 30, 30), "GLASS": (12, 16, 16), "grille": (45, 43, 40), "WOOD": (120, 88, 56),
                "pantcross": (20, 20, 20), "pantdecal": (20, 20, 20), "MAIN": "tarn"}),
@@ -35,6 +35,52 @@ args = sys.argv[sys.argv.index("--") + 1:]
 NAME, src, out = args[0], args[1], args[2]
 preview = args[3] if len(args) > 3 else None
 C = CFG[NAME]
+
+def close_hatches(me):
+    """Panther: offene Kommandantenkuppel (Deckel seitlich ausgeschwenkt) und offene Turmheckluke schliessen.
+    Lagen gemessen im Modell (nach Massstab S, vor dem Absenken auf den Boden)."""
+    fi, lv, ls, lt = tc.islands(me); st = tc.island_stats(me, fi, lv, ls, lt)
+    co = np.zeros(len(me.vertices) * 3); me.vertices.foreach_get("co", co); co = co.reshape(-1, 3)
+    fc = np.zeros(len(me.polygons) * 3); me.polygons.foreach_get("center", fc); fc = fc.reshape(-1, 3)
+    def verts_of(face_mask):
+        vs = set()
+        for p in np.nonzero(face_mask)[0]: vs.update(me.polygons[p].vertices)
+        return np.array(sorted(vs), dtype=np.int64)
+    fi_arr = np.array([fi[f] for f in range(len(me.polygons))])
+    # -- Kuppeldeckel: liegt waagerecht neben der Kuppel, schwenkt um die Saeule bei (0,678 / 0,626) --
+    POST, LID = np.array([0.678, 0.626]), np.array([0.678, 0.948])
+    lid_isl = []
+    for i, (mn, mx, n, m) in st.items():
+        corners_in = max(np.hypot(*(np.array(mn[:2]) - LID)), np.hypot(*(np.array(mx[:2]) - LID))) < 0.27
+        arm = 0.62 < mn[0] and mx[0] < 0.74 and mn[1] > 0.57 and mx[1] < 1.0 and mn[1] > 0.70 - 0.13
+        if mn[2] > 1.94 and mx[2] > 2.0 and (corners_in or (arm and (mn[1] + mx[1]) / 2 > 0.70)):
+            lid_isl.append(i)
+    lv_ = verts_of(np.isin(fi_arr, lid_isl))
+    CUP = np.array([0.345, 0.64])
+    a = math.atan2(*(CUP - POST)[::-1]) - math.atan2(*(LID - POST)[::-1])
+    ca, sa = math.cos(a), math.sin(a)
+    p = co[lv_, :2] - POST
+    co[lv_, 0] = POST[0] + p[:, 0] * ca - p[:, 1] * sa
+    co[lv_, 1] = POST[1] + p[:, 0] * sa + p[:, 1] * ca
+    co[lv_, 2] -= 0.02
+    print(f"RIG Kuppeldeckel: {len(lid_isl)} Teile, {len(lv_)} Punkte, um {math.degrees(a):.0f} Grad eingeschwenkt")
+    # -- Turmheckluke: Deckel steht seitlich offen; auf den Rahmen in der Heckplatte legen --
+    hv = verts_of((fc[:, 0] > -0.40) & (fc[:, 0] < 0.14) & (fc[:, 1] > 1.42) & (fc[:, 1] < 1.75) & (fc[:, 2] > 1.12) & (fc[:, 2] < 1.72))
+    frame = [i for i, (mn, mx, n, m) in st.items()
+             if np.linalg.norm((np.array(mn) + np.array(mx)) / 2 - np.array([-0.23, 1.31, 1.32])) < 0.05 and max(np.array(mx) - np.array(mn)) > 0.4]
+    fv = co[verts_of(np.isin(fi_arr, frame))]
+    def plane(v):
+        c = v.mean(0); u, s, vt = np.linalg.svd(v - c); return c, vt[2]
+    fcen, fn = plane(fv)
+    if fn[1] < 0: fn = -fn                      # Heckplatte zeigt nach hinten (+Y)
+    hp = co[hv]; hcen, hn = plane(hp)
+    d = (hp - hcen) @ hn
+    if d.max() < -d.min(): hn = -hn             # Griff/Beschlaege sitzen aussen
+    d = (hp - hcen) @ hn
+    R = np.array(Vector(hn).rotation_difference(Vector(fn)).to_matrix())
+    co[hv] = (hp - hcen) @ R.T + fcen + fn * (-d.min() + 0.004)
+    print(f"RIG Heckluke: Rahmen {len(frame)} Teile, Deckel {len(hv)} Punkte geschlossen")
+    me.vertices.foreach_set("co", co.ravel()); me.update()
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=src)
@@ -46,6 +92,7 @@ tc.select_only(tc.meshes()); bpy.ops.object.transform_apply(location=True, rotat
 for o in tc.meshes(): o.data.transform(Matrix.Scale(C["S"], 4))
 tc.select_only(tc.meshes()); bpy.ops.object.join()
 big = bpy.context.view_layer.objects.active; me = big.data
+if C.get("hatches"): close_hatches(me)
 mats = [m.name if m else "" for m in me.materials]
 fi, lv, ls, lt = tc.islands(me)
 st = tc.island_stats(me, fi, lv, ls, lt)
@@ -161,7 +208,7 @@ if C.get("decimate"):
         tc.select_only([o]); bpy.ops.object.modifier_apply(modifier="dec")
 
 # ---- Bemalung backen (wie Tiger I: Dunkelgelb mit Olivgruen/Rotbraun, Schmutz in Ecken, Schlamm unten) ----
-SIZE = int(os.environ.get("TEX", "2048"))
+SIZE = int(os.environ.get("TEX", C.get("tex", 2048)))   # Panther: 4096 (feinere Tarnflecken)
 img = bpy.data.images.new(NAME + "_Farbe", SIZE, SIZE, alpha=False)
 allobj = list(objs.values())
 tc.select_only(allobj)
@@ -182,12 +229,13 @@ for mat in list(me.materials):
         def noise(scale, stretch, seed, lo, hi):
             mp = N("ShaderNodeMapping"); mp.inputs["Scale"].default_value = stretch; mp.inputs["Location"].default_value = (seed, seed * 2, 0)
             L(geo.outputs["Position"], mp.inputs[0])
-            nz = N("ShaderNodeTexNoise"); nz.inputs["Scale"].default_value = scale; nz.inputs["Detail"].default_value = 3; nz.inputs["Roughness"].default_value = 0.55
+            nz = N("ShaderNodeTexNoise"); nz.inputs["Scale"].default_value = scale; nz.inputs["Detail"].default_value = C.get("camo_detail", 3); nz.inputs["Roughness"].default_value = 0.55
             L(mp.outputs[0], nz.inputs["Vector"])
             ramp = N("ShaderNodeValToRGB"); ramp.color_ramp.interpolation = "EASE"
             ramp.color_ramp.elements[0].position = lo; ramp.color_ramp.elements[1].position = hi
             L(nz.outputs["Fac"], ramp.inputs[0]); return ramp
-        g = noise(0.55, (0.7, 1.0, 1.6), 5.3, 0.52, 0.545); b = noise(0.6, (0.8, 1.0, 1.4), 9.1, 0.55, 0.575)
+        ew = C.get("camo_edge", 0.025)   # Breite des Uebergangs: kleiner = schaerfere Flecken
+        g = noise(0.55, (0.7, 1.0, 1.6), 5.3, 0.5325 - ew / 2, 0.5325 + ew / 2); b = noise(0.6, (0.8, 1.0, 1.4), 9.1, 0.5625 - ew / 2, 0.5625 + ew / 2)
         m1 = N("ShaderNodeMix"); m1.data_type = "RGBA"; m1.inputs[6].default_value = lin(176, 152, 104); m1.inputs[7].default_value = lin(70, 84, 48)
         L(g.outputs[0], m1.inputs[0])
         m2 = N("ShaderNodeMix"); m2.data_type = "RGBA"; m2.inputs[7].default_value = lin(92, 54, 38)

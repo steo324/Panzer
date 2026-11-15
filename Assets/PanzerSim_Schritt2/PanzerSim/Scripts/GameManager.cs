@@ -73,6 +73,7 @@ namespace PanzerSim
             bool Has(string name) => System.Array.IndexOf(args, name) >= 0;
             if (int.TryParse(Arg("-map"), out int m)) mapIndex = Mathf.Clamp(m, 0, maps.Length - 1);
             if (int.TryParse(Arg("-tank"), out int t)) tankIndex = Mathf.Clamp(t, 0, Tanks.Length - 1);
+            if (float.TryParse(Arg("-trackoutset"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float tro)) TankVisual.DebugTrackOutset = tro;
             if (ushort.TryParse(Arg("-port"), out ushort p)) portText = p.ToString();
             autoFire = Has("-autofire");
             if (Arg("-playername") != null) GameSettings.NameOverride = Arg("-playername");

@@ -110,6 +110,7 @@ namespace PanzerSim
         public float trackShoeWidth = 0.7f;  // Breite der Kette in m
         public float trackThickness = 0.05f; // Dicke in m
         public float trackSag = 0.05f;       // Durchhang oben in m
+        public float trackOutset = 0f;       // Gliederkette seitlich nach aussen ruecken (m), falls sie im Modell zu weit innen sitzt
     }
 
     /// <summary>
@@ -142,7 +143,8 @@ namespace PanzerSim
             // Leitrad hinten (radL0), 8 Achsen mit verschachtelten Laufrollen (800 mm), Antriebsrad vorne (radL9)
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 10, wheelRadius = 0.36f,
             linkTracks = true, idlerRadius = 0.36f, sprocketRadius = 0.456f,
-            trackPitch = 0.13f, trackShoeWidth = 0.725f, trackThickness = 0.05f, trackSag = 0.06f
+            trackPitch = 0.13f, trackShoeWidth = 0.725f, trackThickness = 0.05f, trackSag = 0.06f,
+            trackOutset = 0.06f   // Kette etwas nach aussen: Aussenkante buendig unter dem Kotfluegel
         };
 
         /// <summary>
@@ -234,7 +236,8 @@ namespace PanzerSim
             // Leitrad hinten (radL0), 8 Achsen mit verschachtelten Laufrollen (860 mm), Antriebsrad vorne (radL9)
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 10, wheelRadius = 0.41f,
             linkTracks = true, idlerRadius = 0.29f, sprocketRadius = 0.41f,
-            trackPitch = 0.153f, trackShoeWidth = 0.66f, trackThickness = 0.05f, trackSag = 0.05f
+            trackPitch = 0.153f, trackShoeWidth = 0.66f, trackThickness = 0.05f, trackSag = 0.05f,
+            trackOutset = 0.05f   // Kette etwas nach aussen (naeher an die Schuerzen)
         };
 
         /// <summary>
@@ -719,7 +722,8 @@ namespace PanzerSim
             modelTurretBone = "turret", modelGunBone = "cannon",
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 7, wheelRadius = 0.4f,
             linkTracks = true, idlerRadius = 0.281f, sprocketRadius = 0.233f,   // hinten Antriebsrad, vorne Leitrad
-            trackPitch = 0.172f, trackShoeWidth = 0.5f, trackThickness = 0.06f, trackSag = 0.03f
+            trackPitch = 0.172f, trackShoeWidth = 0.5f, trackThickness = 0.06f, trackSag = 0.03f,
+            trackOutset = 0.08f   // Kette etwas nach aussen: Aussenkante buendig unter dem Kotfluegel
         };
 
         // ================= Sowjetische mittlere Panzer =================
@@ -750,7 +754,7 @@ namespace PanzerSim
             modelTurretBone = "turret", modelGunBone = "cannon",
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 7, wheelRadius = 0.415f,
             linkTracks = true, idlerRadius = 0.30f, sprocketRadius = 0.25f,
-            trackPitch = 0.172f, trackShoeWidth = 0.50f, trackThickness = 0.06f, trackSag = 0.03f
+            trackPitch = 0.172f, trackShoeWidth = 0.50f, trackThickness = 0.06f, trackSag = 0.03f, trackOutset = 0.04f
         };
 
         /// <summary>T-34-85 Modell 1944: 85 mm ZiS-S-53, Dreimannturm. DT koaxial (zusaetzlich Bug-DT).</summary>
@@ -774,7 +778,7 @@ namespace PanzerSim
             modelTurretBone = "turret", modelGunBone = "cannon",
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 7, wheelRadius = 0.415f,
             linkTracks = true, idlerRadius = 0.30f, sprocketRadius = 0.25f,
-            trackPitch = 0.172f, trackShoeWidth = 0.50f, trackThickness = 0.06f, trackSag = 0.03f
+            trackPitch = 0.172f, trackShoeWidth = 0.50f, trackThickness = 0.06f, trackSag = 0.03f, trackOutset = 0.04f
         };
 
         /// <summary>T-44 (1944): quer eingebauter Motor, Bug 90 mm, 85 mm ZiS-S-53. 4 Mann, DT koaxial (zusaetzlich Bug-DT).</summary>

@@ -40,6 +40,19 @@ namespace PanzerSim
                 pl.Teleport(new Vector3(bx, gm.GroundY(bx, bz) + 0.6f, bz), byaw);
                 yield return new WaitForSeconds(3f);
             }
+            // -benchshot <x y z> <zx zy zz>: freie Kamera (Panzer-Koordinaten, Meter) auf einen Punkt am Panzer, z. B. fuer Nahaufnahmen der Kette
+            int si = System.Array.IndexOf(args, "-benchshot");
+            if (si >= 0 && si + 6 < args.Length && pl != null && cam != null)
+            {
+                var ic2 = System.Globalization.CultureInfo.InvariantCulture; var v = new float[6];
+                for (int k = 0; k < 6; k++) float.TryParse(args[si + 1 + k], System.Globalization.NumberStyles.Float, ic2, out v[k]);
+                cam.enabled = false;
+                var ct = Camera.main.transform;
+                ct.position = pl.transform.TransformPoint(new Vector3(v[0], v[1], v[2]));
+                ct.LookAt(pl.transform.TransformPoint(new Vector3(v[3], v[4], v[5])));
+            }
+            int di = System.Array.IndexOf(args, "-benchdist");   // -benchdist <m>: Kamera naeher heran (Nahaufnahme)
+            if (cam != null && di >= 0 && di + 1 < args.Length && float.TryParse(args[di + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float camDist)) cam.distance = camDist;
             if (cam != null && pl != null) cam.SetView(pl.transform.eulerAngles.y + camOff, camPitch);   // Standard: zum Horizont schauen
 
             // -benchhitcam: warten, bis die Trefferkamera aufgeht (mit -autofire), dann Bild

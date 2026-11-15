@@ -10,6 +10,7 @@ namespace PanzerSim
     /// </summary>
     public class TankVisual : MonoBehaviour
     {
+        public static float DebugTrackOutset = -1f;   // Test (-trackoutset): ueberschreibt TankSpec.trackOutset
         TankController tank;
         Transform model, turretBone, gunBone;
         Quaternion turretOffset = Quaternion.identity, gunOffset = Quaternion.identity;
@@ -301,7 +302,9 @@ namespace PanzerSim
                 top.Clear();
                 foreach (var ro in rollers)
                     if (ro.left == left) top.Add(new TankTracks.WheelInfo { center = ro.restLocal, radius = s.returnRollerRadius * scale });
-                tracks.Draw(xSum / road.Count, idl, spr, road, left, top);
+                float tx = xSum / road.Count;
+                tx += Mathf.Sign(tx) * (DebugTrackOutset >= 0f ? DebugTrackOutset : s.trackOutset);
+                tracks.Draw(tx, idl, spr, road, left, top);
             }
         }
 
