@@ -147,6 +147,10 @@ namespace PanzerSim
             new ShellData("5-t-Bombe", "Abwurfbombe (Testflug)", ShellType.HE, 900f, 5000f, 200f, 2500f) { dragCoefficient = 0.12f },   // 58  Geschwindigkeit kommt vom Flugzeug
             new ShellData("20 mm Sprenggranate", "20-mm-Bordkanone (Testflug)", ShellType.HE, 20f, 0.115f, 1000f, 0.006f) { dragCoefficient = 0.35f },   // 59
             new ShellData("20 mm Panzergranate", "20-mm-Bordkanone (Testflug)", ShellType.AP, 20f, 0.12f, 1000f, 0f) { dragCoefficient = 0.33f },   // 60
+            // M3 Grant: 37 mm M6 im kleinen Turm (zweite Kanone, Taste T)
+            new ShellData("M51 APC",  "37 mm M6 (Grant)", ShellType.APCBC, 37f, 0.87f, 884f, 0f),                                     // 61
+            new ShellData("M74 AP",   "37 mm M6 (Grant)", ShellType.AP,    37f, 0.87f, 884f, 0f),                                     // 62
+            new ShellData("M63 HE",   "37 mm M6 (Grant)", ShellType.HE,    37f, 0.73f, 792f, 0.039f) { dragCoefficient = 0.34f },   // 63
         };
     }
 }

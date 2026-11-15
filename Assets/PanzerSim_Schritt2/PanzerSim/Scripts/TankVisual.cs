@@ -409,6 +409,21 @@ namespace PanzerSim
             return false;
         }
 
+        /// <summary>Zweite Kanone auf einer Lafette (Mount.gunAmmo): Muendung und Rohrrichtung (Welt).</summary>
+        public bool GunMount(out Vector3 pos, out Vector3 fwd)
+        {
+            foreach (var m in mounts)
+            {
+                if (m.def.gunAmmo == null || m.yaw == null) continue;
+                Transform tip = m.pitch != null ? m.pitch : m.yaw;
+                fwd = tip.TransformDirection(m.fwdTip).normalized;
+                pos = tip.position + fwd * (m.def.muzzle + 0.7f) * scale;   // Rohrmuendung liegt vor der MG-Muendung
+                return true;
+            }
+            pos = fwd = Vector3.zero;
+            return false;
+        }
+
         public void SetVisible(bool on)
         {
             if (renderers == null) return;

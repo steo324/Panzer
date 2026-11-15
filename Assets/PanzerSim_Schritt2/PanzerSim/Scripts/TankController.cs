@@ -79,7 +79,24 @@ namespace PanzerSim
 
         public ShellData Ammo => AmmoLibrary.All[ammoIndex];
         /// <summary>Granaten, die dieser Panzer laden kann (ohne Angabe: nur die Startmunition).</summary>
-        public int[] AmmoLoadout => spec.ammo != null && spec.ammo.Length > 0 ? spec.ammo : new[] { spec.ammoIndex };
+        public int[] AmmoLoadout => weapon == 1 && Gun2 != null ? Gun2.gunAmmo : spec.ammo != null && spec.ammo.Length > 0 ? spec.ammo : new[] { spec.ammoIndex };
+        // ---- zweite Kanone (z. B. 37 mm im Turm des M3 Grant): Taste H schaltet um ----
+        // Die gerade gewaehlte Waffe steht immer in ammoIndex/reloadLeft (Anzeige, Visier); die andere wartet in ammoOther/reloadOther und laedt weiter.
+        public int weapon;
+        int ammoOther = -1; float reloadOther;
+        public Mount Gun2 { get { if (spec.mounts != null) foreach (var m in spec.mounts) if (m.gunAmmo != null && m.gunAmmo.Length > 0) return m; return null; } }
+        public float CurReloadS => weapon == 1 && Gun2 != null ? Gun2.gunReloadS : spec.reloadS;
+        public string WeaponName => weapon == 1 && Gun2 != null ? Gun2.gunName : "Hauptwaffe";
+        void SwitchWeapon()
+        {
+            var g = Gun2; if (g == null) return;
+            if (ammoOther < 0) { ammoOther = g.gunAmmo[0]; reloadOther = 0f; }
+            int a = ammoIndex; ammoIndex = ammoOther; ammoOther = a;
+            float r = reloadLeft; reloadLeft = reloadOther; reloadOther = r;
+            weapon = 1 - weapon;
+            if (System.Environment.CommandLine.Contains("-shelldebug")) Debug.Log("WAFFE " + weapon + " | " + System.Environment.StackTrace);
+            RangeLog.AddLocal(weapon == 1 ? g.gunName + " gewaehlt (H: zurueck zur Hauptwaffe)" : "Hauptwaffe gewaehlt (H: " + g.gunName + ")");
+        }
         /// <summary>Tastennummer (1, 2, ...) der geladenen Munition.</summary>
         public int AmmoSlot => System.Array.IndexOf(AmmoLoadout, ammoIndex) + 1;
         public float SpeedKmh => Velocity.magnitude * 3.6f;
@@ -174,6 +191,7 @@ namespace PanzerSim
                 RangeLog.AddLocal("Besatzung steigt aus - mit N neuen Panzer holen");
             }
             if (reloadLeft > 0f && seats.Count > 0) reloadLeft -= dt / ReloadMultiplier();
+            if (reloadOther > 0f && seats.Count > 0) reloadOther -= dt / ReloadMultiplier();
 
             // Turm-MG: rechte Maustaste (eigener Panzer), fremde Panzer zeigen das uebertragene Feuer
             bool mgFire = false;
@@ -204,10 +222,11 @@ namespace PanzerSim
                     if (Inp.Down(KeyCode.Alpha1 + i) && loadout[i] != ammoIndex)
                     {
                         ammoIndex = loadout[i];
-                        reloadLeft = spec.reloadS; // Munition wechseln = neu laden
+                        reloadLeft = CurReloadS; // Munition wechseln = neu laden
                     }
 
                 if (Inp.Down(KeyCode.F)) Extinguish();
+                if (Inp.Down(KeyCode.H) && Gun2 != null) SwitchWeapon();
                 if (Inp.FireDown && Cursor.lockState == CursorLockMode.Locked) TryFire();   // Klicks in Menues/Karte feuern nicht
                 if (autoFire) AutoFireUpdate(dt);
 
@@ -360,6 +379,7 @@ namespace PanzerSim
             if (spec.noGun) { RangeLog.AddLocal($"{spec.name}: keine Waffe"); return; }
             if (activeMissile != null) return;   // Lenkrakete im Flug: Werfer haengt am Draht
             if (reloadLeft > 0f) return;
+            if (weapon == 1 && Gun2 != null) { FireGun2(); return; }
             if (!SeatActive(ModuleType.Gunner)) { RangeLog.Add(SeatOk(ModuleType.Gunner) ? "Richtschuetze bewusstlos!" : "Kein Richtschuetze!"); return; }
             if (Ammo.guided)
             {
@@ -389,6 +409,27 @@ namespace PanzerSim
             try { PlayFireEffects(ammoIndex); } catch (System.Exception e) { Debug.LogException(e); }
         }
 
+        /// <summary>Zweite Kanone (Lafette mit gunAmmo): schiesst aus dem Turm dorthin, wohin er zeigt - ueberhoeht fuer die Entfernung zum Zielpunkt.</summary>
+        void FireGun2()
+        {
+            var g = Gun2;
+            if (visual == null || !visual.GunMount(out Vector3 origin, out Vector3 fwd)) { RangeLog.AddLocal(g.gunName + ": nicht bereit"); return; }
+            if (!SeatActive(ModuleType.Commander) && !SeatActive(ModuleType.Gunner)) { RangeLog.Add("Niemand am " + g.gunName + "!"); return; }
+            reloadLeft = g.gunReloadS;
+            float range = Mathf.Max(20f, Vector3.Distance(origin, aimPoint));
+            Vector3 right = Vector3.Cross(Vector3.up, fwd);
+            if (right.sqrMagnitude < 1e-6f) right = transform.right;
+            Vector3 dir = Quaternion.AngleAxis(-MachineGun.Superelevation(Ammo, range), right.normalized) * fwd;
+            if (net != null && NetSync.Active)
+            {
+                net.RequestFire(ammoIndex, origin, dir, 0f);
+                if (!NetSync.IsServer) { var gs = Shell.Fire(Ammo, origin, dir, true, 0f); if (gs != null) { gs.fromPlayer = isPlayer; gs.shooter = this; } }
+            }
+            else { var s0 = Shell.Fire(Ammo, origin, dir, false, 0f); if (s0 != null) { s0.fromPlayer = isPlayer; s0.shooter = this; } }
+            rb.AddForceAtPosition(-fwd * Ammo.massKg * Ammo.muzzleVelocity * 0.45f, origin, ForceMode.Impulse);
+            try { PlayFireEffects(ammoIndex); } catch (System.Exception e) { Debug.LogException(e); }
+        }
+
         // ---- Test: automatisch auf den naechsten Panzer schiessen (Startparameter -autofire) ----
         public bool autoFire;
         /// <summary>Leistungstest (-benchdrive): Spielerpanzer faehrt Schlangenlinien.</summary>
@@ -397,6 +438,8 @@ namespace PanzerSim
         public static bool BenchMg;
         /// <summary>Leistungstest: einen Schuss ausloesen.</summary>
         public void BenchFire() { reloadLeft = 0f; TryFire(); }
+        /// <summary>Test (-benchgun2): auf die zweite Kanone schalten und schiessen.</summary>
+        public void BenchGun2() { if (weapon == 0) SwitchWeapon(); reloadLeft = 0f; TryFire(); }
 
         // ---- Artillerie (Kartenmodus): Feuerleitrechner gibt Richtung und Treibladung vor ----
         [HideInInspector] public bool artilleryAim;
@@ -436,6 +479,9 @@ namespace PanzerSim
         public void PlayFireEffects(int ammo)
         {
             var a = AmmoLibrary.All[Mathf.Clamp(ammo, 0, AmmoLibrary.All.Length - 1)];
+            var g2 = Gun2;
+            if (g2 != null && System.Array.IndexOf(g2.gunAmmo, ammo) >= 0 && visual != null && visual.GunMount(out Vector3 mp, out Vector3 mf))
+            { Effects.Muzzle(mp, mf, a.caliberMm, false); return; }   // Schuss aus der zweiten Kanone (auch bei fremden Panzern im Netz)
             if (parts.muzzle != null && parts.gunPivot != null)
                 Effects.Muzzle(parts.muzzle.position, parts.gunPivot.forward, a.caliberMm, spec.muzzleBrake);
             recoilT = 0f;

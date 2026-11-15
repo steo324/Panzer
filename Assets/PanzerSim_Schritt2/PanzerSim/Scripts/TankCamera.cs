@@ -265,6 +265,7 @@ namespace PanzerSim
                 : "<color=#7f7>GELADEN</color>";
             string s = t.spec.noGun ? $"<b>{t.spec.name}</b>   {t.SpeedKmh:0} km/h\nWaffe: TOW-Lenkrakete (kommt spaeter)\n" + TrackStatus(t) + "\n<b>Besatzung</b>\n" :
                        $"<b>{t.spec.name}</b>   {t.SpeedKmh:0} km/h\n" +
+                       (t.Gun2 != null ? $"Waffe: <b>{t.WeaponName}</b>   (H: umschalten)\n" : "") +
                        $"Munition [{t.AmmoSlot}/{t.AmmoLoadout.Length}]: {a.name} ({a.type}, {a.gun})\n" +
                        (a.IsHE ? $"Sprenggranate: Druckwelle schlaegt bis {Penetration.FlatPenetration(a, vAt):0} mm durch\n"
                         : a.IsHEAT ? $"Hohlladung: {Penetration.FlatPenetration(a, vAt):0} mm auf jede Entfernung\n"
@@ -306,7 +307,7 @@ namespace PanzerSim
             if (!inSight) GUI.Box(new Rect(SW - 330, 10, 320, 166),
                 "W/S: fahren   A/D: lenken   Leertaste: bremsen\n" +
                 "Maus: zielen   Linksklick: " + (t.Ammo.guided ? "Rakete" : "Kanone") + (t.spec.noMg ? "" : "   Rechtsklick halten: MG") + "   M: Karte" + (t.spec.artillery ? " (+ Artillerie)" : "") + "\n" +
-                "Shift: Visier an/aus" + (t.spec.hasThermal ? "   V: Waermebild (im Visier)" : "") + "\n" +
+                "Shift: Visier an/aus" + (t.spec.hasThermal ? "   V: Waermebild (im Visier)" : "") + (t.Gun2 != null ? "   H: " + t.Gun2.gunName + " / Hauptwaffe" : "") + "\n" +
                 "Mausrad: Zoom (Visier: nur wenn umschaltbar)   Q/E: Entfernung" + (t.spec.hasRangefinder ? "   R: lasern" : " (schaetzen)") + "\n" +
                 "1-7: Munition wechseln\n" +
                 "X: Ansicht (normal/Innenteile/Panzerung)   F: Feuer loeschen\n" +

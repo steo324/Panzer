@@ -130,6 +130,10 @@ namespace PanzerSim
         public float muzzle = 0.6f;           // Muendung vor dem Hoehengelenk (m, Modell)
         public float degS = 60f;              // Schwenk-/Richtgeschwindigkeit (Grad/s)
         public float minPitch = -10f, maxPitch = 50f;
+        // zweite Kanone auf dieser Lafette (Taste T schaltet um): Munition, Ladezeit, Name
+        public int[] gunAmmo;
+        public float gunReloadS = 3f;
+        public string gunName;
     }
 
     /// <summary>
@@ -723,7 +727,8 @@ namespace PanzerSim
             modelResource = "Modelle/M3Grant", modelScale = 1f,
             modelTurretBone = "turret", modelGunBone = "cannon",
             // 37-mm-Turm (dreht rundum, Panzerung dreht mit) mit Koaxial-MG M1919
-            mounts = new[] { new Mount { yawBone = "turm37", pitchBone = "kanone37", mg = true, armor = true, muzzle = 0.7f, degS = 25f, minPitch = -7f, maxPitch = 60f } },
+            mounts = new[] { new Mount { yawBone = "turm37", pitchBone = "kanone37", mg = true, armor = true, muzzle = 0.7f, degS = 25f, minPitch = -7f, maxPitch = 60f,
+                gunAmmo = new[] { 61, 62, 63 }, gunReloadS = 3f, gunName = "37 mm" } },   // 37 mm M6: Taste T
             // Leitrad hinten (radL0), 6 Laufrollen (VVSS, 508 mm), Antriebsrad vorne (radL7), 3 Stuetzrollen
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 8, wheelRadius = 0.255f,
             returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 3, returnRollerRadius = 0.09f,
