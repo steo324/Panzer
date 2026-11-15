@@ -48,6 +48,7 @@ namespace PanzerSim
         public float turretLength, turretWidth, turretHeight, turretOffsetZ;
         public Armor turretFront, turretSide, turretRear, turretRoof, mantlet;
         public float traverseDegS, elevationDegS, minElevation, maxElevation;
+        public float traverseLeft, traverseRight;   // Kasematte (z. B. Jagdpanzer): Kanone schwenkt nur so weit nach links/rechts (Grad); 0/0 = Turm dreht rundum
 
         // Kanone
         public int ammoIndex;       // Index in AmmoLibrary.All (Startmunition)
@@ -632,6 +633,42 @@ namespace PanzerSim
             linkTracks = true, idlerRadius = 0.27f, sprocketRadius = 0.26f,
             trackPitch = 0.16f, trackShoeWidth = 0.635f, trackThickness = 0.085f, trackSag = 0.03f,
             returnRollerLeft = "rollL", returnRollerRight = "rollR", returnRollerCount = 3, returnRollerRadius = 0.14f
+        };
+
+        /// <summary>
+        /// Jagdpanzer 38(t) "Hetzer" (1944/45): Kasematte auf dem Fahrgestell des Panzer 38(t), 7,5 cm PaK 39 L/48 in der Saukopfblende,
+        /// leicht rechts versetzt - schwenkt nur 5 Grad nach links und 11 Grad nach rechts, sonst dreht der Fahrer die ganze Wanne.
+        /// Bug 60 mm unter 60 Grad, Seiten nur 20 mm. Vier Mann, alle in der Wanne. MG 34 auf dem Dach (fernbedient).
+        /// Modell: "Jagdpanzer 38(t) Hetzer" von Pechacek (sketchfab.com/pechy.v), CC BY 4.0 - gerigged mit Tools/Blender/rig_hetzer.py.
+        /// </summary>
+        public static TankSpec Hetzer => new TankSpec
+        {
+            name = "Jagdpanzer 38(t) Hetzer",
+            // Praga AC/2, 160 PS; 15,75 t; 42 km/h
+            massT = 15.75f, powerPS = 160f, maxSpeedKmh = 42f, reverseKmh = 8f, turnRateDegS = 30f,
+            hullLength = 5.1f, hullWidth = 2.2f, hullHeight = 1.45f, clearance = 0.40f,
+            trackWidth = 0.35f, trackInset = 0.20f,      // Kettenmitte bei x = 1,08 m
+            hullFront = new Armor(60, 60), hullRear = new Armor(20, 15), hullSide = new Armor(20, 40),
+            hullRoof = new Armor(8, 0), hullBottom = new Armor(10, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(60, 40), hullGlacis = new Armor(60, 60), hullLowerSide = new Armor(20, 15),
+            // kein Turm: kleiner Kasten am Drehpunkt der Blende (nur fuer Zusammenstoesse; Panzerung kommt aus der Modellform)
+            turretLength = 0.6f, turretWidth = 0.6f, turretHeight = 0.4f, turretOffsetZ = 0.5f,   // (Kasten sitzt am Drehpunkt aus dem Modell; turretOffsetZ = Lage der Besatzung)
+            turretFront = new Armor(60, 0, ArmorMaterial.Cast), turretSide = new Armor(20, 40), turretRear = new Armor(20, 0),
+            turretRoof = new Armor(8, 0), mantlet = new Armor(60, 0, ArmorMaterial.Cast),   // Saukopfblende (Topfblende)
+            traverseDegS = 6f, elevationDegS = 4f, minElevation = -6f, maxElevation = 12f,
+            traverseLeft = 5f, traverseRight = 11f,
+            // 7,5 cm PaK 39 L/48 (gleiche Ballistik wie KwK 40 L/48); enger Kampfraum
+            ammoIndex = 57, ammo = new[] { 57, 55, 56 }, reloadS = 8f, barrelLength = 2.2f, gunPivotFromModel = true, mgType = 0,
+            crew = new[] { ModuleType.Commander, ModuleType.Gunner, ModuleType.Loader, ModuleType.Driver }, crewInHull = true,
+            // Selbstfahrlafetten-Zielfernrohr Sfl.ZF 1a: 5-fach, 8 Grad
+            sightType = SightType.German, sightFov = 8f, sightMag = 5f, sightName = "Sfl.ZF 1a",
+            modelResource = "Modelle/Hetzer", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            // Leitrad hinten (radL0), 4 grosse Laufrollen (775 mm), Antriebsrad vorne (radL5)
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 6, wheelRadius = 0.39f,
+            linkTracks = true, idlerRadius = 0.27f, sprocketRadius = 0.29f,
+            trackPitch = 0.10f, trackShoeWidth = 0.35f, trackThickness = 0.04f, trackSag = 0.03f
         };
 
         /// <summary>

@@ -125,6 +125,8 @@ namespace PanzerSim
                 // kein bemannter Turm (z. B. Wiesel: Werfer auf einer Saeule) - Richtschuetze und Kommandant sitzen hinten in der Wanne
                 Module(hull, ModuleType.Gunner, new Vector3(dx, y0 + crewH / 2f + 0.05f, s.turretOffsetZ), new Vector3(0.45f, crewH, 0.45f), 100, 0.05f, root, parts);
                 Module(hull, ModuleType.Commander, new Vector3(-dx, y0 + crewH / 2f + 0.05f, s.turretOffsetZ - 0.45f), new Vector3(0.45f, crewH, 0.45f), 100, 0.05f, root, parts);
+                if (s.crew != null && Crew(ModuleType.Loader))   // Kasematte (Jagdpanzer): Ladeschuetze sitzt ebenfalls in der Wanne
+                    Module(hull, ModuleType.Loader, new Vector3(-dx, y0 + crewH / 2f + 0.05f, s.turretOffsetZ + 0.25f), new Vector3(0.45f, crewH, 0.45f), 100, 0.05f, root, parts);
             }
             else
             {

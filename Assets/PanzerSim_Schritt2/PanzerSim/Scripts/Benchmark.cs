@@ -40,6 +40,19 @@ namespace PanzerSim
                 pl.Teleport(new Vector3(bx, gm.GroundY(bx, bz) + 0.6f, bz), byaw);
                 yield return new WaitForSeconds(3f);
             }
+            // -benchface: Wanne zum naechsten Ziel drehen (Jagdpanzer mit begrenztem Schwenkbereich, z. B. mit -autofire)
+            if (System.Array.IndexOf(args, "-benchface") >= 0 && pl != null)
+            {
+                TankController near = null; float bd2 = float.MaxValue;
+                foreach (var ot in Object.FindObjectsByType<TankController>(FindObjectsSortMode.None))
+                    if (ot != pl && !ot.destroyed) { float d2 = (ot.transform.position - pl.transform.position).sqrMagnitude; if (d2 < bd2) { bd2 = d2; near = ot; } }
+                if (near != null)
+                {
+                    Vector3 dir = near.transform.position - pl.transform.position;
+                    pl.Teleport(pl.transform.position + Vector3.up * 0.3f, Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg + 4f);   // 4 Grad daneben: Kanone muss seitlich schwenken
+                    yield return new WaitForSeconds(3f);
+                }
+            }
             // -benchshot <x y z> <zx zy zz>: freie Kamera (Panzer-Koordinaten, Meter) auf einen Punkt am Panzer, z. B. fuer Nahaufnahmen der Kette
             int si = System.Array.IndexOf(args, "-benchshot");
             if (si >= 0 && si + 6 < args.Length && pl != null && cam != null)

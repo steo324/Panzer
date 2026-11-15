@@ -139,6 +139,10 @@ namespace PanzerSim
             // Challenger 2: 120 mm L30A1 (gezogen, Munition in drei Teilen: Geschoss, Treibladung, Zuendhuelse)
             new ShellData("L27A1 CHARM 3", "120 mm L30A1 (Challenger 2)", ShellType.APFSDS, 26f, 4.8f, 1650f, 0f) { penRefMm = 720f, spallMul = 3.5f, dragCoefficient = 0.30f },   // 53  Uran-Pfeil
             new ShellData("L31 HESH",      "120 mm L30A1 (Challenger 2)", ShellType.HE,     120f, 17.1f, 670f, 4.08f) { heshMm = 180f, dragCoefficient = 0.33f },   // 54  Quetschkopf
+            // ---- 7,5 cm PaK 39 L/48 (Jagdpanzer 38(t) Hetzer) ----
+            new ShellData("Sprgr. 34", "7,5 cm PaK 39 L/48 (Hetzer)", ShellType.HE,  75f,  5.74f, 550f, 0.686f) { dragCoefficient = 0.33f },   // 55
+            new ShellData("Gr. 38 HL/C", "7,5 cm PaK 39 L/48 (Hetzer)", ShellType.HEAT, 75f, 4.80f, 450f, 0.513f) { heatPenMm = 100f, dragCoefficient = 0.36f },   // 56
+            new ShellData("PzGr. 39",  "7,5 cm PaK 39 L/48 (Hetzer)", ShellType.APCBC, 75f,  6.80f, 790f, 0.018f),   // 57  wie Nr. 0
         };
     }
 }

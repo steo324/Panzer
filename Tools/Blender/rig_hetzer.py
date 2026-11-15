@@ -96,7 +96,7 @@ for f in range(len(fv)):
     x, y, z = fc[f]
     if mi[f] == TRACK:
         fg[f] = -1 if z < 1.1 else 0          # Kette weg, Ersatzglieder oben bleiben
-    elif teil[f] == 3 or isbl[f]:
+    elif (teil[f] == 3 and math.hypot(x - AX, z - AZ) < 0.42) or isbl[f]:   # (Object_4 enthaelt auch den MG-Buegel auf dem Dach)
         fg[f] = 1
     elif mi[f] == WHEEL:
         sn = "L" if x < 0 else "R"; best = 0
@@ -123,7 +123,10 @@ def set_origin(o, p):
     o.data.transform(Matrix.Translation(-p)); o.location = p
 
 # Schildzapfen: Kugelteil der Blende (hinteres Drittel), auf der Rohrachse
-GPIV = Vector((AX, float(bv[:, 1].max() - (bv[:, 1].max() - bv[:, 1].min()) * 0.3), AZ))
+body = bv[np.hypot(bv[:, 0] - AX, bv[:, 2] - AZ) > 0.14]   # dicker Teil der Blende (ohne Rohr)
+if len(body) < 10: body = bv
+GPIV = Vector((AX, float(body[:, 1].max() - (body[:, 1].max() - body[:, 1].min()) * 0.3), AZ))
+print(f"HZ Blendenkoerper y {body[:, 1].min():.2f}..{body[:, 1].max():.2f}")
 set_origin(objs["cannon"], GPIV)
 for sn in "LR":
     for k, (wy, wz, wr, x0, x1) in enumerate(ST[sn]): set_origin(objs[f"rad{sn}{k}"], Vector(((x0 + x1) / 2, wy, wz)))
@@ -135,9 +138,10 @@ for mat in bpy.data.materials:
     nt = mat.node_tree
     for n in list(nt.nodes):
         if n.type == "BSDF_PRINCIPLED":
-            for inp in ("Alpha", "Metallic", "Roughness"):
+            for inp in ("Alpha", "Metallic", "Roughness", "Emission Color"):
                 for l in list(n.inputs[inp].links): nt.links.remove(l)
             n.inputs["Alpha"].default_value = 1.0; n.inputs["Metallic"].default_value = 0.0; n.inputs["Roughness"].default_value = 0.85
+            n.inputs["Emission Strength"].default_value = 0.0
     for n in list(nt.nodes):   # lose Bildknoten (Metall/Rauheit, Verdeckung) entfernen
         if n.type == "TEX_IMAGE" and not any(l.to_node for o in n.outputs for l in o.links if l.to_node.type in ("BSDF_PRINCIPLED", "NORMAL_MAP")):
             nt.nodes.remove(n)
@@ -160,7 +164,8 @@ print("HZ Bilder:", {k: v for k, v in used.items()})
 
 # ---- weniger Dreiecke ----
 for nm, o in objs.items():
-    md = o.modifiers.new("dec", "DECIMATE"); md.ratio = 0.6 if nm == "cannon" else 0.30 if nm.startswith("rad") else 0.40
+    if nm == "cannon": continue   # Rohr nicht vereinfachen: der lange duenne Zylinder zerfaellt sonst in Streifen
+    md = o.modifiers.new("dec", "DECIMATE"); md.ratio = 0.30 if nm.startswith("rad") else 0.40
     md.use_collapse_triangulate = True
     tc.select_only([o]); bpy.ops.object.modifier_apply(modifier="dec")
 

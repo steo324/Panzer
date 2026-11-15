@@ -309,7 +309,10 @@ namespace PanzerSim
             lagYaw = Mathf.LerpAngle(lagYaw, wantYaw, lagA); wantYaw = lagYaw;
             float yaw = parts.turret.localEulerAngles.y;
             if (stab) { Vector3 h = hull.InverseTransformDirection(lastGunDir); yaw = Mathf.Atan2(h.x, h.z) * Mathf.Rad2Deg; }
+            bool limited = spec.traverseLeft > 0f || spec.traverseRight > 0f;   // Kasematte: nur ein paar Grad seitlich, sonst Wanne drehen
+            if (limited) wantYaw = Mathf.Clamp(Mathf.DeltaAngle(0f, wantYaw), -spec.traverseLeft, spec.traverseRight);
             yaw = Mathf.MoveTowardsAngle(yaw, wantYaw, traverse * dt);
+            if (limited) yaw = Mathf.Clamp(Mathf.DeltaAngle(0f, yaw), -spec.traverseLeft, spec.traverseRight);
             parts.turret.localRotation = Quaternion.Euler(0f, yaw, 0f);
 
             // Kanone heben/senken (in Turm-Koordinaten)
