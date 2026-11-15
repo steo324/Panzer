@@ -428,6 +428,7 @@ namespace PanzerSim
             sightRange = Vector3.Distance(SightPosition, aimPoint);
             Vector3 want = aimPoint - parts.muzzle.position;
             float off = Vector3.Angle(new Vector3(parts.gunPivot.forward.x, 0f, parts.gunPivot.forward.z), new Vector3(want.x, 0f, want.z));
+            if (System.Environment.CommandLine.Contains("-shelldebug") && Time.frameCount % 120 == 0) Debug.Log($"AUTOFIRE Ziel {autoTarget.spec.name} {Vector3.Distance(transform.position, autoTarget.transform.position):0} m, Abweichung {off:0.0}, Laden {reloadLeft:0.0}, Richtschuetze {SeatActive(ModuleType.Gunner)}, Verschluss {Working(ModuleType.Breech)}, Rohr {Working(ModuleType.Barrel)}, net {(net != null)}");
             if (reloadLeft <= 0f && off < 0.8f) TryFire();
         }
 

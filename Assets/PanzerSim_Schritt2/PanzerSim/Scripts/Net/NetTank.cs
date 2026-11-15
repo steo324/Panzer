@@ -119,7 +119,9 @@ namespace PanzerSim
         void ServerFire(int ammo, Vector3 origin, Vector3 dir, float speed)
         {
             if (ammo < 0 || ammo >= AmmoLibrary.All.Length) return;
-            Shell.Fire(AmmoLibrary.All[ammo], origin, dir, false, speed);   // echte Granate (Schaden zaehlt)
+            // echte Granate (Schaden zaehlt). Absender setzen: der Panzer des Schuetzen hinkt auf dem Server etwas hinterher,
+            // sonst trifft die Granate zuerst das eigene Rohr / die eigene Blende und bleibt dort stecken (kein Schaden beim Gegner)
+            Own(Shell.Fire(AmmoLibrary.All[ammo], origin, dir, false, speed));
             if (!IsOwner && tc != null && !NetSync.Headless) tc.PlayFireEffects(ammo);   // Host sieht den Schuss des Clients
             FireVisualRpc(ammo, origin, dir, speed);
         }
@@ -129,28 +131,31 @@ namespace PanzerSim
         {
             if (IsOwner) return;                                            // Schuetze hat Muendungsfeuer und Geister-Granate schon
             if (tc != null) tc.PlayFireEffects(ammo);
-            Shell.Fire(AmmoLibrary.All[ammo], origin, dir, true, speed);
+            Own(Shell.Fire(AmmoLibrary.All[ammo], origin, dir, true, speed));
         }
 
         /// <summary>Gefechtskopf einer Lenkrakete: Server startet die echte Hohlladung kurz vor dem Ziel (ohne Muendungsfeuer).</summary>
         public void RequestWarhead(int ammo, Vector3 origin, Vector3 dir)
         {
             if (IsServer) ServerWarhead(ammo, origin, dir);
-            else { WarheadRpc(ammo, origin, dir); Shell.Fire(AmmoLibrary.All[ammo], origin, dir, true); }   // eigene Anzeige sofort
+            else { WarheadRpc(ammo, origin, dir); Own(Shell.Fire(AmmoLibrary.All[ammo], origin, dir, true)); }   // eigene Anzeige sofort
         }
         [Rpc(SendTo.Server)] void WarheadRpc(int ammo, Vector3 origin, Vector3 dir) => ServerWarhead(ammo, origin, dir);
         void ServerWarhead(int ammo, Vector3 origin, Vector3 dir)
         {
             if (ammo < 0 || ammo >= AmmoLibrary.All.Length) return;
-            Shell.Fire(AmmoLibrary.All[ammo], origin, dir);
+            Own(Shell.Fire(AmmoLibrary.All[ammo], origin, dir));
             WarheadVisualRpc(ammo, origin, dir);
         }
         [Rpc(SendTo.NotServer)]
         void WarheadVisualRpc(int ammo, Vector3 origin, Vector3 dir)
         {
             if (IsOwner) return;
-            Shell.Fire(AmmoLibrary.All[ammo], origin, dir, true);
+            Own(Shell.Fire(AmmoLibrary.All[ammo], origin, dir, true));
         }
+
+        /// <summary>Granate gehoert zu diesem Panzer: fliegt durch das eigene Rohr / die eigene Wanne.</summary>
+        void Own(Shell s) { if (s != null && tc != null) s.shooter = tc; }
 
         // ================= Ergebnisse vom Server =================
         public void SendModuleHp(int index, float hp) { if (index >= 0) ModuleHpRpc(index, hp); }

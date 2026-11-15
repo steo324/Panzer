@@ -23,6 +23,7 @@ namespace PanzerSim
             {
                 Vector3 d = RandomInCone(dir, coneDeg);
                 RaycastHit[] hits = Physics.RaycastAll(origin, d, range, ArmorPlate.ShotMask, QueryTriggerInteraction.Collide);
+                if (i == 0 && System.Environment.CommandLine.Contains("-shelldebug")) foreach (var hh in hits) Debug.Log($"SPALLHIT {hh.collider.name} / {(hh.collider.transform.parent != null ? hh.collider.transform.parent.name : "-")} trig {hh.collider.isTrigger} d {hh.distance:0.00}");
                 Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
 
                 float dmg = damage;

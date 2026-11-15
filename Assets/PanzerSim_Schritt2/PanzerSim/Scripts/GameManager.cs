@@ -350,6 +350,8 @@ namespace PanzerSim
         }
 
         public void BenchStart() => StartGame();
+        /// <summary>Leistungstest (-benchrestart): Runde verlassen und neu starten (wie Menue -> Spielen).</summary>
+        public void BenchRestart() { ClearGame(); state = State.Menu; StartGame(); }
         bool benchSpawnSelect;
         /// <summary>Leistungstest (-benchspawn): Startpunkt-Auswahl oeffnen (fuer ein Bild).</summary>
         public void BenchSpawnSelect() { benchSpawnSelect = true; OpenSpawnSelect(); benchSpawnSelect = false; }

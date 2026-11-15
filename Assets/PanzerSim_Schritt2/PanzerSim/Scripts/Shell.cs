@@ -157,6 +157,7 @@ namespace PanzerSim
                     float v = velocity.magnitude;
                     float dmg = data.IsHE ? 50f + data.fillerKg * 40f : data.IsHEAT ? 90f
                               : (20f + data.caliberMm * data.spallMul * 0.6f) * Mathf.Clamp(v / 700f, 0.3f, 1.6f);
+                    if (System.Environment.CommandLine.Contains("-shelldebug")) Debug.Log($"SHELLHIT Rohr von {(bt != null ? bt.spec.name : "?")} d {Vector3.Distance(origin, hit.point):0.00} eigen {(bt != null && bt.isPlayer)}");
                     string bmsg = barrelHit.ApplyDamage(dmg);
                     report.Add($"{data.name} -> {(bt != null ? bt.spec.name + ": " : "")}Rohr getroffen ({Vector3.Distance(origin, pos):0} m){(bmsg != null ? " - " + bmsg : "")}");
                     if (bmsg != null && bt != null) ReportDamage(barrelHit, bmsg);
@@ -214,6 +215,7 @@ namespace PanzerSim
                 }
 
                 var tank = plate.Tank;
+                if (System.Environment.CommandLine.Contains("-shelldebug")) Debug.Log($"SHELLHIT {hit.collider.name} / {(hit.collider.transform.parent != null ? hit.collider.transform.parent.name : "-")} / plate {plate.name} layer {hit.collider.gameObject.layer} {hit.collider.GetType().Name} d {Vector3.Distance(origin, hit.point):0.00}");
                 plate.GetArmor(hit, out float plateMm, out ArmorMaterial plateMat, out string plateName);
                 HitResult r = Penetration.Evaluate(data, velocity, hit.normal, plateMm, plateMat);
                 string who = tank != null ? tank.spec.name + ": " : "";
