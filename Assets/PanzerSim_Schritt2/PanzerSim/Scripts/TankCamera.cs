@@ -260,13 +260,13 @@ namespace PanzerSim
             var t = target;
             var a = t.Ammo;
             Ballistics.SimulateFlat(a, Mathf.Max(t.sightRange, 10f), out float vAt, out _, out _);
-            string reload = t.reloadLeft > 0f
+            string reload = t.Reloading
                 ? $"Laedt ... {t.reloadLeft * t.ReloadMultiplier():0.0} s{(t.ReloadMultiplier() > 1f ? " (ohne Ladeschuetze!)" : "")}"
                 : "<color=#7f7>GELADEN</color>";
             string s = t.spec.noGun ? $"<b>{t.spec.name}</b>   {t.SpeedKmh:0} km/h\nWaffe: TOW-Lenkrakete (kommt spaeter)\n" + TrackStatus(t) + "\n<b>Besatzung</b>\n" :
                        $"<b>{t.spec.name}</b>   {t.SpeedKmh:0} km/h\n" +
                        (t.Gun2 != null ? $"Waffe: <b>{t.WeaponName}</b>   (H: umschalten)\n" : "") +
-                       $"Munition [{t.AmmoSlot}/{t.AmmoLoadout.Length}]: {a.name} ({a.type}, {a.gun})\n" +
+                       $"Munition [{t.AmmoSlot}/{t.AmmoLoadout.Length}]: {a.name} ({a.type}, {a.gun})" + (t.RoundsLeft >= 0 ? $"   <b>{t.RoundsLeft}</b> Schuss" : "") + "\n" +
                        (a.IsHE ? $"Sprenggranate: Druckwelle schlaegt bis {Penetration.FlatPenetration(a, vAt):0} mm durch\n"
                         : a.IsHEAT ? $"Hohlladung: {Penetration.FlatPenetration(a, vAt):0} mm auf jede Entfernung\n"
                         : $"Durchschlag auf {t.sightRange:0} m: {Penetration.FlatPenetration(a, vAt):0} mm\n") +
@@ -306,7 +306,7 @@ namespace PanzerSim
 
             if (!inSight) GUI.Box(new Rect(SW - 330, 10, 320, 166),
                 "W/S: fahren   A/D: lenken   Leertaste: bremsen\n" +
-                "Maus: zielen   Linksklick: " + (t.Ammo.guided ? "Rakete" : "Kanone") + (t.spec.noMg ? "" : "   Rechtsklick halten: MG") + "   M: Karte" + (t.spec.artillery ? " (+ Artillerie)" : "") + "\n" +
+                "Maus: zielen   Linksklick: " + (t.Ammo.guided ? "Rakete" : t.AutoGun ? "Kanone (halten = Dauerfeuer)" : "Kanone") + (t.spec.noMg ? "" : "   Rechtsklick halten: MG") + "   M: Karte" + (t.spec.artillery ? " (+ Artillerie)" : "") + "\n" +
                 "Shift: Visier an/aus" + (t.spec.hasThermal ? "   V: Waermebild (im Visier)" : "") + (t.Gun2 != null ? "   H: " + t.Gun2.gunName + " / Hauptwaffe" : "") + "\n" +
                 "Mausrad: Zoom (Visier: nur wenn umschaltbar)   Q/E: Entfernung" + (t.spec.hasRangefinder ? "   R: lasern" : " (schaetzen)") + "\n" +
                 "1-7: Munition wechseln\n" +
@@ -698,8 +698,8 @@ namespace PanzerSim
             // Unten: Name des Visiers und Ladezustand
             var msl = target.activeMissile;
             string state = msl != null ? (msl.Guided ? $"RAKETE {msl.Distance:0} m  {msl.flightTime:0.0} s - ZIEL HALTEN" : "DRAHT GERISSEN - Rakete ungelenkt")
-                         : target.reloadLeft > 0f ? $"Laedt {target.reloadLeft * target.ReloadMultiplier():0.0} s" : "GELADEN";
-            sightText.normal.textColor = msl != null ? new Color(0.75f, 0.45f, 0.05f) : target.reloadLeft > 0f ? new Color(0.6f, 0.1f, 0.05f) : new Color(0.05f, 0.35f, 0.05f);
+                         : target.Reloading ? $"Laedt {target.reloadLeft * target.ReloadMultiplier():0.0} s" : "GELADEN";
+            sightText.normal.textColor = msl != null ? new Color(0.75f, 0.45f, 0.05f) : target.Reloading ? new Color(0.6f, 0.1f, 0.05f) : new Color(0.05f, 0.35f, 0.05f);
             if (ThermalVision.Active) sightText.normal.textColor = Color.Lerp(sightText.normal.textColor, Color.white, 0.6f);
             GUI.Label(new Rect(cx - 400f, top + size * 0.83f, 800f, size * 0.03f), state, sightText);
             sightText.normal.textColor = new Color(0f, 0f, 0f, 0.55f);

@@ -151,6 +151,9 @@ namespace PanzerSim
             new ShellData("M51 APC",  "37 mm M6 (Grant)", ShellType.APCBC, 37f, 0.87f, 884f, 0f),                                     // 61
             new ShellData("M74 AP",   "37 mm M6 (Grant)", ShellType.AP,    37f, 0.87f, 884f, 0f),                                     // 62
             new ShellData("M63 HE",   "37 mm M6 (Grant)", ShellType.HE,    37f, 0.73f, 792f, 0.039f) { dragCoefficient = 0.34f },   // 63
+            // Gepard 1A2: 35 mm Oerlikon KDA (Zwillingskanone, je 550 Schuss/min)
+            new ShellData("DM21 HEI-T", "35 mm KDA (Gepard)", ShellType.HE,   35f, 0.55f, 1175f, 0.112f) { dragCoefficient = 0.32f },                            // 64  Spreng-Brand mit Leuchtspur
+            new ShellData("DM13 APDS-T", "35 mm KDA (Gepard)", ShellType.APDS, 22f, 0.38f, 1385f, 0f) { penRefMm = 110f, spallMul = 0.8f, dragCoefficient = 0.30f },   // 65  Hartkern
         };
     }
 }

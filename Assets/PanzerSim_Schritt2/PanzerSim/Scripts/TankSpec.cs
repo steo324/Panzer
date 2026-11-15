@@ -54,6 +54,9 @@ namespace PanzerSim
         public int ammoIndex;       // Index in AmmoLibrary.All (Startmunition)
         public int[] ammo;          // Granaten, die diese Kanone verschiesst (Indizes in AmmoLibrary.All); Taste 1, 2, ...
         public float reloadS;
+        public float autoFireRate;           // Maschinenkanone: Schuss/s, solange die linke Maustaste gedrueckt ist (0 = Einzelschuss)
+        public int[] magazine;               // Maschinenkanone: Schuss je Munitionssorte (wie ammo); leer -> reloadS lang nachladen
+        public float twinGunX;               // Zwillingskanone: Schuesse abwechselnd aus dem linken/rechten Rohr (Abstand zur Mitte, m)
         public float barrelLength;
         public bool noGun;                   // (noch) keine Hauptwaffe: Feuern und MG aus (Wiesel: TOW-Lenkrakete folgt)
         public bool devOnly;                 // nur im Entwickler-Modus waehlbar (Fahrzeug in Arbeit)
@@ -130,6 +133,7 @@ namespace PanzerSim
         public float muzzle = 0.6f;           // Muendung vor dem Hoehengelenk (m, Modell)
         public float degS = 60f;              // Schwenk-/Richtgeschwindigkeit (Grad/s)
         public float minPitch = -10f, maxPitch = 50f;
+        public float spinDegS;                // > 0: dreht sich dauernd (Suchradar), zielt nicht
         // zweite Kanone auf dieser Lafette (Taste T schaltet um): Munition, Ladezeit, Name
         public int[] gunAmmo;
         public float gunReloadS = 3f;
@@ -693,6 +697,43 @@ namespace PanzerSim
             wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 6, wheelRadius = 0.39f,
             linkTracks = true, idlerRadius = 0.27f, sprocketRadius = 0.29f,
             trackPitch = 0.10f, trackShoeWidth = 0.35f, trackThickness = 0.04f, trackSag = 0.03f
+        };
+
+        /// <summary>
+        /// Flakpanzer Gepard 1A2 (Bundeswehr, ab 1998): Flugabwehr auf Leopard-1-Fahrgestell, zwei 35-mm-Maschinenkanonen Oerlikon KDA
+        /// (je 550 Schuss/min) - linke Maustaste halten = Dauerfeuer, abwechselnd links/rechts. Suchradar dreht sich, Feuerleitrechner mit Vorhalt.
+        /// Modell: "Flakpanzer Gepard - Animated Low Poly" von xFORTUNAx (sketchfab.com/xFORTUNAx), CC BY 4.0 - gerigged mit Tools/Blender/rig_gepard.py.
+        /// </summary>
+        public static TankSpec Gepard => new TankSpec
+        {
+            name = "Flakpanzer Gepard 1A2", nation = Nation.Germany,
+            // MTU MB 838 CaM-500, 830 PS; 47,5 t; 65 km/h
+            massT = 47.5f, powerPS = 830f, maxSpeedKmh = 65f, reverseKmh = 20f, turnRateDegS = 30f,
+            hullLength = 7.0f, hullWidth = 2.6f, hullHeight = 1.1f, clearance = 0.44f,
+            trackWidth = 0.55f, trackInset = 0.275f,     // Kettenmitte auf den Laufrollen (x = 1,30 m)
+            // Leopard-1-Wanne: Bug 70 mm stark geneigt, Seiten 35 mm, Heck 25 mm
+            hullFront = new Armor(70, 60), hullRear = new Armor(25, 0), hullSide = new Armor(35, 0),
+            hullRoof = new Armor(10, 0), hullBottom = new Armor(15, 0),
+            meshArmor = true, meshArmorFixWinding = true,
+            hullFrontLower = new Armor(70, 55), hullGlacis = new Armor(70, 60), hullLowerSide = new Armor(25, 0),
+            // Turm nur gegen Splitter und Gewehrfeuer
+            turretLength = 3.2f, turretWidth = 2.4f, turretHeight = 1.0f, turretOffsetZ = -0.1f,
+            turretFront = new Armor(20, 30), turretSide = new Armor(15, 0), turretRear = new Armor(15, 0), turretRoof = new Armor(10, 0),
+            mantlet = new Armor(15, 0),
+            traverseDegS = 90f, elevationDegS = 50f, minElevation = -10f, maxElevation = 85f,
+            // 35 mm KDA: Spreng-Brand (640 Schuss) und Hartkern (40 Schuss), Taste 1/2 wechselt den Gurt
+            ammoIndex = 64, ammo = new[] { 64, 65 }, magazine = new[] { 640, 40 }, reloadS = 30f, autoFireRate = 18.3f, twinGunX = 0.97f,
+            barrelLength = 3.85f, gunPivotFromModel = true, noMg = true,
+            crew = new[] { ModuleType.Commander, ModuleType.Gunner, ModuleType.Driver },
+            stabilizer = true, fireControl = true, hasRangefinder = true,   // Folgeradar misst die Entfernung, Rechner haelt vor
+            sightType = SightType.German, sightFov = 8f, sightMag = 6f, sightName = "Zielfernrohr 6x",
+            modelResource = "Modelle/Gepard", modelScale = 1f,
+            modelTurretBone = "turret", modelGunBone = "cannon",
+            mounts = new[] { new Mount { yawBone = "radar", spinDegS = 360f } },   // Suchradar: 60 U/min
+            // Antriebsrad hinten (radL0), 7 Laufrollen (Leopard 1), Leitrad vorne (radL8)
+            wheelBoneLeft = "radL", wheelBoneRight = "radR", wheelBoneCount = 9, wheelRadius = 0.339f,
+            linkTracks = true, idlerRadius = 0.31f, sprocketRadius = 0.30f,
+            trackPitch = 0.184f, trackShoeWidth = 0.55f, trackThickness = 0.08f, trackSag = 0.04f
         };
 
         /// <summary>

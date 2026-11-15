@@ -74,6 +74,18 @@ namespace PanzerSim
                 }
             }
             // -benchface: Wanne zum naechsten Ziel drehen (Jagdpanzer mit begrenztem Schwenkbereich, z. B. mit -autofire)
+            if (System.Array.IndexOf(args, "-benchauto") >= 0 && pl != null)
+            {
+                // Maschinenkanone: 3 s Dauerfeuer, Bild mitten im Feuerstoss
+                int before = pl.RoundsLeft;
+                TankController.BenchHold = true;
+                yield return new WaitForSeconds(1.5f);
+                if (!string.IsNullOrEmpty(outDir)) { System.IO.Directory.CreateDirectory(outDir); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, "dauerfeuer.png")); }
+                yield return new WaitForSeconds(1.5f);
+                TankController.BenchHold = false;
+                Debug.Log("BENCH-AUTO: Schuss vorher " + before + ", nachher " + pl.RoundsLeft);
+                yield return new WaitForSeconds(2f);
+            }
             if (System.Array.IndexOf(args, "-benchgun2") >= 0 && pl != null && pl.Gun2 != null)
             {
                 // zweite Kanone (37 mm Grant): umschalten, dreimal schiessen, Bild vom Turm

@@ -87,6 +87,21 @@ namespace PanzerSim
         public Mount Gun2 { get { if (spec.mounts != null) foreach (var m in spec.mounts) if (m.gunAmmo != null && m.gunAmmo.Length > 0) return m; return null; } }
         public float CurReloadS => weapon == 1 && Gun2 != null ? Gun2.gunReloadS : spec.reloadS;
         public string WeaponName => weapon == 1 && Gun2 != null ? Gun2.gunName : "Hauptwaffe";
+        // ---- Maschinenkanone (z. B. Gepard): Dauerfeuer, Gurte je Munitionssorte, Zwillingsrohre ----
+        public bool AutoGun => spec.autoFireRate > 0f && weapon == 0;
+        int[] rounds;          // Schuss im Gurt je Munitionssorte (Index wie spec.ammo)
+        bool fxRight;          // Zwillingskanone: welches Rohr zuletzt
+        int AmmoSlotIndex => spec.ammo != null ? System.Array.IndexOf(spec.ammo, ammoIndex) : -1;
+        /// <summary>Schuss im Gurt der geladenen Sorte (-1 = keine Maschinenkanone).</summary>
+        public int RoundsLeft { get { int i = AmmoSlotIndex; return AutoGun && rounds != null && i >= 0 && i < rounds.Length ? rounds[i] : -1; } }
+        /// <summary>Laedt gerade (Maschinenkanone: nur beim Gurtwechsel/Nachladen, nicht zwischen zwei Schuessen).</summary>
+        public bool Reloading => reloadLeft > (AutoGun ? 0.25f : 0f);
+        void EnsureRounds()
+        {
+            if (rounds != null || spec.magazine == null) return;
+            rounds = (int[])spec.magazine.Clone();
+        }
+
         void SwitchWeapon()
         {
             var g = Gun2; if (g == null) return;
@@ -222,12 +237,13 @@ namespace PanzerSim
                     if (Inp.Down(KeyCode.Alpha1 + i) && loadout[i] != ammoIndex)
                     {
                         ammoIndex = loadout[i];
-                        reloadLeft = CurReloadS; // Munition wechseln = neu laden
+                        reloadLeft = AutoGun ? 0.6f : CurReloadS; // Munition wechseln = neu laden (Maschinenkanone: anderen Gurt zufuehren)
                     }
 
                 if (Inp.Down(KeyCode.F)) Extinguish();
                 if (Inp.Down(KeyCode.H) && Gun2 != null) SwitchWeapon();
-                if (Inp.FireDown && Cursor.lockState == CursorLockMode.Locked) TryFire();   // Klicks in Menues/Karte feuern nicht
+                bool fireIn = Inp.FireDown || (AutoGun && (Inp.FireHeld || BenchHold));   // Maschinenkanone: Dauerfeuer, solange gedrueckt
+                if (fireIn && (Cursor.lockState == CursorLockMode.Locked || BenchHold)) TryFire();   // Klicks in Menues/Karte feuern nicht
                 if (autoFire) AutoFireUpdate(dt);
 
                 AimTurret(dt);
@@ -393,6 +409,22 @@ namespace PanzerSim
 
             reloadLeft = spec.reloadS;   // zuerst: auch wenn danach ein Effekt scheitert, wird nachgeladen
             Vector3 origin = parts.muzzle.position, dir = parts.gunPivot.forward;
+            if (AutoGun)
+            {
+                // Maschinenkanone: naechster Schuss nach 1/Kadenz; Gurt leer -> Nachladen (reloadS)
+                EnsureRounds();
+                int si = AmmoSlotIndex;
+                if (rounds != null && si >= 0 && si < rounds.Length)
+                {
+                    if (rounds[si] <= 0) { rounds[si] = spec.magazine[si]; RangeLog.AddLocal($"{Ammo.name}: Gurt nachgeladen"); return; }
+                    rounds[si]--;
+                    reloadLeft = rounds[si] > 0 ? 1f / spec.autoFireRate : spec.reloadS;
+                    if (rounds[si] == 0 && isPlayer) RangeLog.AddLocal($"{Ammo.name} leer - lade nach ({spec.reloadS:0} s)");
+                }
+                else reloadLeft = 1f / spec.autoFireRate;
+                dir = Quaternion.Euler(Random.Range(-1f, 1f) * 0.12f, Random.Range(-1f, 1f) * 0.12f, 0f) * dir;   // Streuung der Waffe
+            }
+            if (spec.twinGunX > 0f) origin += parts.gunPivot.right * ((!fxRight) ? spec.twinGunX : -spec.twinGunX);   // PlayFireEffects schaltet fxRight gleich um
             // beschaedigtes Rohr (verbogen, Splitterkerben): Granaten streuen - bis ~0,8 Grad kurz vor dem Ausfall
             float bent = 1f - ModuleCondition(ModuleType.Barrel);
             if (bent > 0.05f) dir = Quaternion.Euler(Random.Range(-1f, 1f) * bent * 0.8f, Random.Range(-1f, 1f) * bent * 0.8f, 0f) * dir;
@@ -436,6 +468,8 @@ namespace PanzerSim
         public static bool BenchDrive;
         /// <summary>Leistungstest (-benchmg): MG feuert dauernd.</summary>
         public static bool BenchMg;
+        /// <summary>Test (-benchauto): Maschinenkanone feuert dauernd.</summary>
+        public static bool BenchHold;
         /// <summary>Leistungstest: einen Schuss ausloesen.</summary>
         public void BenchFire() { reloadLeft = 0f; TryFire(); }
         /// <summary>Test (-benchgun2): auf die zweite Kanone schalten und schiessen.</summary>
@@ -483,7 +517,11 @@ namespace PanzerSim
             if (g2 != null && System.Array.IndexOf(g2.gunAmmo, ammo) >= 0 && visual != null && visual.GunMount(out Vector3 mp, out Vector3 mf))
             { Effects.Muzzle(mp, mf, a.caliberMm, false); return; }   // Schuss aus der zweiten Kanone (auch bei fremden Panzern im Netz)
             if (parts.muzzle != null && parts.gunPivot != null)
-                Effects.Muzzle(parts.muzzle.position, parts.gunPivot.forward, a.caliberMm, spec.muzzleBrake);
+            {
+                Vector3 mz = parts.muzzle.position;
+                if (spec.twinGunX > 0f) { fxRight = !fxRight; mz += parts.gunPivot.right * (fxRight ? spec.twinGunX : -spec.twinGunX); }   // Zwillingskanone: abwechselnd
+                Effects.Muzzle(mz, parts.gunPivot.forward, a.caliberMm, spec.muzzleBrake);
+            }
             recoilT = 0f;
         }
 

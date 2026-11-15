@@ -375,6 +375,13 @@ namespace PanzerSim
             foreach (var m in mounts)
             {
                 if (m.yaw == null) continue;
+                if (m.def.spinDegS > 0f)
+                {
+                    // Suchradar: dreht sich dauernd (steht still, wenn der Panzer zerstoert ist)
+                    if (!tank.destroyed) m.yawDeg = Mathf.Repeat(m.yawDeg + m.def.spinDegS * dt, 360f);
+                    m.yaw.localRotation = Quaternion.AngleAxis(m.yawDeg, m.upY) * m.yawRest;
+                    continue;
+                }
                 Transform tip = m.pitch != null ? m.pitch : m.yaw;
                 Vector3 dirW = knowsAim ? tank.aimPoint - tip.position : tank.parts.gunPivot.forward;
                 if (tank.destroyed || dirW.sqrMagnitude < 0.01f) dirW = tank.transform.forward;
