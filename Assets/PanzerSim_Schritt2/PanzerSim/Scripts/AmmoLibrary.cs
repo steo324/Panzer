@@ -143,6 +143,10 @@ namespace PanzerSim
             new ShellData("Sprgr. 34", "7,5 cm PaK 39 L/48 (Hetzer)", ShellType.HE,  75f,  5.74f, 550f, 0.686f) { dragCoefficient = 0.33f },   // 55
             new ShellData("Gr. 38 HL/C", "7,5 cm PaK 39 L/48 (Hetzer)", ShellType.HEAT, 75f, 4.80f, 450f, 0.513f) { heatPenMm = 100f, dragCoefficient = 0.36f },   // 56
             new ShellData("PzGr. 39",  "7,5 cm PaK 39 L/48 (Hetzer)", ShellType.APCBC, 75f,  6.80f, 790f, 0.018f),   // 57  wie Nr. 0
+            // ---- Testflug (Jet) ----
+            new ShellData("5-t-Bombe", "Abwurfbombe (Testflug)", ShellType.HE, 900f, 5000f, 200f, 2500f) { dragCoefficient = 0.12f },   // 58  Geschwindigkeit kommt vom Flugzeug
+            new ShellData("20 mm Sprenggranate", "20-mm-Bordkanone (Testflug)", ShellType.HE, 20f, 0.115f, 1000f, 0.006f) { dragCoefficient = 0.35f },   // 59
+            new ShellData("20 mm Panzergranate", "20-mm-Bordkanone (Testflug)", ShellType.AP, 20f, 0.12f, 1000f, 0f) { dragCoefficient = 0.33f },   // 60
         };
     }
 }

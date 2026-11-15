@@ -24,6 +24,8 @@ namespace PanzerSim
         int tankIndex, mapIndex;
         int nationTab = -1;   // Reiter in der Panzerauswahl (-1 = Nation des gewaehlten Panzers)
         bool waveMode;        // Einzelspieler: Wellen gegen KI-Panzer statt Zielpanzer
+        bool jetMode;         // Einzelspieler: Testflug mit dem Jet ueber den Zielpanzern
+        JetController jet;
         static readonly string[] NationNames = { "Deutschland", "USA", "UdSSR", "UK" };
         GameMap map;
         public GameMap CurrentMap => map;
@@ -91,6 +93,7 @@ namespace PanzerSim
                 TankController.BenchDrive = Has("-benchdrive");
                 TankController.BenchMg = Has("-benchmg");
                 if (Has("-waves")) waveMode = true;   // Test: Wellen-Modus
+                if (Has("-jet")) jetMode = true;      // Test: Testflug
                 if (int.TryParse(Arg("-tageszeit"), out int tod)) GameSettings.TimeOfDay = Mathf.Clamp(tod, 0, 3);   // Test: Tageszeit fuer Bilder
                 TankCamera.BenchSight = Has("-benchsight");
                 TankCamera.BenchThermal = Has("-benchthermal");
@@ -361,12 +364,27 @@ namespace PanzerSim
 
         void StartGame()
         {
+            if (jetMode && !netGame) { StartJetGame(); return; }
             BuildMap(mapIndex);
             SpawnPlayer();
             if (waveMode) { foreach (var t in targets) if (t != null) Destroy(t.gameObject); targets.Clear(); WaveMode.Begin(map, () => player); }
             else { WaveMode.Stop(); SpawnTargets(); }
             EnterPlaying();
             OpenSpawnSelect();
+        }
+
+        /// <summary>Testflug: Karte, Zielpanzer, Jet in der Luft; die Panzer-Kamera ruht (der Jet fuehrt die Kamera selbst).</summary>
+        void StartJetGame()
+        {
+            BuildMap(mapIndex);
+            WaveMode.Stop();
+            if (player != null) Destroy(player.gameObject);
+            player = null;
+            SpawnTargets();
+            if (tankCam != null) { tankCam.target = null; tankCam.enabled = false; }
+            if (jet != null) Destroy(jet.gameObject);
+            jet = JetController.Spawn(map);
+            EnterPlaying();
         }
 
         void SpawnPlayer()
@@ -401,6 +419,8 @@ namespace PanzerSim
             foreach (var t in targets) if (t != null) Destroy(t.gameObject);
             targets.Clear();
             if (mapRoot != null) Destroy(mapRoot.gameObject);
+            if (jet != null) { Destroy(jet.gameObject); jet = null; }
+            if (tankCam != null) tankCam.enabled = true;
             if (tankCam != null) tankCam.target = null;
             foreach (var sh in FindObjectsByType<Shell>(FindObjectsSortMode.None)) Destroy(sh.gameObject);
             foreach (var go in FindObjectsByType<GameObject>(FindObjectsSortMode.None))
@@ -471,7 +491,15 @@ namespace PanzerSim
             }
             if (state != State.Playing) return;
 
-            if (Inp.Down(KeyCode.N) && netGame)
+            if (Inp.Down(KeyCode.N) && jet != null)
+            {
+                // Testflug: neuer Jet und neue Ziele
+                Destroy(jet.gameObject);
+                jet = JetController.Spawn(map);
+                SpawnTargets();
+                RangeLog.Lines.Clear();
+            }
+            else if (Inp.Down(KeyCode.N) && netGame)
             {
                 // Mehrspieler: neuer Panzer nur, wenn der eigene zerstoert ist (Server erzeugt ihn)
                 if (localNet != null && (player == null || player.destroyed)) localNet.RequestRespawn();
@@ -669,10 +697,12 @@ namespace PanzerSim
             // ---- Spielmodus (Einzelspieler) ----
             GUILayout.Space(10);
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Freies Spiel", !waveMode ? btnSel : btn, GUILayout.Height(40))) waveMode = false;
-            if (GUILayout.Button("Wellen gegen KI", waveMode ? btnSel : btn, GUILayout.Height(40))) waveMode = true;
+            if (GUILayout.Button("Freies Spiel", !waveMode && !jetMode ? btnSel : btn, GUILayout.Height(40))) { waveMode = false; jetMode = false; }
+            if (GUILayout.Button("Wellen gegen KI", waveMode ? btnSel : btn, GUILayout.Height(40))) { waveMode = true; jetMode = false; }
+            if (GUILayout.Button("Testflug", jetMode ? btnSel : btn, GUILayout.Height(40))) { if (!jetMode) mapIndex = 2; jetMode = true; waveMode = false; }   // Huegelland: 10 km, genug Platz zum Fliegen
             GUILayout.EndHorizontal();
             if (waveMode) GUILayout.Label("KI-Panzer greifen in Wellen an, jede Welle mehr und staerker. Zwischen den Wellen wird repariert.", text);
+            if (jetMode) GUILayout.Label("Jet (Test): ueber die Zielpanzer fliegen, 5-t-Bomben werfen (rotes X = Einschlag), 20-mm-Kanone. Shift/Strg Schub, W/S, A/D, Q/E.", text);
 
             // ---- Mehrspieler ----
             GUILayout.Space(16);

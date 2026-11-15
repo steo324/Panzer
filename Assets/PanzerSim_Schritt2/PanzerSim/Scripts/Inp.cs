@@ -39,6 +39,7 @@ namespace PanzerSim
                 case KeyCode.Space: return kb.spaceKey;
                 case KeyCode.Escape: return kb.escapeKey;
                 case KeyCode.LeftShift: return kb.leftShiftKey;
+                case KeyCode.LeftControl: return kb.leftCtrlKey;
                 case KeyCode.Alpha1: return kb.digit1Key;
                 case KeyCode.Alpha2: return kb.digit2Key;
                 case KeyCode.Alpha3: return kb.digit3Key;
@@ -57,6 +58,8 @@ namespace PanzerSim
 
         static UnityEngine.InputSystem.Mouse M => UnityEngine.InputSystem.Mouse.current;
         public static bool FireDown => M != null && M.leftButton.wasPressedThisFrame;
+        /// <summary>Linke Maustaste gehalten (Dauerfeuer, z. B. Bordkanone im Testflug).</summary>
+        public static bool FireHeld => M != null && M.leftButton.isPressed;
         public static bool LookHeld => M != null && M.rightButton.isPressed;
         /// <summary>Pingen: mittlere Maustaste.</summary>
         public static bool PingDown => M != null && M.middleButton.wasPressedThisFrame;
@@ -70,6 +73,7 @@ namespace PanzerSim
         public static bool Held(KeyCode k) => Input.GetKey(k);
         public static bool Down(KeyCode k) => Input.GetKeyDown(k);
         public static bool FireDown => Input.GetMouseButtonDown(0);
+        public static bool FireHeld => Input.GetMouseButton(0);
         public static bool LookHeld => Input.GetMouseButton(1);
         public static bool PingDown => Input.GetMouseButtonDown(2);
         public static bool MgHeld => Input.GetMouseButton(1);

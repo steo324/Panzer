@@ -48,6 +48,8 @@ namespace PanzerSim
         TankController hitcamTank;
         readonly List<(Vector3 a, Vector3 b)> spall = new List<(Vector3 a, Vector3 b)>();   // Splitterbahnen fuer die Trefferkamera
         public TankController shooter;   // eigener Panzer: wird von der eigenen Granate nie getroffen
+        public bool noTracer;            // z. B. Abwurfbombe: kein Leuchtsatz
+        public static Vector3 LastBomb;   // Test: wo die letzte Fliegerbombe explodiert ist
 
         /// <param name="speed">Muendungsgeschwindigkeit fuer diesen Schuss (Artillerie: je nach Treibladung); 0 = Standard der Munition</param>
         public static Shell Fire(ShellData d, Vector3 position, Vector3 direction, bool ghost = false, float speed = 0f)
@@ -88,7 +90,7 @@ namespace PanzerSim
 
         void Update()
         {
-            if (finished || stuck || body == null || life > TracerBurn) return;
+            if (finished || stuck || body == null || life > TracerBurn || noTracer) return;
             Vector3 p = transform.position;
             float len = Mathf.Min(velocity.magnitude * 0.011f, Vector3.Distance(origin, p));   // Schweif nicht hinter die Muendung
             if (len > 0.2f) Tracers.Streak(p, velocity, len, 0.06f, Tracers.Shell);
@@ -325,6 +327,7 @@ namespace PanzerSim
             {
                 float radius = Mathf.Clamp(cal * 6f, 0.3f, 0.7f);   // 88 mm -> ca. 0,5 m
                 if (data.HasFiller) radius += Mathf.Clamp(Mathf.Pow(data.fillerKg * 1000f, 1f / 3f) * 0.08f, 0.1f, 0.6f);
+                if (data.fillerKg > 50f) radius = Mathf.Clamp(Mathf.Pow(data.fillerKg, 1f / 3f) * 0.9f, 2f, 12f);   // Fliegerbombe: grosser Trichter
 
                 if (!data.ImpactFuze && graze > 12f && Random.value < StuckChance)
                 {
@@ -527,6 +530,7 @@ namespace PanzerSim
                             && g.collider.GetComponentInParent<ArmorPlate>() == null;
             Effects.Explosion(pos, data.fillerKg, onGround);
             report.Add($"   Explosion ({data.fillerKg * 1000f:0} g Sprengstoff)");
+            if (data.fillerKg > 50f) { Debug.Log($"BOMBE explodiert bei {pos}, vorhergesagt {JetController.LastBombPrediction}, Abstand {Vector3.Distance(new Vector3(pos.x, 0f, pos.z), new Vector3(JetController.LastBombPrediction.x, 0f, JetController.LastBombPrediction.z)):0.0} m"); LastBomb = pos; }
             Damage.Explosion(pos, data.fillerKg, ReportDamage, !insideTank);
             Concuss(pos, null, 1f, false);
         }

@@ -241,6 +241,37 @@ namespace PanzerSim
             Blast(pos, 10f + 12f * s, 1.2f + 0.3f * s);
             CameraShake.Add(pos, 0.8f * s, 60f + 40f * s);
             Sfx.Explosion(pos, fillerKg);
+            if (fillerKg > 50f) BombBlast(pos, fillerKg, onGround);
+        }
+
+        /// <summary>Fliegerbombe (Hunderte kg Sprengstoff): riesiger Feuerball, Staubring, Rauchpilz.</summary>
+        static void BombBlast(Vector3 pos, float fillerKg, bool onGround)
+        {
+            float S = Mathf.Clamp(Mathf.Pow(fillerKg, 1f / 3f) * 1.4f, 6f, 22f);   // 2,5 t -> ~19
+            EmitOne(flash, pos + Vector3.up * 2f, Vector3.zero, 10f * S, 0.15f, new Color(1f, 0.9f, 0.7f, 1f));
+            for (int i = 0; i < 90; i++)
+            {
+                Vector3 v = Random.onUnitSphere * Random.Range(1f, 4f) * S + Vector3.up * Random.Range(2f, 10f);
+                if (onGround && v.y < 0f) v.y = -v.y * 0.4f;
+                EmitOne(fire, pos + Random.insideUnitSphere * 0.3f * S, v, Random.Range(1f, 2f) * S, Random.Range(0.6f, 1.6f), new Color(1f, 0.55f, 0.2f, 1f));
+            }
+            for (int i = 0; i < 70; i++)   // Saeule
+                EmitOne(smoke, pos + Vector3.up * Random.Range(0f, 2f * S) + Random.insideUnitSphere * 0.5f * S,
+                        Vector3.up * Random.Range(3f, 10f) + Random.insideUnitSphere * 2f, Random.Range(1.2f, 2.6f) * S, Random.Range(10f, 20f), Gray(0.18f, 0.8f));
+            for (int i = 0; i < 40; i++)   // Pilz oben
+            {
+                Vector3 o = Random.onUnitSphere; o.y = Mathf.Abs(o.y) * 0.4f;
+                EmitOne(smoke, pos + Vector3.up * 3f * S + o * S, o * Random.Range(2f, 6f) + Vector3.up * Random.Range(2f, 5f), Random.Range(1.5f, 3f) * S, Random.Range(12f, 22f), Gray(0.22f, 0.75f));
+            }
+            if (onGround)
+                for (int i = 0; i < 50; i++)   // Staubring am Boden
+                {
+                    Vector3 o = Random.insideUnitCircle.normalized; Vector3 d = new Vector3(o.x, 0.05f, o.y);
+                    EmitOne(smoke, pos + d * Random.Range(0.5f, 1.5f) * S, d * Random.Range(10f, 25f) + Vector3.up * Random.Range(0.5f, 2f), Random.Range(0.8f, 1.6f) * S, Random.Range(6f, 12f), new Color(0.45f, 0.38f, 0.30f, 0.7f));
+                }
+            AddLight(pos + Vector3.up * 4f, new Color(1f, 0.6f, 0.3f), 60f, 40f * S, 0.6f);
+            Blast(pos, 8f * S, 4f);
+            CameraShake.Add(pos, 4f, 40f * S + 300f);
         }
 
         /// <summary>Munitionsbrand: riesiger Feuerball, Rauchsaeule; danach brennt das Wrack weiter.</summary>

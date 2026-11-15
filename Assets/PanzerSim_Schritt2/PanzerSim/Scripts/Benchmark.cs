@@ -50,6 +50,29 @@ namespace PanzerSim
                 pl.Teleport(new Vector3(bx, gm.GroundY(bx, bz) + 0.6f, bz), byaw);
                 yield return new WaitForSeconds(3f);
             }
+            // -benchjet (mit -jet): Testflug protokollieren, Bombe loesen, Bilder (X am Boden, Einschlag), Kanone
+            if (System.Array.IndexOf(args, "-benchjet") >= 0)
+            {
+                var jc = JetController.Active;
+                for (int s = 0; s < 46 && jc != null; s++)
+                {
+                    Debug.Log($"BENCH-JET t={s * 0.5f:0.0}s: {jc.SpeedKmh:0} km/h, {jc.AltitudeAgl:0} m, abgestuerzt {jc.Crashed}, {jc.DebugText}");
+                    if (s == 6 && !string.IsNullOrEmpty(outDir)) { System.IO.Directory.CreateDirectory(outDir); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, "jet_x.png")); }
+                    if (s == 8) jc.BenchDrop();
+                    if (s == 36) JetController.BenchGun = true;
+                    if (s == 40) { JetController.BenchGun = false; if (!string.IsNullOrEmpty(outDir)) ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, "jet_kanone.png")); }
+                    yield return new WaitForSeconds(0.5f);
+                }
+                if (Shell.LastBomb != Vector3.zero && Camera.main != null && !string.IsNullOrEmpty(outDir))
+                {
+                    if (jc != null) jc.enabled = false;
+                    Camera.main.transform.position = Shell.LastBomb + new Vector3(0f, 120f, -260f);
+                    Camera.main.transform.LookAt(Shell.LastBomb);
+                    yield return new WaitForSeconds(0.3f);
+                    ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, "jet_trichter.png"));
+                    yield return new WaitForSeconds(0.5f);
+                }
+            }
             // -benchface: Wanne zum naechsten Ziel drehen (Jagdpanzer mit begrenztem Schwenkbereich, z. B. mit -autofire)
             if (System.Array.IndexOf(args, "-benchface") >= 0 && pl != null)
             {
