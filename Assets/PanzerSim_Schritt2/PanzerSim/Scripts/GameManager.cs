@@ -67,6 +67,7 @@ namespace PanzerSim
             if (tankCam == null) tankCam = cam.gameObject.AddComponent<TankCamera>();
             if (cam.GetComponent<TeamHud>() == null) cam.gameObject.AddComponent<TeamHud>();   // Minikarte, Namen, Pings
             GameSettings.EnsureLoaded();
+            if (Accounts.Required) { loginUser = PlayerPrefs.GetString("konto.name", ""); Accounts.TryRestore(); }   // Konto: letzte Sitzung wiederherstellen
             GameSettings.ApplyCamera(cam);
 
             // Startparameter: -server / -host / -connect <IP>  [-map n] [-tank n] [-port n] [-autofire]
@@ -626,7 +627,9 @@ namespace PanzerSim
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
             float W = Screen.width / scale, H = 1080f;
 
-            if (settingsOpen) DrawSettings(W, H);
+            if (Accounts.Required && !Accounts.LoggedIn && state == State.Menu) DrawLogin(W, H);   // ohne Konto kein Spiel
+            else if (accountsOpen) DrawAccountList(W, H);
+            else if (settingsOpen) DrawSettings(W, H);
             else if (state == State.Menu) DrawMenu(W, H);
             else DrawPause(W, H);
             GUI.matrix = Matrix4x4.identity;
@@ -720,9 +723,19 @@ namespace PanzerSim
             GUILayout.BeginArea(new Rect(mid.x + 18, mid.y + 10, mid.width - 36, mid.height - 20));
             GUILayout.BeginHorizontal();
             GUILayout.Label("SPIELER", head, GUILayout.Width(150));
-            GUILayout.Label("Name:", text, GUILayout.Width(70));
-            string nn = GUILayout.TextField(GameSettings.PlayerName, 20, GUILayout.Height(36), GUILayout.MinWidth(180));
-            if (nn != GameSettings.PlayerName) GameSettings.PlayerName = nn;
+            if (Accounts.LoggedIn)
+            {
+                // Name = Kontoname (fest)
+                GUILayout.Label($"Konto: <b>{Accounts.Username}</b>", text, GUILayout.MinWidth(180), GUILayout.Height(36));
+                if (Accounts.IsDevAccount && GUILayout.Button("Konten (Dev)", btn, GUILayout.Width(150), GUILayout.Height(36))) { accountsOpen = true; Accounts.LoadList(); }
+                if (GUILayout.Button("Abmelden", btn, GUILayout.Width(120), GUILayout.Height(36))) { Accounts.Logout(); loginPw = ""; }
+            }
+            else
+            {
+                GUILayout.Label("Name:", text, GUILayout.Width(70));
+                string nn = GUILayout.TextField(GameSettings.PlayerName, 20, GUILayout.Height(36), GUILayout.MinWidth(180));
+                if (nn != GameSettings.PlayerName) GameSettings.PlayerName = nn;
+            }
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
             GUILayout.Label("", GUILayout.Width(150));
@@ -752,6 +765,89 @@ namespace PanzerSim
                 "CC0: Weizenhalme ffish.asia / floraZia.com  ·  Bodentexturen ambientCG.com  ·  Kartendaten (c) OpenStreetMap-Mitwirkende (ODbL)  ·  Gelaende: Geobasis NRW (dl-de/zero-2-0)", small);
             GUI.Label(new Rect(60, H - 50, 900, 30),
                 "Im Spiel: Esc = Pause  ·  W/A/S/D fahren  ·  Maus zielen  ·  Linksklick Kanone  ·  Rechtsklick MG  ·  Shift Visier  ·  X Ansicht  ·  G reparieren  ·  F3 Dev-Anzeige", small);
+        }
+
+        // ================= Konto: Anmelden / Registrieren =================
+        string loginUser = "", loginPw = "", loginPw2 = "";
+        bool registerMode, accountsOpen;
+        Vector2 accountsScroll;
+
+        void DrawLogin(float W, float H)
+        {
+            GUI.Label(new Rect(60, 40, 1100, 60), "BALLISTIK TANK FRONTS", title);
+            GUI.Label(new Rect(64, 100, 1100, 30), "von Ballistik Studios", sub);
+            var r = new Rect(W / 2f - 300, 250, 600, registerMode ? 560 : 490);
+            GUI.Box(r, GUIContent.none, panel);
+            GUILayout.BeginArea(new Rect(r.x + 30, r.y + 22, r.width - 60, r.height - 44));
+            GUILayout.Label(registerMode ? "KONTO ERSTELLEN" : "ANMELDEN", head);
+            GUILayout.Label(registerMode ? "Benutzername und Passwort waehlen, keine E-Mail noetig." : "Zum Spielen brauchst du ein Konto.", text);
+            GUILayout.Space(10);
+            bool busy = Accounts.Busy || GameUpdater.Busy;
+            GUI.enabled = !busy;
+            GUILayout.Label("Benutzername", text);
+            GUI.SetNextControlName("kuser");
+            loginUser = GUILayout.TextField(loginUser, 20, GUILayout.Height(40));
+            GUILayout.Label("Passwort", text);
+            loginPw = GUILayout.PasswordField(loginPw, '*', Accounts.MaxPw, GUILayout.Height(40));
+            if (registerMode)
+            {
+                GUILayout.Label("Passwort wiederholen", text);
+                loginPw2 = GUILayout.PasswordField(loginPw2, '*', Accounts.MaxPw, GUILayout.Height(40));
+            }
+            GUILayout.Space(14);
+            bool enter = Event.current.type == EventType.KeyDown && (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter);
+            if (GUILayout.Button(registerMode ? "Konto erstellen" : "Anmelden", btnSel, GUILayout.Height(50)) || (enter && !busy))
+            {
+                if (registerMode && loginPw != loginPw2) Accounts.Message = "Die Passwoerter sind verschieden.";
+                else if (registerMode) Accounts.Register(loginUser, loginPw);
+                else Accounts.Login(loginUser, loginPw);
+            }
+            if (GUILayout.Button(registerMode ? "Ich habe schon ein Konto" : "Neues Konto erstellen", btn, GUILayout.Height(42)))
+            { registerMode = !registerMode; Accounts.Message = ""; loginPw2 = ""; }
+            GUI.enabled = true;
+            if (GUILayout.Button("Beenden", btn, GUILayout.Height(42))) Quit();
+            GUILayout.Space(8);
+            string msg = Accounts.Busy ? "<color=#fd6>Bitte warten ...</color>"
+                : !string.IsNullOrEmpty(GameUpdater.Status) ? $"<color=#fd6>{GameUpdater.Status}</color>"
+                : !string.IsNullOrEmpty(Accounts.Message) ? $"<color=#f77>{Accounts.Message}</color>" : "";
+            if (msg.Length > 0) GUILayout.Label(msg, text);
+            GUILayout.EndArea();
+            GUI.Label(new Rect(W - 490, 1040, 430, 22), GameVersion.Display, small);
+        }
+
+        void DrawAccountList(float W, float H)
+        {
+            GUI.DrawTexture(new Rect(0, 0, W, H), texShade);
+            var r = new Rect(W / 2f - 420, 90, 840, 900);
+            GUI.Box(r, GUIContent.none, panel);
+            GUILayout.BeginArea(new Rect(r.x + 28, r.y + 22, r.width - 56, r.height - 44));
+            GUILayout.Label("KONTEN (nur Entwickler)", head);
+            GUILayout.Label(Accounts.ListMessage + "   ·   Passwoerter sind nicht einsehbar (nur verschluesselt bei Unity).", small);
+            GUILayout.Space(6);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("<b>Name</b>", text, GUILayout.Width(300));
+            GUILayout.Label("<b>Erstellt (UTC)</b>", text, GUILayout.Width(220));
+            GUILayout.Label("<b>Zuletzt (UTC)</b>", text);
+            GUILayout.EndHorizontal();
+            accountsScroll = GUILayout.BeginScrollView(accountsScroll, GUILayout.Height(640));
+            var list = new List<Accounts.Entry>(Accounts.List);
+            list.Sort((a, b) => string.CompareOrdinal(b.zuletzt, a.zuletzt));
+            foreach (var e in list)
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label(e.name, text, GUILayout.Width(300));
+                GUILayout.Label(e.seit, text, GUILayout.Width(220));
+                GUILayout.Label(e.zuletzt, text);
+                GUILayout.EndHorizontal();
+            }
+            GUILayout.EndScrollView();
+            GUILayout.BeginHorizontal();
+            GUI.enabled = !Accounts.ListBusy;
+            if (GUILayout.Button("Aktualisieren", btn, GUILayout.Height(46))) Accounts.LoadList();
+            GUI.enabled = true;
+            if (GUILayout.Button("Schliessen", btnSel, GUILayout.Height(46))) accountsOpen = false;
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
         }
 
         // ================= Serverliste =================

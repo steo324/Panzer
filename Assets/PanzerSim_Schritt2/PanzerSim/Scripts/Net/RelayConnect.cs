@@ -31,7 +31,10 @@ namespace PanzerSim
                 await UnityServices.InitializeAsync(opt);
             }
             if (!AuthenticationService.Instance.IsSignedIn)
-                await AuthenticationService.Instance.SignInAnonymouslyAsync();
+            {
+                if (Accounts.Required) throw new System.Exception("Nicht angemeldet (Konto)");   // Spieler: nur mit Konto
+                await AuthenticationService.Instance.SignInAnonymouslyAsync();   // Server und Tests
+            }
         }
 
         static RelayServerEndpoint Pick(List<RelayServerEndpoint> eps)
