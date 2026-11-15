@@ -15,6 +15,7 @@ namespace PanzerSim
     {
         const float Duration = 4f;
         public static bool Active => cam != null && cam.enabled;
+        public static TankController Target => target;
         static Camera cam;
         static Runner runner;
         static TankController target;
@@ -41,17 +42,19 @@ namespace PanzerSim
                 default: title = $"KEIN DURCHSCHLAG  -  {plateName}"; titleColor = new Color(1f, 0.45f, 0.4f); break;
             }
             details = $"{tank.spec.name}:  {r.penetrationMm:0} mm Durchschlag gegen {r.effectiveArmorMm:0} mm (Winkel {r.impactAngleDeg:0}°)";
-            // Schussbahn: 1,5 m vor dem Einschlag bis 4 m dahinter (in Panzer-Koordinaten, faehrt mit)
-            line.SetPosition(0, impactLocal - dirLocal * 1.5f);
-            line.SetPosition(1, impactLocal + dirLocal * (r.outcome == HitOutcome.Penetration ? 4f : 0.05f));
-            line.transform.SetParent(tank.transform, false);
-            spallUsed = 0;   // Splitter des vorigen Treffers weg
+            // Schussbahn: 1,5 m vor dem Einschlag bis 4 m dahinter (in Panzer-Koordinaten gemerkt, die Linie folgt jedes Bild).
+            // Linien haengen NICHT am Panzer: wird er geloescht (neue Ziele, Wrack aufgeraeumt), gingen sie sonst mit verloren
+            // und jeder spaetere Treffer wuerde abbrechen (Trefferkamera kam nicht mehr).
+            shotA = impactLocal - dirLocal * 1.5f;
+            shotB = impactLocal + dirLocal * (r.outcome == HitOutcome.Penetration ? 4f : 0.05f);
+            spallLocal.Clear();   // Splitter des vorigen Treffers weg
             cam.enabled = true;
         }
+        static Vector3 shotA, shotB;
+        static readonly List<(Vector3 a, Vector3 b)> spallLocal = new List<(Vector3 a, Vector3 b)>();
 
         // ---------- Splitter (Spall): Bahnen als orange Linien, nur in der Trefferkamera ----------
         static readonly List<LineRenderer> spallLines = new List<LineRenderer>();
-        static int spallUsed;
         static Material spallMat;
 
         /// <summary>Splitterbahnen der Granate (Welt-Koordinaten) anzeigen - fahren mit dem Panzer mit.</summary>
@@ -64,23 +67,19 @@ namespace PanzerSim
                 spallMat.color = new Color(1f, 0.62f, 0.15f);
             }
             int n = Mathf.Min(rays.Count, 80);
+            spallLines.RemoveAll(l => l == null);
             while (spallLines.Count < n)
             {
                 var go = new GameObject("Splitterbahn");
-                Object.DontDestroyOnLoad(go);
+                go.transform.SetParent(cam.transform, false);   // gehoert der Trefferkamera, nicht dem Panzer
                 var l = go.AddComponent<LineRenderer>();
-                l.useWorldSpace = false; l.positionCount = 2; l.startWidth = 0.025f; l.endWidth = 0.008f;
+                l.useWorldSpace = true; l.positionCount = 2; l.startWidth = 0.025f; l.endWidth = 0.008f;
                 l.sharedMaterial = spallMat; l.shadowCastingMode = ShadowCastingMode.Off; l.enabled = false;
                 spallLines.Add(l);
             }
+            spallLocal.Clear();
             for (int i = 0; i < n; i++)
-            {
-                var l = spallLines[i];
-                l.transform.SetParent(tank.transform, false);
-                l.SetPosition(0, tank.transform.InverseTransformPoint(rays[i].a));
-                l.SetPosition(1, tank.transform.InverseTransformPoint(rays[i].b));
-            }
-            spallUsed = n;
+                spallLocal.Add((tank.transform.InverseTransformPoint(rays[i].a), tank.transform.InverseTransformPoint(rays[i].b)));
             if (n > 0 && !details.Contains("Splitter")) details += $"\nSplitter: {n} Bahnen im Kampfraum";
         }
 
@@ -107,9 +106,9 @@ namespace PanzerSim
             var data = cam.GetUniversalAdditionalCameraData();
             if (data != null) { data.renderPostProcessing = false; data.antialiasing = AntialiasingMode.FastApproximateAntialiasing; data.renderShadows = true; }   // ohne Bloom: Explosionen ueberstrahlen sonst den Roentgenblick
             var lgo = new GameObject("Schussbahn");
-            Object.DontDestroyOnLoad(lgo);
+            lgo.transform.SetParent(go.transform, false);
             line = lgo.AddComponent<LineRenderer>();
-            line.useWorldSpace = false; line.positionCount = 2;
+            line.useWorldSpace = true; line.positionCount = 2;
             line.startWidth = 0.06f; line.endWidth = 0.03f;
             line.material = new Material(Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default"));
             line.material.color = new Color(1f, 0.15f, 0.1f);
@@ -139,6 +138,12 @@ namespace PanzerSim
         static void OnBegin(ScriptableRenderContext ctx, Camera c)
         {
             if (c != cam || target == null) return;
+            try { XrayOn(); }
+            catch (System.Exception e) { Debug.LogWarning("Trefferkamera: " + e.Message); }   // nie die Kamera blockieren
+        }
+
+        static void XrayOn()
+        {
             var glass = HitGlass();
             if (target.visual != null && glass != null)
                 foreach (var r in target.visual.Renderers)
@@ -157,7 +162,20 @@ namespace PanzerSim
                 r.enabled = true;
             }
             if (line != null) line.enabled = true;
-            for (int i = 0; i < spallUsed && i < spallLines.Count; i++) if (spallLines[i] != null) spallLines[i].enabled = true;
+            for (int i = 0; i < spallLocal.Count && i < spallLines.Count; i++) if (spallLines[i] != null) spallLines[i].enabled = true;
+        }
+
+        /// <summary>Linien jedes Bild an den (fahrenden) Panzer anlegen - aus den gemerkten Panzer-Koordinaten.</summary>
+        static void UpdateLines(Transform tr)
+        {
+            if (line != null) { line.SetPosition(0, tr.TransformPoint(shotA)); line.SetPosition(1, tr.TransformPoint(shotB)); }
+            for (int i = 0; i < spallLocal.Count && i < spallLines.Count; i++)
+            {
+                var l = spallLines[i];
+                if (l == null) continue;
+                l.SetPosition(0, tr.TransformPoint(spallLocal[i].a));
+                l.SetPosition(1, tr.TransformPoint(spallLocal[i].b));
+            }
         }
 
         static void OnEnd(ScriptableRenderContext ctx, Camera c)
@@ -186,6 +204,7 @@ namespace PanzerSim
                 Quaternion orbit = Quaternion.AngleAxis(-12f + t * 7f, Vector3.up);
                 Vector3 from = p + orbit * (-d * 4.2f + side * 1.4f) + Vector3.up * 1.3f;
                 cam.transform.SetPositionAndRotation(from, Quaternion.LookRotation(p - from, Vector3.up));
+                UpdateLines(tr);
             }
 
             void OnGUI()

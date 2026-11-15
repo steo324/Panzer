@@ -45,7 +45,7 @@ namespace PanzerSim
             // -benchhitcam: warten, bis die Trefferkamera aufgeht (mit -autofire), dann Bild
             if (System.Array.IndexOf(args, "-benchhitcam") >= 0)
             {
-                for (int k = 0; k < 2; k++)
+                for (int k = 0; k < 4; k++)
                 {
                     while (HitCam.Active) yield return null;   // auf einen NEUEN Treffer warten
                     float w = 0f;
@@ -54,6 +54,7 @@ namespace PanzerSim
                     if (!string.IsNullOrEmpty(outDir)) { System.IO.Directory.CreateDirectory(outDir); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir, $"trefferkamera_{k}.png")); }
                     Debug.Log($"BENCH-HITCAM: aktiv {HitCam.Active} nach {w:0.0} s");
                     while (HitCam.Active) yield return null;
+                    if (System.Array.IndexOf(args, "-hitcamdelete") >= 0 && HitCam.Target != null && HitCam.Target != pl) { Object.Destroy(HitCam.Target.gameObject); yield return null; }   // wie neue Ziele mit N
                 }
             }
 
