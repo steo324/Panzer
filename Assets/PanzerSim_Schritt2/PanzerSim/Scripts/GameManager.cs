@@ -11,6 +11,8 @@ namespace PanzerSim
         enum State { Menu, Playing, Paused }
         State state;
 
+        /// <summary>Alle waehlbaren Panzer (Testgelaende: Aufreihung).</summary>
+        public static TankSpec[] AllSpecs() { var l = new List<TankSpec>(); foreach (var f in Tanks) { var s = f(); if (!s.devOnly || GameSettings.DevMode) l.Add(s); } return l.ToArray(); }
         static readonly System.Func<TankSpec>[] Tanks =
             { () => TankLibrary.Tiger, () => TankLibrary.PanzerIV, () => TankLibrary.Sherman, () => TankLibrary.T34_85, () => TankLibrary.Wiesel, () => TankLibrary.PzH2000, () => TankLibrary.TigerII, () => TankLibrary.PanzerIII, () => TankLibrary.Panther,
               () => TankLibrary.KV1, () => TankLibrary.IS1, () => TankLibrary.IS2, () => TankLibrary.IS3, () => TankLibrary.T10, () => TankLibrary.T10M,

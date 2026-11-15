@@ -91,7 +91,7 @@ namespace PanzerSim
     public class TestRangeMap : GameMap
     {
         public override string Name => "Testgelaende";
-        public override string Description => "Flaches Gelaende mit Rampen, Mauer und Kisten. Zielpanzer auf 150-800 m. Zum Ausprobieren von Fahrphysik und Durchschlag.";
+        public override string Description => "Flaches Gelaende mit Rampen, Mauer und Kisten. Zielpanzer auf 150-800 m, rechts alle Panzer in einer Reihe. Zum Ausprobieren von Fahrphysik und Durchschlag.";
         public override Vector2 PlayerXZ => Vector2.zero;
         public override Vector3? RampSpawn => new Vector3(-45f, 0.3f, 18f);
 
@@ -113,14 +113,21 @@ namespace PanzerSim
                 Block(root, "Kiste", new Vector3(-30f + i * 4f, 0.75f, 110f + (i % 2) * 3f), Vector3.one * 1.5f, new Vector3(0f, i * 17f, 0f));
         }
 
-        public override List<Spawn> Targets() => new List<Spawn>
+        public override List<Spawn> Targets()
         {
-            new Spawn(TankLibrary.Sherman, -15f, 300f, 180f),
-            new Spawn(TankLibrary.T34_85, 25f, 500f, 150f),
-            new Spawn(TankLibrary.PanzerIV, 45f, 200f, 270f),
-            new Spawn(TankLibrary.Sherman, -60f, 800f, 210f),
-            new Spawn(TankLibrary.Tiger, -40f, 150f, 135f),
-        };
+            var l = new List<Spawn>
+            {
+                new Spawn(TankLibrary.Sherman, -15f, 300f, 180f),
+                new Spawn(TankLibrary.T34_85, 25f, 500f, 150f),
+                new Spawn(TankLibrary.PanzerIV, 45f, 200f, 270f),
+                new Spawn(TankLibrary.Sherman, -60f, 800f, 210f),
+                new Spawn(TankLibrary.Tiger, -40f, 150f, 135f),
+            };
+            // Panzerparade: alle Panzer rechts in einer Reihe (Bug zur Fahrbahn), zum Anschauen und Vergleichen - stehen nicht in der Schusslinie zu den Zielen
+            var all = GameManager.AllSpecs();
+            for (int i = 0; i < all.Length; i++) l.Add(new Spawn(all[i], 75f, 30f + i * 8f, 270f));
+            return l;
+        }
     }
 
     // =====================================================================
