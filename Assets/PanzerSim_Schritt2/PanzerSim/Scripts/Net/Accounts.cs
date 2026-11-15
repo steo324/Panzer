@@ -29,7 +29,108 @@ namespace PanzerSim
         public static string Message = "";
         public static string Username = "";
         public static bool LoggedIn => !string.IsNullOrEmpty(Username) && UnityServices.State == ServicesInitializationState.Initialized && AuthenticationService.Instance.IsSignedIn;
-        public static bool IsDevAccount => LoggedIn && string.Equals(Username, DevName, StringComparison.OrdinalIgnoreCase);
+        /// <summary>Besitzer (steo): darf bannen, Timeouts geben und Devs ernennen.</summary>
+        public static bool IsOwner => LoggedIn && string.Equals(Username, DevName, StringComparison.OrdinalIgnoreCase) && PlayerId == OwnerId;
+        /// <summary>Besitzer oder vom Besitzer ernannter Dev: Entwickler-Modus und Kontoliste.</summary>
+        public static bool IsDevAccount => IsOwner || (LoggedIn && Mod.devs.Contains(PlayerId));
+        public static string PlayerId => LoggedIn ? AuthenticationService.Instance.PlayerId : "";
+
+        // ---------------- Moderation (Bann / Timeout / Dev) ----------------
+        // Liegt als oeffentliche Daten im Konto des Besitzers: nur er kann sie schreiben, alle Spiele lesen sie.
+        public const string OwnerId = "2EHEv4tBWLrB9x0DYuHR23K366wv";   // Spieler-ID von "steo"
+        [Serializable] public class Timeout { public string id; public string until; }   // until: UTC "yyyy-MM-dd HH:mm"
+        [Serializable] public class ModData { public List<string> bans = new List<string>(); public List<Timeout> timeouts = new List<Timeout>(); public List<string> devs = new List<string>(); }
+        public static ModData Mod = new ModData();
+        static float modTimer;
+
+        static async Task LoadMod()
+        {
+            try
+            {
+                var r = await CloudSaveService.Instance.Data.Player.LoadAsync(new HashSet<string> { "mod" },
+                    new Unity.Services.CloudSave.Models.Data.Player.LoadOptions(new Unity.Services.CloudSave.Models.Data.Player.PublicReadAccessClassOptions(OwnerId)));
+                if (r.TryGetValue("mod", out var it)) Mod = JsonUtility.FromJson<ModData>(it.Value.GetAs<string>()) ?? new ModData();
+                if (Mod.bans == null) Mod.bans = new List<string>();
+                if (Mod.timeouts == null) Mod.timeouts = new List<Timeout>();
+                if (Mod.devs == null) Mod.devs = new List<string>();
+            }
+            catch (Exception e) { Debug.LogWarning("[Konto] Moderation laden: " + e.Message); }
+        }
+
+        static async Task SaveMod()
+        {
+            if (!IsOwner) return;
+            try
+            {
+                Mod.timeouts.RemoveAll(t => TimeoutEnd(t) <= DateTime.UtcNow);
+                await CloudSaveService.Instance.Data.Player.SaveAsync(new Dictionary<string, object> { { "mod", JsonUtility.ToJson(Mod) } },
+                    new Unity.Services.CloudSave.Models.Data.Player.SaveOptions(new Unity.Services.CloudSave.Models.Data.Player.PublicWriteAccessClassOptions()));
+                ListMessage = "Gespeichert.";
+            }
+            catch (Exception e) { ListMessage = "Speichern fehlgeschlagen: " + e.Message; Debug.LogWarning("[Konto] Moderation speichern: " + e); }
+        }
+
+        static DateTime TimeoutEnd(Timeout t)
+        {
+            return DateTime.TryParseExact(t.until, "yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out var d) ? d : DateTime.MinValue;
+        }
+
+        public static bool IsBanned(string id) => id != OwnerId && Mod.bans.Contains(id);
+        public static bool IsDevId(string id) => id == OwnerId || Mod.devs.Contains(id);
+        /// <summary>Ende des laufenden Timeouts (UTC) oder null.</summary>
+        public static DateTime? TimeoutUntil(string id)
+        {
+            if (id == OwnerId) return null;
+            foreach (var t in Mod.timeouts) if (t.id == id) { var e = TimeoutEnd(t); if (e > DateTime.UtcNow) return e; }
+            return null;
+        }
+
+        /// <summary>Gesperrt? Dann Meldung, sonst null.</summary>
+        static string BlockReason(string id)
+        {
+            if (IsBanned(id)) return "Dieses Konto ist gesperrt.";
+            var t = TimeoutUntil(id);
+            if (t.HasValue) return $"Timeout bis {t.Value.ToLocalTime():dd.MM.yyyy HH:mm} Uhr.";
+            return null;
+        }
+
+        public static async void SetBan(string id, bool on)
+        {
+            if (!IsOwner || id == OwnerId) return;
+            Mod.bans.Remove(id); if (on) Mod.bans.Add(id);
+            await SaveMod();
+        }
+
+        public static async void SetTimeout(string id, int minutes)
+        {
+            if (!IsOwner || id == OwnerId) return;
+            Mod.timeouts.RemoveAll(t => t.id == id);
+            if (minutes > 0) Mod.timeouts.Add(new Timeout { id = id, until = DateTime.UtcNow.AddMinutes(minutes).ToString("yyyy-MM-dd HH:mm") });
+            await SaveMod();
+        }
+
+        public static async void SetDev(string id, bool on)
+        {
+            if (!IsOwner || id == OwnerId) return;
+            Mod.devs.Remove(id); if (on) Mod.devs.Add(id);
+            await SaveMod();
+        }
+
+        /// <summary>Alle 2 Minuten pruefen, ob das eigene Konto inzwischen gesperrt wurde (auch mitten im Spiel).</summary>
+        public static async void Tick(float dt)
+        {
+            if (!LoggedIn || Busy) return;
+            modTimer += dt;
+            if (modTimer < 120f) return;
+            modTimer = 0f;
+            await LoadMod();
+            string why = LoggedIn ? BlockReason(PlayerId) : null;
+            if (why != null) { SafeSignOut(); Message = why; Kicked = true; }
+            else if (IsDevAccount) GameSettings.DevMode = true;
+        }
+        /// <summary>Gerade gesperrt worden: das Spiel geht zurueck ins Menue.</summary>
+        public static bool Kicked;
         public static bool RestoreTried;
 
         /// <summary>Tests/Benchmarks und der Server laufen ohne Konto.</summary>
@@ -105,8 +206,14 @@ namespace PanzerSim
             if (string.IsNullOrEmpty(name)) { var info = await auth.GetPlayerInfoAsync(); name = info?.Username; }
             if (string.IsNullOrEmpty(name)) { SafeSignOut(); return; }   // alte anonyme Sitzung ohne Konto: neu anmelden
             Username = name;
+            await LoadMod();
+            string why = BlockReason(auth.PlayerId);
+            if (why != null) { SafeSignOut(); Message = why; return; }
+            modTimer = 0f;
             GameSettings.PlayerName = name;
             if (IsDevAccount) GameSettings.DevMode = true;
+            if (string.Equals(name, DevName, StringComparison.OrdinalIgnoreCase) && auth.PlayerId != OwnerId)
+                Debug.LogWarning($"[Konto] steo hat eine andere Spieler-ID ({auth.PlayerId}) als OwnerId");
             Debug.Log($"[Konto] angemeldet: {name}");
             // Name fuer die Entwickler-Kontoliste (oeffentlich lesbar, nur der Name)
             try
@@ -171,7 +278,7 @@ namespace PanzerSim
         }
 
         // ---------------- Kontoliste (nur Entwickler) ----------------
-        public class Entry { public string name, seit, zuletzt; }
+        public class Entry { public string id, name, seit, zuletzt; }
         public static List<Entry> List = new List<Entry>();
         public static string ListMessage = "";
         public static bool ListBusy;
@@ -180,6 +287,7 @@ namespace PanzerSim
         {
             if (!IsDevAccount || ListBusy) return;
             ListBusy = true; ListMessage = "Lade Konten ...";
+            await LoadMod();
             try
             {
                 var result = new List<Entry>();
@@ -190,7 +298,7 @@ namespace PanzerSim
                     var page = await CloudSaveService.Instance.Data.Player.QueryAsync(q, new Unity.Services.CloudSave.Models.Data.Player.QueryOptions());
                     foreach (var ent in page)
                     {
-                        var en = new Entry { name = "?", seit = "", zuletzt = "" };
+                        var en = new Entry { id = ent.Id, name = "?", seit = "", zuletzt = "" };
                         if (ent.Data != null)
                             foreach (var it in ent.Data)
                             {

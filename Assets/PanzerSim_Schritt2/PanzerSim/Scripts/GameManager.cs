@@ -434,6 +434,12 @@ namespace PanzerSim
         // ================= Eingabe =================
         void Update()
         {
+            // Konto: gesperrt / Timeout mitten im Spiel -> zurueck zur Anmeldung
+            if (Accounts.Required)
+            {
+                Accounts.Tick(Time.unscaledDeltaTime);
+                if (Accounts.Kicked) { Accounts.Kicked = false; accountsOpen = false; settingsOpen = false; if (state != State.Menu) ShowMenu(); }
+            }
             // Server/Host: Angaben fuer die Serverliste aktuell halten
             if (NetSync.IsServer && map != null)
             {
@@ -815,37 +821,72 @@ namespace PanzerSim
             GUI.Label(new Rect(W - 490, 1040, 430, 22), GameVersion.Display, small);
         }
 
+        string timeoutFor = "";   // Konto, bei dem gerade die Timeout-Auswahl offen ist
+
         void DrawAccountList(float W, float H)
         {
             GUI.DrawTexture(new Rect(0, 0, W, H), texShade);
-            var r = new Rect(W / 2f - 420, 90, 840, 900);
+            var r = new Rect(W / 2f - 620, 80, 1240, 920);
             GUI.Box(r, GUIContent.none, panel);
             GUILayout.BeginArea(new Rect(r.x + 28, r.y + 22, r.width - 56, r.height - 44));
             GUILayout.Label("KONTEN (nur Entwickler)", head);
-            GUILayout.Label(Accounts.ListMessage + "   ·   Passwoerter sind nicht einsehbar (nur verschluesselt bei Unity).", small);
+            GUILayout.Label(Accounts.ListMessage + "   ·   Passwoerter sind nicht einsehbar." + (Accounts.IsOwner ? "" : "   ·   Bannen/Timeout/Dev darf nur steo."), small);
             GUILayout.Space(6);
             GUILayout.BeginHorizontal();
-            GUILayout.Label("<b>Name</b>", text, GUILayout.Width(300));
-            GUILayout.Label("<b>Erstellt (UTC)</b>", text, GUILayout.Width(220));
-            GUILayout.Label("<b>Zuletzt (UTC)</b>", text);
+            GUILayout.Label("<b>Name</b>", text, GUILayout.Width(200));
+            GUILayout.Label("<b>Status</b>", text, GUILayout.Width(230));
+            GUILayout.Label("<b>Erstellt (UTC)</b>", text, GUILayout.Width(170));
+            GUILayout.Label("<b>Zuletzt (UTC)</b>", text, GUILayout.Width(170));
             GUILayout.EndHorizontal();
-            accountsScroll = GUILayout.BeginScrollView(accountsScroll, GUILayout.Height(640));
+            accountsScroll = GUILayout.BeginScrollView(accountsScroll, GUILayout.Height(660));
             var list = new List<Accounts.Entry>(Accounts.List);
             list.Sort((a, b) => string.CompareOrdinal(b.zuletzt, a.zuletzt));
             foreach (var e in list)
             {
+                bool owner = e.id == Accounts.OwnerId;
+                bool banned = Accounts.IsBanned(e.id), dev = Accounts.IsDevId(e.id);
+                var to = Accounts.TimeoutUntil(e.id);
+                string status = owner ? "<color=#fd6>Besitzer</color>"
+                    : banned ? "<color=#f66>gesperrt</color>"
+                    : to.HasValue ? $"<color=#fa6>Timeout bis {to.Value.ToLocalTime():dd.MM. HH:mm}</color>"
+                    : dev ? "<color=#6cf>Dev</color>" : "Spieler";
+                if (!owner && dev && (banned || to.HasValue)) status += " <color=#6cf>(Dev)</color>";
                 GUILayout.BeginHorizontal();
-                GUILayout.Label(e.name, text, GUILayout.Width(300));
-                GUILayout.Label(e.seit, text, GUILayout.Width(220));
-                GUILayout.Label(e.zuletzt, text);
+                GUILayout.Label(e.name, text, GUILayout.Width(200), GUILayout.Height(36));
+                GUILayout.Label(status, text, GUILayout.Width(230), GUILayout.Height(36));
+                GUILayout.Label(e.seit, small, GUILayout.Width(170), GUILayout.Height(36));
+                GUILayout.Label(e.zuletzt, small, GUILayout.Width(170), GUILayout.Height(36));
+                if (Accounts.IsOwner && !owner)
+                {
+                    if (GUILayout.Button(banned ? "Entbannen" : "Bannen", banned ? btnSel : btn, GUILayout.Width(120), GUILayout.Height(36))) Accounts.SetBan(e.id, !banned);
+                    if (GUILayout.Button(to.HasValue ? "Timeout weg" : "Timeout", to.HasValue || timeoutFor == e.id ? btnSel : btn, GUILayout.Width(120), GUILayout.Height(36)))
+                    {
+                        if (to.HasValue) { Accounts.SetTimeout(e.id, 0); timeoutFor = ""; }
+                        else timeoutFor = timeoutFor == e.id ? "" : e.id;
+                    }
+                    if (GUILayout.Button(dev ? "Dev weg" : "Dev machen", dev ? btnSel : btn, GUILayout.Width(120), GUILayout.Height(36))) Accounts.SetDev(e.id, !dev);
+                }
                 GUILayout.EndHorizontal();
+                if (timeoutFor == e.id && Accounts.IsOwner && !owner)
+                {
+                    // Dauer waehlen
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("Timeout fuer " + e.name + ":", small, GUILayout.Width(200), GUILayout.Height(32));
+                    int[] mins = { 10, 60, 1440, 10080 };
+                    string[] names = { "10 Minuten", "1 Stunde", "1 Tag", "7 Tage" };
+                    for (int i = 0; i < mins.Length; i++)
+                        if (GUILayout.Button(names[i], btn, GUILayout.Width(140), GUILayout.Height(32))) { Accounts.SetTimeout(e.id, mins[i]); timeoutFor = ""; }
+                    if (GUILayout.Button("Abbrechen", btn, GUILayout.Width(120), GUILayout.Height(32))) timeoutFor = "";
+                    GUILayout.EndHorizontal();
+                }
             }
             GUILayout.EndScrollView();
+            GUILayout.Label("Gesperrte Spieler werden innerhalb von 2 Minuten abgemeldet und koennen sich nicht mehr anmelden.", small);
             GUILayout.BeginHorizontal();
             GUI.enabled = !Accounts.ListBusy;
             if (GUILayout.Button("Aktualisieren", btn, GUILayout.Height(46))) Accounts.LoadList();
             GUI.enabled = true;
-            if (GUILayout.Button("Schliessen", btnSel, GUILayout.Height(46))) accountsOpen = false;
+            if (GUILayout.Button("Schliessen", btnSel, GUILayout.Height(46))) { accountsOpen = false; timeoutFor = ""; }
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
         }
