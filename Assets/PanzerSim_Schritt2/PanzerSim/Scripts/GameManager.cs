@@ -83,6 +83,7 @@ namespace PanzerSim
             if (ushort.TryParse(Arg("-port"), out ushort p)) portText = p.ToString();
             autoFire = Has("-autofire");
             ammoTestPending = Has("-ammodialog");   // Test: Munitionsfenster des gewaehlten Panzers oeffnen
+            menuShot = Arg("-menushot");            // Test: Bild vom Menue (Unity-eigene Aufnahme)
             if (Arg("-playername") != null) GameSettings.NameOverride = Arg("-playername");
             if (int.TryParse(Arg("-team"), out int tmo)) GameSettings.TeamOverride = Mathf.Clamp(tmo, 0, 1);
             NetSync.ServerName = Arg("-name") ?? $"Ballistik-Server ({System.Environment.MachineName})";
@@ -440,6 +441,7 @@ namespace PanzerSim
         void Update()
         {
             if (ammoTestPending && Time.realtimeSinceStartup > 4f) { ammoTestPending = false; OpenAmmoTest(); }
+            if (menuShot != null && Time.realtimeSinceStartup > 6f) { ScreenCapture.CaptureScreenshot(menuShot); menuShot = null; }
             // Konto: gesperrt / Timeout mitten im Spiel -> zurueck zur Anmeldung
             if (Accounts.Required)
             {
@@ -696,17 +698,26 @@ namespace PanzerSim
                 }
                 GUILayout.EndHorizontal();
             }
-            GUILayout.Space(14);
-            GUILayout.Label(TankInfo(Tanks[tankIndex]()), text);
+            GUILayout.Space(10);
+            var ts = Tanks[tankIndex]();
+            if (!ts.noGun && GUILayout.Button($"Munition einstellen  ({Loadouts.Capacity(ts)} Granaten an Bord)", btn, GUILayout.Height(38))) OpenAmmo(ts);
+            GUILayout.Space(8);
+            GUILayout.Label(TankInfo(ts), text);
             GUILayout.EndArea();
 
             // ---- Karte ----
-            var right = new Rect(W - 490, 160, 430, 560);
+            var right = new Rect(W - 490, 160, 430, 580);
             GUI.Box(right, GUIContent.none, panel);
             GUILayout.BeginArea(new Rect(right.x + 18, right.y + 14, right.width - 36, right.height - 28));
             GUILayout.Label("KARTE", head);
-            for (int i = 0; i < maps.Length; i++)
-                if (GUILayout.Button(maps[i].Name, i == mapIndex ? btnSel : btn, GUILayout.Height(44))) mapIndex = i;
+            // zwei Spalten, damit unten noch Platz fuer Spielmodus und Mehrspieler bleibt
+            for (int i = 0; i < maps.Length; i += 2)
+            {
+                GUILayout.BeginHorizontal();
+                for (int j = i; j < Mathf.Min(i + 2, maps.Length); j++)
+                    if (GUILayout.Button(maps[j].Name, j == mapIndex ? btnSel : btn, GUILayout.Height(40), GUILayout.Width(190))) mapIndex = j;
+                GUILayout.EndHorizontal();
+            }
             GUILayout.Space(14);
             GUILayout.Label(maps[mapIndex].Description, text);
 
@@ -719,11 +730,6 @@ namespace PanzerSim
             GUILayout.EndHorizontal();
             if (waveMode) GUILayout.Label("KI-Panzer greifen in Wellen an, jede Welle mehr und staerker. Zwischen den Wellen wird repariert.", text);
             if (jetMode) GUILayout.Label("Jet (Test): ueber die Zielpanzer fliegen, 5-t-Bomben werfen (rotes X = Einschlag), 20-mm-Kanone. Shift/Strg Schub, W/S, A/D, Q/E.", text);
-            if (!jetMode)
-            {
-                var ts = Tanks[tankIndex]();
-                if (!ts.noGun && GUILayout.Button($"Munition einstellen  ({Loadouts.Capacity(ts)} Granaten an Bord)", btn, GUILayout.Height(40))) OpenAmmo(ts);
-            }
 
             // ---- Mehrspieler ----
             GUILayout.Space(16);
@@ -909,6 +915,7 @@ namespace PanzerSim
         int[] ammoEdit, ammoEdit2;
 
         bool ammoTestPending;
+        string menuShot;
         void OpenAmmoTest() => OpenAmmo(Tanks[tankIndex]());
         void OpenAmmo(TankSpec s)
         {
