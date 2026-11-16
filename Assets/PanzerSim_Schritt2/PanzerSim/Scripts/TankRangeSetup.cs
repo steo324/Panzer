@@ -89,7 +89,7 @@ namespace PanzerSim
                     if (go.name == "Treffer") Destroy(go);
             }
             if (Inp.Down(KeyCode.T) && player != null) player.ResetUpright();
-            if (Inp.Down(KeyCode.B) && player != null) player.Teleport(new Vector3(-45f, 0.3f, 18f), 0f); // vor die steile Rampe
+            if (Inp.Down(KeyCode.U) && player != null) player.Teleport(new Vector3(-45f, 0.3f, 18f), 0f); // vor die steile Rampe
             // Testschuesse auf den Ziel-Tiger (K = von vorne, L = von der Seite)
             if (Inp.Down(KeyCode.K) || Inp.Down(KeyCode.L)) TestShot(Inp.Down(KeyCode.L));
             if (Inp.Down(KeyCode.P))

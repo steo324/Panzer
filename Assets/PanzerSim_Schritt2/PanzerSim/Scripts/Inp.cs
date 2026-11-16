@@ -32,6 +32,7 @@ namespace PanzerSim
                 case KeyCode.Tab: return kb.tabKey;
                 case KeyCode.P: return kb.pKey;
                 case KeyCode.B: return kb.bKey;
+                case KeyCode.U: return kb.uKey;
                 case KeyCode.K: return kb.kKey;
                 case KeyCode.L: return kb.lKey;
                 case KeyCode.J: return kb.jKey;

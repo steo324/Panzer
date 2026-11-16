@@ -97,6 +97,7 @@ namespace PanzerSim
                 b.preset = int.TryParse(Arg("-preset"), out int bp) ? Mathf.Clamp(bp, 0, 3) : -1;
                 TankController.BenchDrive = Has("-benchdrive");
                 TankController.BenchMg = Has("-benchmg");
+                TankCamera.BenchCmd = Has("-benchcmd");
                 if (Has("-waves")) waveMode = true;   // Test: Wellen-Modus
                 if (Has("-jet")) jetMode = true;      // Test: Testflug
                 if (int.TryParse(Arg("-tageszeit"), out int tod)) GameSettings.TimeOfDay = Mathf.Clamp(tod, 0, 3);   // Test: Tageszeit fuer Bilder
@@ -538,7 +539,7 @@ namespace PanzerSim
                     if (go.name == "Treffer") Destroy(go);
             }
             if (Inp.Down(KeyCode.T) && player != null) player.ResetUpright();
-            if (Inp.Down(KeyCode.B) && player != null && map.RampSpawn.HasValue) player.Teleport(map.RampSpawn.Value, 0f);
+            if (Inp.Down(KeyCode.U) && player != null && map.RampSpawn.HasValue) player.Teleport(map.RampSpawn.Value, 0f);
         }
 
         void Pause(bool on)

@@ -24,6 +24,8 @@ namespace PanzerSim
         public static bool BenchThermal;
         /// <summary>Leistungstest (-bencharty): Kartenmodus an.</summary>
         public static bool BenchArty;
+        /// <summary>Test (-benchcmd): Kommandantensicht mit Fernglas.</summary>
+        public static bool BenchCmd;
         bool autoRange;                                     // nur Leistungstests; im Spiel stellt man die Entfernung selbst ein (Q/E) oder lasert (R)
         float laserTime = -10f, laserRange;                 // letzte Laser-Messung (nur Fahrzeuge mit Entfernungsmesser)
         TankController aimedTank;                           // Fahrzeug im Fadenkreuz (Feuerleitrechner misst seine Geschwindigkeit)
@@ -49,7 +51,8 @@ namespace PanzerSim
         void LateUpdate()
         {
             if (target == null) return;
-            if (target != lastTarget) { lastTarget = target; yaw = target.transform.eulerAngles.y; pitch = 5f; sightMode = false; zoomLevel = 0; }
+            if (target != lastTarget) { lastTarget = target; yaw = target.transform.eulerAngles.y; pitch = 5f; sightMode = false; zoomLevel = 0; cmdMode = false; }
+            if (BenchCmd && !cmdMode && Time.timeSinceLevelLoad > 3f) { cmdMode = true; cmdZoom = true; cmdYaw = yaw; cmdPitch = 0f; }
             // Artillerie: Kartenmodus (die Karte steuert dann die Kamera)
             // M: grosse Karte (Artillerie-Fahrzeuge koennen oben auf den Reiter "Artillerie" wechseln)
             if (Inp.Down(KeyCode.M)) TeamHud.ToggleMap(target, cam);
@@ -57,8 +60,19 @@ namespace PanzerSim
             if (ArtilleryMode.Active || TeamHud.MapOpen) return;   // Karte offen: Kamera und Zielen ruhen
             if (BenchSight && !sightMode) { sightMode = true; if (target.visual != null) target.visual.SetVisible(false); }
 
+            // B = Kommandant: Kopf aus der Luke, freier Rundumblick, Mausrad = Fernglas 6x. Turm und Kanone bleiben stehen.
+            if (Inp.Down(KeyCode.B))
+            {
+                cmdMode = !cmdMode;
+                if (cmdMode)
+                {
+                    cmdYaw = yaw; cmdPitch = Mathf.Clamp(pitch - 5f, -30f, 40f); cmdZoom = false;
+                    if (sightMode) { sightMode = false; if (target.visual != null) target.visual.SetVisible(TankController.ViewMode != 1); }
+                }
+            }
             if (Inp.Down(KeyCode.LeftShift))
             {
+                cmdMode = false;
                 sightMode = !sightMode;
                 // Im Visier das eigene Modell ausblenden (sonst ragt die eigene Kanone ins Bild)
                 if (target.visual != null) target.visual.SetVisible(!sightMode && TankController.ViewMode != 1);
@@ -90,13 +104,31 @@ namespace PanzerSim
             float sc = Inp.Scroll;
             if (sc != 0f)
             {
-                if (sightMode) zoomLevel = Mathf.Clamp(zoomLevel + (sc > 0f ? 1 : -1), 0, ZoomCount - 1);
+                if (cmdMode) cmdZoom = sc > 0f;
+                else if (sightMode) zoomLevel = Mathf.Clamp(zoomLevel + (sc > 0f ? 1 : -1), 0, ZoomCount - 1);
                 else distance = Mathf.Clamp(distance - sc * 1.5f, 5f, 25f);
             }
             // Q / E = Visier-Entfernung einstellen
             if (Inp.Down(KeyCode.E)) manualRange = Mathf.Clamp(Mathf.Round(manualRange / 100f) * 100f + 100f, 100f, 4000f);
             if (Inp.Down(KeyCode.Q)) manualRange = Mathf.Clamp(Mathf.Round(manualRange / 100f) * 100f - 100f, 100f, 4000f);
 
+            if (cmdMode)
+            {
+                // Kommandant: eigene Blickrichtung; Turm und Zielpunkt bleiben, wie sie sind
+                if (Cursor.lockState == CursorLockMode.Locked)
+                {
+                    Vector2 d = Inp.MouseDelta * sensitivity * GameSettings.MouseSens * (cmdZoom ? CmdZoomFov / 60f : 1f);
+                    if (GameSettings.InvertY) d.y = -d.y;
+                    cmdYaw += d.x;
+                    cmdPitch = Mathf.Clamp(cmdPitch - d.y, -35f, 60f);
+                }
+                transform.position = CommanderEye();
+                transform.rotation = Quaternion.Euler(cmdPitch, cmdYaw, 0f);
+                cam.fieldOfView = cmdZoom ? CmdZoomFov : GameSettings.Fov;
+                Vector3 cshake = CameraShake.Sample(Time.deltaTime);
+                if (cshake != Vector3.zero) transform.rotation *= Quaternion.Euler(cshake);
+                return;
+            }
             if (Cursor.lockState == CursorLockMode.Locked)
             {
                 Vector2 d = Inp.MouseDelta * sensitivity * GameSettings.MouseSens * (sightMode ? SightFov / 60f : 1f);
@@ -162,6 +194,91 @@ namespace PanzerSim
             }
         }
 
+        // ---------------- Kommandant (Taste B) ----------------
+        bool cmdMode, cmdZoom;
+        float cmdYaw, cmdPitch;
+        const float CmdZoomFov = 8.5f;     // Fernglas 6x30: 8,5 Grad Sehfeld
+        public bool CommanderView => cmdMode;
+
+        /// <summary>Augenhoehe des Kommandanten: ueber seinem Platz, Kopf aus der Luke.</summary>
+        Vector3 CommanderEye()
+        {
+            Transform t = null; float half = 0.4f;
+            if (target.seats.TryGetValue(ModuleType.Commander, out var m) && m != null)
+            {
+                t = m.transform;
+                var bc = m.GetComponent<BoxCollider>();
+                if (bc != null) half = bc.size.y * 0.5f * t.lossyScale.y;
+            }
+            if (t == null) return target.SightPosition + target.transform.up * 0.8f;
+            var tur = target.parts.turret;
+            if (tur != null && t.IsChildOf(tur))
+            {
+                // Kommandant im Turm: Kopf ueber dem Turmdach (sonst steckt die Kamera in der Kuppel)
+                Vector3 local = tur.InverseTransformPoint(t.position);
+                return tur.TransformPoint(new Vector3(local.x, 0f, local.z)) + tur.up * (target.spec.turretHeight + 0.75f);
+            }
+            return t.position + target.transform.up * (half + 0.75f);
+        }
+
+        Texture2D binoMask; int binoW, binoH;
+        /// <summary>Fernglas-Maske: schwarz mit zwei ueberlappenden Kreisen.</summary>
+        void EnsureBinoMask()
+        {
+            int w = Mathf.Max(64, Screen.width / 4), h = Mathf.Max(36, Screen.height / 4);
+            if (binoMask != null && binoW == w && binoH == h) return;
+            if (binoMask != null) Destroy(binoMask);
+            binoW = w; binoH = h;
+            binoMask = new Texture2D(w, h, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[w * h];
+            float r = h * 0.47f, off = h * 0.33f, cxm = w / 2f, cym = h / 2f;
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    float d1 = Mathf.Sqrt((x - (cxm - off)) * (x - (cxm - off)) + (y - cym) * (y - cym));
+                    float d2 = Mathf.Sqrt((x - (cxm + off)) * (x - (cxm + off)) + (y - cym) * (y - cym));
+                    float edge = Mathf.Min(d1, d2) - r;                  // < 0 innen
+                    byte a = (byte)(Mathf.Clamp01(edge / (h * 0.025f) + 0.5f) * 255);
+                    px[y * w + x] = new Color32(0, 0, 0, a);
+                }
+            binoMask.SetPixels32(px); binoMask.Apply();
+        }
+
+        void DrawCommander(float cx, float cy)
+        {
+            if (cmdZoom)
+            {
+                EnsureBinoMask();
+                GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), binoMask);
+                // Strichplatte: Querlinie mit Strichen alle 10 Strich (Entfernung schaetzen: 1 Strich = 1 m auf 1000 m)
+                float pxPerMil = Screen.height / CmdZoomFov * (360f / 6400f);
+                Color ink = new Color(0f, 0f, 0f, 0.85f);
+                GUI.color = ink;
+                float L = 50f * pxPerMil;
+                GUI.DrawTexture(new Rect(cx - L, cy - 0.75f, 2f * L, 1.5f), Texture2D.whiteTexture);
+                for (int i = -5; i <= 5; i++)
+                {
+                    float x = cx + i * 10f * pxPerMil, hh = i == 0 ? 14f : (i % 2 == 0 ? 9f : 6f);
+                    GUI.DrawTexture(new Rect(x - 0.75f, cy - hh, 1.5f, hh), Texture2D.whiteTexture);
+                }
+                for (int i = 1; i <= 4; i++)
+                {
+                    float y = cy + i * 5f * pxPerMil;
+                    GUI.DrawTexture(new Rect(cx - 4f, y - 0.75f, 8f, 1.5f), Texture2D.whiteTexture);
+                }
+                GUI.color = Color.white;
+            }
+            float k = GameSettings.UiFactor;
+            if (cmdHint == null) { cmdHint = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, richText = true }; }
+            cmdHint.fontSize = Mathf.RoundToInt(15 * k);
+            float hdg = Mathf.Repeat(cmdYaw, 360f);
+            string txt = $"KOMMANDANT   {hdg:000} Grad   " + (cmdZoom ? "Fernglas 6x  (Mausrad zurueck: 1x)" : "Mausrad vor: Fernglas 6x") + "   B: zurueck";
+            Rect rr = new Rect(0, Screen.height - 46 * k, Screen.width, 30 * k);
+            cmdHint.normal.textColor = new Color(0, 0, 0, 0.8f); GUI.Label(new Rect(rr.x + 1, rr.y + 1, rr.width, rr.height), txt, cmdHint);
+            cmdHint.normal.textColor = new Color(1f, 0.92f, 0.7f); GUI.Label(rr, txt, cmdHint);
+        }
+        GUIStyle cmdHint;
+
         void SetViewMode(int mode)
         {
             TankController.ViewMode = mode;
@@ -218,7 +335,8 @@ namespace PanzerSim
 
             EnsureTextures();
             bool inSight = sightMode && t0.parts.turret.parent != null;
-            if (inSight) DrawSight(cx, cy);
+            if (cmdMode) DrawCommander(cx, cy);
+            else if (inSight) DrawSight(cx, cy);
             else
             {
                 // Kreis = wohin du zielst
@@ -312,7 +430,8 @@ namespace PanzerSim
                 "Mausrad: Zoom (Visier: nur wenn umschaltbar)   Q/E: Entfernung" + (t.spec.hasRangefinder ? "   R: lasern" : " (schaetzen)") + "\n" +
                 "1-7: Munition wechseln\n" +
                 "X: Ansicht (normal/Innenteile/Panzerung)   F: Feuer loeschen\n" +
-                "N: neue Ziele / neuer Panzer   T: aufrichten   B: zur Rampe (Testgelaende)\n" +
+                "B: Kommandant (Fernglas: Mausrad)   U: zur Rampe (Testgelaende)\n" +
+                "N: neue Ziele / neuer Panzer   T: aufrichten\n" +
                 "Mittlere Maustaste: Pingen (Team)   J: Besatzung steigt aus\n" +
                 "Esc: Pause / Menue\nMarker: gruen = Durchschlag, rot = nein, gelb = Abpraller", small);
 
