@@ -98,6 +98,7 @@ namespace PanzerSim
             BuildBuildings(root);
             BuildWater(root);
             BuildHedges(root);
+            BuildRoadMeshes(root);
             BuildProps(root);
             BuildEdge(root);
             var trees = PlaceTrees();
@@ -666,8 +667,11 @@ namespace PanzerSim
                     if (!tree) continue;
                     if (s != Wald) { bool nearHouse = false; foreach (var b in buildingBoxes) if (Mathf.Abs(px - b.x) < b.z + 4f && Mathf.Abs(pz - b.y) < b.z + 4f) { nearHouse = true; break; } if (nearHouse) continue; }
                     float y = GroundY(px, pz);
-                    // Teutoburger Wald: Buchen und Fichten gemischt, Fichten eher in Flecken
-                    byte kind = (byte)(n.Get(px / 350f + 3f, pz / 350f + 9f) > 0.55f ? 0 : 1);
+                    // Teutoburger Wald: Buchen mit Eichen, Fichten- und Kiefernflecken, am Rand und im Gebuesch Birken
+                    double kr = r.NextDouble();
+                    bool conif = n.Get(px / 350f + 3f, pz / 350f + 9f) > 0.55f;
+                    byte kind = s != Wald ? (kr < 0.4 ? Forest.Birke : kr < 0.7 ? Forest.Eiche : Forest.Buche)
+                              : conif ? (n.Get(px / 200f, pz / 200f + 4f) > 0.6f ? Forest.Kiefer : Forest.Fichte) : Forest.MixedBroadleaf(kr, false);
                     float sc = s == Wald ? 0.8f + (float)r.NextDouble() * 0.5f : 0.6f + (float)r.NextDouble() * 0.4f;
                     list.Add(new Forest.TreeInfo { pos = new Vector3(px, y - 0.2f, pz), yaw = (float)r.NextDouble() * 360f, scale = sc, kind = kind });
                 }
@@ -675,7 +679,8 @@ namespace PanzerSim
             void AddTree(Vector2 p, float sc)
             {
                 if (Mathf.Abs(p.x) > half - 3f || Mathf.Abs(p.y) > half - 3f) return;
-                list.Add(new Forest.TreeInfo { pos = new Vector3(p.x, GroundY(p.x, p.y) - 0.2f, p.y), yaw = (float)r.NextDouble() * 360f, scale = sc, kind = 1 });
+                double kr = r.NextDouble();
+                list.Add(new Forest.TreeInfo { pos = new Vector3(p.x, GroundY(p.x, p.y) - 0.2f, p.y), yaw = (float)r.NextDouble() * 360f, scale = sc, kind = kr < 0.45 ? Forest.Eiche : kr < 0.8 ? Forest.Buche : Forest.Birke });
             }
             foreach (var t in singleTrees) AddTree(t, 0.75f + (float)r.NextDouble() * 0.45f);
             foreach (var l in lines)
@@ -688,6 +693,27 @@ namespace PanzerSim
                 }
             }
             return list;
+        }
+
+        /// <summary>Strassen aus OpenStreetMap als Belagband: breite Strassen mit Markierung, schmale als Nebenstrasse, Wirtschaftswege als Feldweg.
+        /// Brueckenstuecke bleiben weg (das Hoehenmodell kennt keine Bruecken).</summary>
+        void BuildRoadMeshes(Transform root)
+        {
+            if (NetSync.Headless) return;
+            var list = new List<Roads.Road>();
+            foreach (var r in roads)
+            {
+                if (r.bridge || r.p.Length < 2) continue;
+                int kind = r.kind == 'a' ? (r.width >= 6f ? Roads.Haupt : Roads.Neben) : r.kind == 'd' ? Roads.Feldweg : -1;
+                if (kind < 0) continue;
+                var pts = new List<Vector2>();
+                foreach (var q in r.p) if (Mathf.Abs(q.x) < half - 2f && Mathf.Abs(q.y) < half - 2f) pts.Add(q); else if (pts.Count > 1) break;
+                if (pts.Count < 2) continue;
+                list.Add(new Roads.Road(kind, Roads.Smooth(pts, 4f)));
+            }
+            // wichtige zuerst: an Kreuzungen liegt die breitere Strasse oben
+            list.Sort((a, b) => a.kind.CompareTo(b.kind));
+            Roads.BuildMeshes(root, list, GroundY);
         }
 
         /// <summary>Hecken (gruen, 1,6 m) und Mauern (grau, 1,2 m) als ein Netz ohne Kollision (Panzer walzen sie um, Granaten fliegen durch).</summary>
@@ -796,7 +822,7 @@ namespace PanzerSim
         }
 
         /// <summary>Ortsnamen fuer die Startpunkt-Karte.</summary>
-        public IEnumerable<(string name, Vector2 c)> Places()
+        public override IEnumerable<(string name, Vector2 c)> Places()
         {
             foreach (var p in places)
                 if ((p.type == "town" || p.type == "village" || p.type == "hamlet" || p.type == "peak") && Mathf.Abs(p.p.x) < half && Mathf.Abs(p.p.y) < half)

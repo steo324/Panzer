@@ -27,6 +27,8 @@ namespace PanzerSim
         public virtual float Extent => 1000f;
         /// <summary>Kann hier ein Panzer stehen (kein Wald, kein Haus, nicht zu steil)?</summary>
         public virtual bool CanSpawn(float x, float z) => true;
+        /// <summary>Ortsnamen fuer die Startpunkt-Auswahl und die grosse Karte (Weltlage).</summary>
+        public virtual IEnumerable<(string name, Vector2 c)> Places() => null;
 
         public struct Spawn
         {
@@ -167,7 +169,7 @@ namespace PanzerSim
         public override void Build(Transform root)
         {
             rng = new System.Random(1944);
-            keepClear.Clear();
+            keepClear.Clear(); treeList.Clear();
             occupied.Clear();
             keepClear.Add(new Vector3(PlayerXZ.x, 0f, PlayerXZ.y));
             foreach (var t in Targets()) keepClear.Add(new Vector3(t.x, 0f, t.z));
@@ -175,6 +177,8 @@ namespace PanzerSim
             BuildTerrain(root);
             BuildForests(root);
             BuildTreeLines(root);
+            Forest.Create(root, treeList);
+            Roads.BuildMeshes(root, RoadLines(), GroundY);
             BuildFarms(root);
             BuildHay(root);
             WheatField.Create(root, WheatGrows, GroundY, RowsAlongX, GrassGrows);   // Weizen auf den Aeckern, Gras auf den Wiesen
@@ -212,6 +216,14 @@ namespace PanzerSim
         static float RoadX(float z) => -150f + Mathf.Sin(z * 0.004f) * 60f;      // Feldweg Nord-Sued
         static float RoadZ(float x) => 120f + Mathf.Sin(x * 0.003f + 1f) * 80f;  // Feldweg Ost-West
 
+        /// <summary>Die beiden Wege als Linien fuer das Belagband (Nord-Sued asphaltiert, Ost-West Feldweg).</summary>
+        static List<Roads.Road> RoadLines()
+        {
+            var ns = new List<Vector2>(); var ew = new List<Vector2>();
+            for (float t = -995f; t <= 995f; t += 10f) { ns.Add(new Vector2(RoadX(t), t)); ew.Add(new Vector2(t, RoadZ(t))); }
+            return new List<Roads.Road> { new Roads.Road(Roads.Neben, Roads.Smooth(ns, 4f)), new Roads.Road(Roads.Feldweg, Roads.Smooth(ew, 4f)) };
+        }
+
         float HeightAt(float wx, float wz)
         {
             // grosse sanfte Wellen + mittlere Huegel (ca. 300 m breit) + kleine Bodenwellen
@@ -223,10 +235,14 @@ namespace PanzerSim
             n = Mathf.Pow(n, 1.35f);  // breitere Taeler, rundere Kuppen
 
             // Wege folgen dem Gelaende, aber ohne kleine Buckel
-            float dRoad = Mathf.Min(Mathf.Abs(wx - RoadX(wz)), Mathf.Abs(wz - RoadZ(wx)));
+            float dX = Mathf.Abs(wx - RoadX(wz)), dZ = Mathf.Abs(wz - RoadZ(wx));
+            float dRoad = Mathf.Min(dX, dZ);
             float smooth = Mathf.Pow(big * 0.45f + mid * 0.32f + 0.03f, 1.35f);
-            n = Mathf.Lerp(smooth, n, Mathf.InverseLerp(4f, 14f, dRoad));
-            return n * 0.75f; // Kuppen bis ca. 40 m, Huegel meist 10-25 m hoch
+            n = Mathf.Lerp(smooth, n, Mathf.InverseLerp(5f, 16f, dRoad));
+            // Strassenprofil: Nord-Sued-Strasse (Asphalt) mit Graeben, Ost-West-Feldweg leicht eingefahren
+            int kind = dX < dZ ? Roads.Neben : Roads.Feldweg;
+            float prof = Roads.Profile(kind, kind == Roads.Neben, dRoad - Roads.HalfWidth[kind]);
+            return n * 0.75f + prof / MaxHeight; // Kuppen bis ca. 40 m, Huegel meist 10-25 m hoch
         }
 
         void BuildTerrain(Transform root)
@@ -400,31 +416,25 @@ namespace PanzerSim
             return road > 7f;
         }
 
+        readonly List<Forest.TreeInfo> treeList = new List<Forest.TreeInfo>();
+        Vector2 forestCenter; float forestRadius;
+
+        /// <summary>Baum merken (gezeichnet von Forest): Wald gemischt, Allee Laubbaeume.</summary>
         void Tree(Transform root, float x, float z, float size, bool alley = false)
         {
             float y = GroundY(x, z);
-            if (Trees.Available)
+            double k = rng.NextDouble();
+            byte kind;
+            if (alley) kind = k < 0.5 ? Forest.Buche : k < 0.85 ? Forest.Eiche : Forest.Birke;
+            else
             {
-                var kind = alley ? Trees.AlleyKind(rng) : Trees.ForestKind(rng);
-                Trees.Spawn(root, kind, new Vector3(x, y, z), Rand(0f, 360f), size * 0.85f);
-                return;
+                // Waldrand: mehr Birken; innen je Wald eine Hauptart (Fichtenwald oder Laubwald)
+                bool edge = Vector2.Distance(new Vector2(x, z), forestCenter) > forestRadius * 0.8f;
+                bool conifer = Mathf.PerlinNoise(forestCenter.x * 0.01f + 3f, forestCenter.y * 0.01f) > 0.5f;
+                if (conifer) kind = edge && k < 0.3 ? Forest.Birke : k < 0.8 ? Forest.Fichte : Forest.Kiefer;
+                else kind = Forest.MixedBroadleaf(k, edge);
             }
-            var trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            trunk.name = "Baum";
-            trunk.transform.SetParent(root, false);
-            trunk.transform.position = new Vector3(x, y + 3f * size, z);
-            trunk.transform.localScale = new Vector3(0.6f * size, 3f * size, 0.6f * size);
-            trunk.GetComponent<Renderer>().sharedMaterial = Mat(new Color(0.32f, 0.23f, 0.15f));
-
-            var crown = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            crown.name = "Krone";
-            Object.DestroyImmediate(crown.GetComponent<Collider>()); // Blaetter halten keine Granate auf
-            crown.transform.SetParent(trunk.transform, true);
-            crown.transform.position = new Vector3(x, y + 7.5f * size, z);
-            crown.transform.localScale = new Vector3(5f / 0.6f, 6f / 3f, 5f / 0.6f) * Rand(0.85f, 1.15f);
-            float g = Rand(0f, 1f);
-            crown.GetComponent<Renderer>().sharedMaterial = Mat(g < 0.33f ? new Color(0.17f, 0.30f, 0.11f)
-                                                              : g < 0.66f ? new Color(0.21f, 0.35f, 0.13f) : new Color(0.14f, 0.26f, 0.10f));
+            treeList.Add(new Forest.TreeInfo { pos = new Vector3(x, y - 0.2f, z), yaw = Rand(0f, 360f), scale = size * 0.85f, kind = kind });
         }
 
         void BuildForests(Transform root)
@@ -437,7 +447,8 @@ namespace PanzerSim
             {
                 float radius = Rand(60f, 110f);
                 occupied.Add(new Vector3(c.x, c.y, radius + 6f));
-                int count = (int)(radius * (Trees.Available ? 1.4f : 0.8f));
+                int count = (int)(radius * radius * Mathf.PI / 70f);   // dichter Wald (ein Baum je ca. 70 m2)
+                forestCenter = c; forestRadius = radius;
                 for (int i = 0; i < count; i++)
                 {
                     float ang = Rand(0f, Mathf.PI * 2f), d = Mathf.Sqrt(Rand(0f, 1f)) * radius;

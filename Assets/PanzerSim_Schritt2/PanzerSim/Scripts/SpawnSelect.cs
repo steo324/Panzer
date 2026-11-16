@@ -110,7 +110,7 @@ namespace PanzerSim
             GUI.Label(new Rect(mr.x + 4, mr.yMax - 20, 300, 20), "<color=#222>Gitter: 1 km   Norden oben</color>", small);
 
             // Ortsnamen
-            IEnumerable<(string, Vector2)> names = map is HillsMap hm ? hm.Places() : map is RealMap rm ? rm.Places() : null;
+            IEnumerable<(string, Vector2)> names = map.Places();
             if (names != null)
                 foreach (var (nm, c) in names)
                 {

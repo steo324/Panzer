@@ -12,7 +12,7 @@ namespace PanzerSim
     public class HillsMap : GameMap
     {
         public override string Name => "Huegelland";
-        public override string Description => "10 x 10 km huegeliges Land: bewaldete Kuppen, weite Taeler, sieben Doerfer, Felder und Landstrassen. Startpunkt auf der Karte frei waehlbar. Sehr lange Schussdistanzen, viel Deckung hinter Kuppen.";
+        public override string Description => "10 x 10 km huegeliges Land: bewaldete Kuppen, weite Taeler, sieben Doerfer und acht Weiler, Hoefe und Felder, verbunden durch Haupt- und Nebenstrassen und Feldwege. Startpunkt auf der Karte frei waehlbar. Sehr lange Schussdistanzen, viel Deckung hinter Kuppen.";
         public override bool Fog => true;
         public override float FogStart => 1500f;
         public override float FogEnd => 16000f;   // nur Dunst: Panzer bleiben auf jeder Entfernung sichtbar
@@ -30,7 +30,7 @@ namespace PanzerSim
         const byte SWiese = 0, SAcker = 1, SWeg = 2, SWald = 3, SDorf = 4;
 
         float[] H;        // Hoehe in m
-        float[] road;     // Abstand zur naechsten Strasse (m, hoechstens 40)
+        Roads.Field roadF;   // Abstand zum naechsten Fahrbahnrand (m, hoechstens 30), Art, Fahrbahnhoehe
         byte[] surf;      // Bodenart
         Texture2D overview;
         Noise2D n;
@@ -43,14 +43,23 @@ namespace PanzerSim
             new Village("Mittelbach", 1600f, 1000f), new Village("Nordhof", -700f, 3300f), new Village("Hohenfeld", 3300f, 3400f),
             new Village("Suedrode", 400f, -3500f),
         };
-        // Strassen: Doerfer verbinden, dazu Ausfahrten zum Kartenrand (-1 = Endpunkt aus edge)
-        static readonly int[,] links = { { 0, 6 }, { 6, 1 }, { 0, 2 }, { 0, 3 }, { 3, 1 }, { 2, 4 }, { 4, 3 }, { 3, 5 }, { 4, 5 } };
-        static readonly (int v, Vector2 p)[] exits =
+        // Weiler (kleine Orte ohne Kirche) zwischen den Doerfern
+        static readonly Village[] hamlets =
         {
-            (2, new Vector2(-5000f, 1100f)), (6, new Vector2(700f, -5000f)), (1, new Vector2(5000f, -2700f)),
-            (5, new Vector2(3700f, 5000f)), (4, new Vector2(-1300f, 5000f)), (0, new Vector2(-5000f, -2600f)),
+            new Village("Birkenhof", -600f, -1300f), new Village("Eichwald", 400f, 2100f), new Village("Steinach", -3900f, -400f),
+            new Village("Moosbach", 3800f, -800f), new Village("Talhausen", -1600f, 600f), new Village("Wiesental", 1300f, -1500f),
+            new Village("Forsthaus", -2600f, 3900f), new Village("Grund", 2200f, 4300f),
         };
-        readonly List<List<Vector2>> roads = new List<List<Vector2>>();
+        // Strassen: Hauptstrassen (Rueckgrat West-Ost-Nord), Nebenstrassen zwischen den Doerfern, Ausfahrten zum Kartenrand
+        static readonly int[,] mainLinks = { { 2, 0 }, { 0, 3 }, { 3, 1 }, { 3, 5 } };
+        static readonly int[,] sideLinks = { { 0, 6 }, { 6, 1 }, { 2, 4 }, { 4, 3 }, { 4, 5 } };
+        static readonly (int v, Vector2 p, int kind)[] exits =
+        {
+            (2, new Vector2(-5000f, 1100f), Roads.Haupt), (6, new Vector2(700f, -5000f), Roads.Neben), (1, new Vector2(5000f, -2700f), Roads.Haupt),
+            (5, new Vector2(3700f, 5000f), Roads.Haupt), (4, new Vector2(-1300f, 5000f), Roads.Neben), (0, new Vector2(-5000f, -2600f), Roads.Neben),
+        };
+        readonly List<Roads.Road> roads = new List<Roads.Road>();
+        readonly List<Vector2> farmSpots = new List<Vector2>();
 
         readonly List<SpawnPoint> spawns = new List<SpawnPoint>
         {
@@ -91,16 +100,22 @@ namespace PanzerSim
             int ix = Mathf.Clamp(Mathf.RoundToInt(Gx(x)), 0, G - 1), iz = Mathf.Clamp(Mathf.RoundToInt(Gx(z)), 0, G - 1);
             return surf[Idx(ix, iz)];
         }
+        /// <summary>Abstand zum naechsten Fahrbahnrand (negativ = auf der Fahrbahn).</summary>
         float RoadAt(float x, float z)
         {
-            if (road == null) return 99f;
+            if (roadF == null) return 99f;
             int ix = Mathf.Clamp(Mathf.RoundToInt(Gx(x)), 0, G - 1), iz = Mathf.Clamp(Mathf.RoundToInt(Gx(z)), 0, G - 1);
-            return road[Idx(ix, iz)];
+            return roadF.edge[Idx(ix, iz)];
         }
 
         public override int SurfaceAt(float x, float z)
         {
-            switch (SurfAt(x, z)) { case SAcker: return GroundTracks.Acker; case SWeg: return GroundTracks.Weg; default: return GroundTracks.Wiese; }
+            switch (SurfAt(x, z))
+            {
+                case SAcker: return GroundTracks.Acker;
+                case SWeg: return roadF != null && roadF.KindAt(x, z) <= Roads.Neben ? GroundTracks.Hart : GroundTracks.Weg;
+                default: return GroundTracks.Wiese;
+            }
         }
 
         public override bool CanSpawn(float x, float z)
@@ -117,68 +132,90 @@ namespace PanzerSim
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
             n = new Noise2D(1944);
-            houses.Clear(); roads.Clear();
-            BuildRoads();
+            houses.Clear(); roads.Clear(); farmSpots.Clear();
+            PlanRoads();
             BuildHeights();
             BuildSurfaces();
             float tGen = sw.ElapsedMilliseconds;
             BuildTerrain(root);
             BuildVillages(root);
             BuildFarms(root);
+            Roads.BuildMeshes(root, roads, GroundY);
             var trees = PlaceTrees();
             Forest.Create(root, trees);
             if (!NetSync.Headless) { BuildOverview(); WheatField.Create(root, WheatGrows, GroundY, RowsAlongX, GrassGrows); }
-            Debug.Log($"[Huegelland] gebaut in {sw.ElapsedMilliseconds} ms (Gelaende-Rechnung {tGen} ms), {houses.Count} Gebaeude, {trees.Count} Baeume");
+            int km = 0; foreach (var r in roads) km += r.p.Count * 4;
+            Debug.Log($"[Huegelland] gebaut in {sw.ElapsedMilliseconds} ms (Gelaende-Rechnung {tGen} ms), {houses.Count} Gebaeude, {roads.Count} Strassen ({km / 1000} km), {trees.Count} Baeume");
         }
 
         // ---------------- Strassen ----------------
-        void BuildRoads()
+        /// <summary>
+        /// Netz: Hauptstrassen als Rueckgrat, Nebenstrassen zwischen allen Doerfern und zu den Weilern,
+        /// Feldwege von den Hoefen zur naechsten Strasse und aus den Orten in die Felder.
+        /// </summary>
+        void PlanRoads()
         {
-            for (int i = 0; i < links.GetLength(0); i++) roads.Add(Meander(villages[links[i, 0]].c, villages[links[i, 1]].c, i));
-            for (int i = 0; i < exits.Length; i++) roads.Add(Meander(villages[exits[i].v].c, exits[i].p, 50 + i));
-            road = new float[G * G];
-            for (int i = 0; i < road.Length; i++) road[i] = 40f;
-            const float R = 30f;
-            int rc = Mathf.CeilToInt(R / Cell);
-            foreach (var pl in roads)
-                for (int s = 0; s + 1 < pl.Count; s++)
-                {
-                    Vector2 a = pl[s], b = pl[s + 1];
-                    int steps = Mathf.Max(1, Mathf.CeilToInt(Vector2.Distance(a, b) / 2f));
-                    for (int k = 0; k <= steps; k++)
-                    {
-                        Vector2 p = Vector2.Lerp(a, b, k / (float)steps);
-                        int cx = Mathf.RoundToInt(Gx(p.x)), cz = Mathf.RoundToInt(Gx(p.y));
-                        for (int dz = -rc; dz <= rc; dz++)
-                            for (int dx = -rc; dx <= rc; dx++)
-                            {
-                                int ix = cx + dx, iz = cz + dz;
-                                if (ix < 0 || iz < 0 || ix >= G || iz >= G) continue;
-                                float wx = ix * Cell - Half, wz = iz * Cell - Half;
-                                float d = Mathf.Sqrt((wx - p.x) * (wx - p.x) + (wz - p.y) * (wz - p.y));
-                                int id = Idx(ix, iz);
-                                if (d < road[id]) road[id] = d;
-                            }
-                    }
-                }
-        }
-
-        /// <summary>Strasse von a nach b mit sanften Kurven (Enden liegen fest).</summary>
-        List<Vector2> Meander(Vector2 a, Vector2 b, int seed)
-        {
-            var pts = new List<Vector2>();
-            float len = Vector2.Distance(a, b);
-            Vector2 dir = (b - a) / len, side = new Vector2(-dir.y, dir.x);
-            int count = Mathf.Max(2, Mathf.CeilToInt(len / 20f));
-            float amp = Mathf.Min(320f, len * 0.09f);
-            for (int i = 0; i <= count; i++)
+            Roads.Road Add(int kind, Vector2 a, Vector2 b, int seed, float ampF = 0.09f, float maxAmp = 320f, float wave = 900f)
             {
-                float t = i / (float)count;
-                float w = Mathf.Sin(t * Mathf.PI);   // an den Enden 0
-                float off = ((n.Fbm(t * len / 900f + seed * 3.7f, seed * 1.3f, 3) - 0.5f) * 2.6f) * amp * w;
-                pts.Add(a + dir * (t * len) + side * off);
+                var r = new Roads.Road(kind, Roads.Meander(a, b, n, seed, ampF, maxAmp, wave));
+                roads.Add(r);
+                return r;
             }
-            return pts;
+            for (int i = 0; i < mainLinks.GetLength(0); i++) Add(Roads.Haupt, villages[mainLinks[i, 0]].c, villages[mainLinks[i, 1]].c, i, 0.06f, 220f, 1100f);
+            for (int i = 0; i < exits.Length; i++) Add(exits[i].kind, villages[exits[i].v].c, exits[i].p, 50 + i, exits[i].kind == Roads.Haupt ? 0.06f : 0.09f);
+            for (int i = 0; i < sideLinks.GetLength(0); i++) Add(Roads.Neben, villages[sideLinks[i, 0]].c, villages[sideLinks[i, 1]].c, 20 + i);
+            // Weiler: Nebenstrasse zum naechsten Dorf, Feldweg zum naechsten anderen Ort
+            for (int h = 0; h < hamlets.Length; h++)
+            {
+                Vector2 c = hamlets[h].c;
+                int best = 0; float bd = 1e9f, bd2 = 1e9f; Vector2 second = c;
+                for (int v = 0; v < villages.Length; v++) { float d = Vector2.Distance(villages[v].c, c); if (d < bd) { bd = d; best = v; } }
+                Add(Roads.Neben, c, villages[best].c, 100 + h, 0.08f, 200f, 700f);
+                foreach (var o in villages) { float d = Vector2.Distance(o.c, c); if (o.c != villages[best].c && d < bd2) { bd2 = d; second = o.c; } }
+                foreach (var o in hamlets) { float d = Vector2.Distance(o.c, c); if (o.c != c && d < bd2) { bd2 = d; second = o.c; } }
+                if (bd2 < 3200f) Add(Roads.Feldweg, c, second, 120 + h, 0.07f, 160f, 500f);
+            }
+            // Hoefe: auf flachem Land neben den Strassen, mit Feldweg zur Strasse
+            var rng = new System.Random(77);
+            var baseRoads = new List<Roads.Road>(roads);
+            for (int tries = 0; tries < 900 && farmSpots.Count < 40; tries++)
+            {
+                var r = baseRoads[rng.Next(baseRoads.Count)];
+                var p = r.p[rng.Next(r.p.Count)];
+                float a = (float)(rng.NextDouble() * Mathf.PI * 2);
+                Vector2 hp = p + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (float)(90 + rng.NextDouble() * 160);
+                if (Mathf.Abs(hp.x) > Half - 200f || Mathf.Abs(hp.y) > Half - 200f) continue;
+                bool bad = false;
+                foreach (var v in villages) if (Vector2.Distance(hp, v.c) < 450f) bad = true;
+                foreach (var v in hamlets) if (Vector2.Distance(hp, v.c) < 250f) bad = true;
+                foreach (var f in farmSpots) if (Vector2.Distance(hp, f) < 380f) bad = true;
+                foreach (var s in spawns) if (Vector2.Distance(hp, s.xz) < 160f) bad = true;
+                float sl = Mathf.Abs(LowH(hp.x + 20f, hp.y) - LowH(hp.x - 20f, hp.y)) + Mathf.Abs(LowH(hp.x, hp.y + 20f) - LowH(hp.x, hp.y - 20f));
+                if (bad || sl > 7f) continue;
+                Vector2 near = p; float nd = 1e9f;
+                foreach (var rr in baseRoads) for (int i = 0; i < rr.p.Count; i += 3) { float d = (rr.p[i] - hp).sqrMagnitude; if (d < nd) { nd = d; near = rr.p[i]; } }
+                if (Mathf.Sqrt(nd) < 60f) continue;
+                farmSpots.Add(hp);
+                Add(Roads.Feldweg, near, hp, 300 + farmSpots.Count, 0.12f, 40f, 200f);
+            }
+            // Feldwege aus Doerfern und Weilern hinaus in die Felder
+            int fw = 0;
+            foreach (var v in villages)
+                for (int k = 0; k < 4; k++)
+                {
+                    float a = (float)(rng.NextDouble() * Mathf.PI * 2);
+                    Vector2 end = v.c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (float)(700 + rng.NextDouble() * 900);
+                    end.x = Mathf.Clamp(end.x, -Half + 150f, Half - 150f); end.y = Mathf.Clamp(end.y, -Half + 150f, Half - 150f);
+                    Add(Roads.Feldweg, v.c + (end - v.c).normalized * 120f, end, 500 + fw++, 0.08f, 120f, 400f);
+                }
+            foreach (var v in hamlets)
+                for (int k = 0; k < 2; k++)
+                {
+                    float a = (float)(rng.NextDouble() * Mathf.PI * 2);
+                    Vector2 end = v.c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (float)(500 + rng.NextDouble() * 600);
+                    end.x = Mathf.Clamp(end.x, -Half + 150f, Half - 150f); end.y = Mathf.Clamp(end.y, -Half + 150f, Half - 150f);
+                    Add(Roads.Feldweg, v.c, end, 600 + fw++, 0.08f, 100f, 400f);
+                }
         }
 
         // ---------------- Hoehen ----------------
@@ -191,8 +228,12 @@ namespace PanzerSim
         void BuildHeights()
         {
             H = new float[G * G];
-            var vc = new float[villages.Length];
-            for (int v = 0; v < villages.Length; v++) vc[v] = LowH(villages[v].c.x, villages[v].c.y);
+            var flat = new List<Vector4>();   // x, z, Radius innen, Radius aussen
+            foreach (var v in villages) flat.Add(new Vector4(v.c.x, v.c.y, 170f, 300f));
+            foreach (var v in hamlets) flat.Add(new Vector4(v.c.x, v.c.y, 70f, 150f));
+            foreach (var f in farmSpots) flat.Add(new Vector4(f.x, f.y, 35f, 80f));
+            var fh = new float[flat.Count];
+            for (int i = 0; i < flat.Count; i++) fh[i] = LowH(flat[i].x, flat[i].y);
             var sc = new float[spawns.Count];
             for (int s = 0; s < spawns.Count; s++) sc[s] = LowH(spawns[s].xz.x, spawns[s].xz.y);
             Parallel.For(0, G, iz =>
@@ -204,14 +245,14 @@ namespace PanzerSim
                     float big = Big(wx, wz), ridge = RidgeH(wx, wz), hills = Hills(wx, wz);
                     float small = (n.Get(wx / 110f + 5f, wz / 110f + 3f) - 0.5f) * 3f + (n.Get(wx / 31f, wz / 31f) - 0.5f) * 0.5f;
                     float h = 25f + big * 140f + ridge * 80f + hills * 22f + small;
-                    // Strassen: folgen dem Gelaende, aber ohne Buckel
-                    float d = road[Idx(ix, iz)];
-                    if (d < 26f) h = Mathf.Lerp(25f + big * 140f + ridge * 80f + hills * 9f, h, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(6f, 26f, d)));
-                    // Doerfer und Startpunkte: eingeebnet
-                    for (int v = 0; v < villages.Length; v++)
+                    // Doerfer, Weiler, Hoefe und Startpunkte: eingeebnet
+                    for (int v = 0; v < flat.Count; v++)
                     {
-                        float dv = Vector2.Distance(new Vector2(wx, wz), villages[v].c);
-                        if (dv < 300f) { float t = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(170f, 300f, dv)); h = Mathf.Lerp(vc[v] + (h - vc[v]) * 0.15f, h, t); }
+                        var f = flat[v];
+                        float dx = wx - f.x, dz = wz - f.y;
+                        if (dx * dx + dz * dz > f.w * f.w) continue;
+                        float dv = Mathf.Sqrt(dx * dx + dz * dz);
+                        float t = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(f.z, f.w, dv)); h = Mathf.Lerp(fh[v] + (h - fh[v]) * 0.15f, h, t);
                     }
                     for (int s = 0; s < sc.Length; s++)
                     {
@@ -221,6 +262,11 @@ namespace PanzerSim
                     H[Idx(ix, iz)] = Mathf.Clamp(h, 0f, MaxH - 1f);
                 }
             });
+            // Strassen: geglaettete Steigung, Damm und Einschnitt, Bankett und Graben
+            foreach (var r in roads) Roads.SetHeights(r, GroundY, r.kind == Roads.Feldweg ? 6 : 12);
+            roadF = Roads.Stamp(roads, G, Cell, -Half, 30f);
+            var copy = (float[])H.Clone();
+            Parallel.For(0, G * G, id => { H[id] = Mathf.Clamp(Roads.Apply(roadF, id, copy[id], 18f), 0f, MaxH - 1f); });
         }
 
         // ---------------- Bodenarten ----------------
@@ -246,11 +292,15 @@ namespace PanzerSim
                 {
                     float wx = ix * Cell - Half;
                     int id = Idx(ix, iz);
-                    float d = road[id];
-                    if (d < 3.4f) { surf[id] = SWeg; continue; }
+                    float d = roadF.edge[id];   // Abstand zum Fahrbahnrand
+                    if (d < 0.4f) { surf[id] = SWeg; continue; }
                     float dv = 1e9f;
                     foreach (var v in villages) dv = Mathf.Min(dv, Vector2.Distance(new Vector2(wx, wz), v.c));
                     if (dv < 180f) { surf[id] = SDorf; continue; }
+                    float dh = 1e9f;
+                    foreach (var v in hamlets) dh = Mathf.Min(dh, Vector2.Distance(new Vector2(wx, wz), v.c));
+                    foreach (var fs in farmSpots) dh = Mathf.Min(dh, Vector2.Distance(new Vector2(wx, wz), fs) + 40f);
+                    if (dh < 75f) { surf[id] = SDorf; continue; }
                     float ds = 1e9f;
                     foreach (var s in spawns) ds = Mathf.Min(ds, Vector2.Distance(new Vector2(wx, wz), s.xz));
                     int ax = Mathf.Clamp(ix + 1, 0, G - 1), bx = Mathf.Clamp(ix - 1, 0, G - 1), az = Mathf.Clamp(iz + 1, 0, G - 1), bz = Mathf.Clamp(iz - 1, 0, G - 1);
@@ -258,21 +308,21 @@ namespace PanzerSim
                     // Wald: auf Kuppen, Kaemmen und steilen Haengen haeufiger
                     float f = n.Fbm(wx / 760f + 21f, wz / 760f + 13f, 4) + (H[id] - 110f) / 1000f + slope * 0.3f;
                     float edge = (n.Get(wx / 45f, wz / 45f) - 0.5f) * 0.03f;   // ausgefranste Waldraender
-                    if (f + edge > 0.605f && d > 14f && dv > 260f && ds > 130f) { surf[id] = SWald; continue; }
+                    if (f + edge > 0.605f && d > 9f && dv > 260f && dh > 130f && ds > 130f) { surf[id] = SWald; continue; }
                     // Felder: Raster 160 x 170 m, etwa 40 % Aecker (nicht an steilen Haengen), Feldraine dazwischen
                     float lx = Mathf.Repeat(wx + Half, 160f), lz = Mathf.Repeat(wz + Half, 170f);
                     bool inside = lx > 7f && lx < 153f && lz > 7f && lz < 163f;
-                    surf[id] = inside && slope < 0.16f && d > 6f && ds > 90f && FieldHash(wx, wz) % 10 < 4 ? SAcker : SWiese;   // Startplaetze: Wiese
+                    surf[id] = inside && slope < 0.16f && d > 2.5f && ds > 90f && FieldHash(wx, wz) % 10 < 4 ? SAcker : SWiese;   // Startplaetze: Wiese
                 }
             });
         }
 
-        bool WheatGrows(float x, float z) => SurfAt(x, z) == SAcker && RoadAt(x, z) > 5.5f && Mathf.Abs(x) < Half - 10f && Mathf.Abs(z) < Half - 10f;
+        bool WheatGrows(float x, float z) => SurfAt(x, z) == SAcker && RoadAt(x, z) > 3.5f && Mathf.Abs(x) < Half - 10f && Mathf.Abs(z) < Half - 10f;
         bool GrassGrows(float x, float z)
         {
             byte s = SurfAt(x, z);
             if (s != SWiese && s != SDorf) return false;
-            if (RoadAt(x, z) < 4f) return false;
+            if (RoadAt(x, z) < 1.0f) return false;
             if (s == SDorf) foreach (var h in houses) if ((x - h.x) * (x - h.x) + (z - h.y) * (z - h.y) < (h.z + 2f) * (h.z + 2f)) return false;
             return true;
         }
@@ -325,7 +375,7 @@ namespace PanzerSim
                                 int gx = tx * (TileRes - 1) + Mathf.RoundToInt(ix * (TileRes - 1) / (float)(AlphaPerTile - 1));
                                 int gz = tz * (TileRes - 1) + Mathf.RoundToInt(iz * (TileRes - 1) / (float)(AlphaPerTile - 1));
                                 float wx = gx * Cell - Half, wz = gz * Cell - Half;
-                                Weights(surf[Idx(gx, gz)], road[Idx(gx, gz)], wx, wz, out float w0, out float w1, out float w2, out float w3);
+                                Weights(surf[Idx(gx, gz)], roadF.edge[Idx(gx, gz)], wx, wz, out float w0, out float w1, out float w2, out float w3);
                                 // steile Haenge: Gras haelt nicht, offene Erde (Bodenart "Weg") - je steiler, desto mehr
                                 int x0 = Mathf.Max(gx - 1, 0), x1 = Mathf.Min(gx + 1, G - 1), z0 = Mathf.Max(gz - 1, 0), z1 = Mathf.Min(gz + 1, G - 1);
                                 float slope = new Vector2((H[Idx(x1, gz)] - H[Idx(x0, gz)]) / ((x1 - x0) * Cell), (H[Idx(gx, z1)] - H[Idx(gx, z0)]) / ((z1 - z0) * Cell)).magnitude;
@@ -368,7 +418,7 @@ namespace PanzerSim
                     if (s == SDorf) { float b = Mathf.InverseLerp(0.55f, 0.75f, n.Get(wx * 0.05f, wz * 0.05f)) * 0.5f; w2 = b; w0 *= 1f - b; w3 *= 1f - b; }
                     break;
             }
-            if (s != SWeg && d < 5f) { float t = Mathf.InverseLerp(3.4f, 5f, d); w2 = Mathf.Max(w2, 1f - t); w0 *= t; w1 *= t; w3 *= t; }
+            if (s != SWeg && d < 1.5f) { float t = Mathf.InverseLerp(0.4f, 1.5f, d); w2 = Mathf.Max(w2, 1f - t); w0 *= t; w1 *= t; w3 *= t; }   // Bankett
             float sum = w0 + w1 + w2 + w3;
             w0 /= sum; w1 /= sum; w2 /= sum; w3 /= sum;
         }
@@ -379,119 +429,113 @@ namespace PanzerSim
 
         bool HouseFree(float x, float z, float r)
         {
-            if (RoadAt(x, z) < r * 0.75f + 4f) return false;
+            if (RoadAt(x, z) < r * 0.75f + 2.5f) return false;
             foreach (var h in houses) if ((x - h.x) * (x - h.x) + (z - h.y) * (z - h.y) < (r + h.z) * (r + h.z)) return false;
             return true;
+        }
+
+        static readonly Color[] Walls = { new Color(0.92f, 0.89f, 0.82f), new Color(0.86f, 0.82f, 0.72f), new Color(0.70f, 0.42f, 0.32f), new Color(0.82f, 0.78f, 0.68f), new Color(0.95f, 0.93f, 0.88f) };
+        static readonly Color[] RoofCols = { new Color(0.55f, 0.22f, 0.15f), new Color(0.44f, 0.20f, 0.15f), new Color(0.30f, 0.27f, 0.26f), new Color(0.60f, 0.30f, 0.20f) };
+        static readonly Color Barn = new Color(0.50f, 0.34f, 0.22f);
+
+        void GroundRange(Vector2 p, float yaw, float w, float l, out float lo, out float hi)
+        {
+            var q = Quaternion.Euler(0f, yaw, 0f);
+            lo = float.MaxValue; hi = float.MinValue;
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 o = q * new Vector3((i & 1) == 0 ? -w / 2f : w / 2f, 0f, (i & 2) == 0 ? -l / 2f : l / 2f);
+                float g = GroundY(p.x + o.x, p.y + o.z); lo = Mathf.Min(lo, g); hi = Mathf.Max(hi, g);
+            }
+            hi = Mathf.Max(hi, GroundY(p.x, p.y));
+        }
+
+        void KitHouse(MeshKit k, Vector2 p, float yaw, float w, float l, float wallH, Color wall, Color roof, bool barn = false)
+        {
+            GroundRange(p, yaw, w, l, out float lo, out float hi);
+            k.House(p, yaw, w, l, wallH, w * (barn ? 0.42f : 0.5f), lo, hi, wall, barn ? MeshKit.TexWood : MeshKit.TexPlaster, roof, MeshKit.TexRoof, 0.5f);
         }
 
         void BuildVillages(Transform root)
         {
             rng = new System.Random(77);
-            var parent = new GameObject("Doerfer").transform; parent.SetParent(root, false);
-            Color[] walls = { new Color(0.86f, 0.83f, 0.75f), new Color(0.80f, 0.76f, 0.66f), new Color(0.62f, 0.34f, 0.25f), new Color(0.74f, 0.70f, 0.60f) };
-            Color[] roofs = { new Color(0.47f, 0.17f, 0.12f), new Color(0.36f, 0.16f, 0.12f), new Color(0.28f, 0.24f, 0.22f) };
-            foreach (var v in villages)
+            var k = new MeshKit();
+            void Place(Village v, float radius, bool church, int barns)
             {
-                var vt = new GameObject(v.name).transform; vt.SetParent(parent, false);
-                // Kirche mit Turm nahe der Mitte
-                Vector2 cp = v.c + new Vector2(22f, 18f);
-                if (HouseFree(cp.x, cp.y, 14f))
+                if (church)
                 {
-                    float yaw = Rand(0f, 90f);
-                    House(vt, cp.x, cp.y, yaw, 11f, 22f, 8f, new Color(0.88f, 0.86f, 0.80f), roofs[2]);
-                    var q = Quaternion.Euler(0f, yaw, 0f);
-                    Vector3 tp = new Vector3(cp.x, 0f, cp.y) + q * new Vector3(0f, 0f, 13f);
-                    float ty = GroundY(tp.x, tp.z);
-                    Block(vt, "Kirchturm", new Vector3(tp.x, ty + 9f, tp.z), new Vector3(5f, 20f, 5f), new Vector3(0f, yaw, 0f), new Color(0.86f, 0.84f, 0.78f));
-                    var spire = Block(vt, "Turmspitze", new Vector3(tp.x, ty + 21.5f, tp.z), new Vector3(3.6f, 3.6f, 3.6f), new Vector3(45f, yaw, 45f), roofs[2]);
-                    houses.Add(new Vector3(cp.x, cp.y, 16f));
-                }
-                // Haeuser entlang der Strassen im Ort
-                foreach (var pl in roads)
-                    for (int i = 1; i < pl.Count; i++)
+                    Vector2 cp = v.c + new Vector2(22f, 18f);
+                    for (int t = 0; t < 10 && !HouseFree(cp.x, cp.y, 16f); t++) cp = v.c + new Vector2(Rand(-60f, 60f), Rand(-60f, 60f));
+                    if (HouseFree(cp.x, cp.y, 16f))
                     {
-                        Vector2 p = pl[i];
-                        if (Vector2.Distance(p, v.c) > 175f || i % 1 != 0) continue;
-                        Vector2 dir = (pl[i] - pl[i - 1]).normalized, side = new Vector2(-dir.y, dir.x);
+                        float yaw = Rand(0f, 360f);
+                        GroundRange(cp, yaw, 11f, 22f, out float lo, out float hi);
+                        k.Church(cp, yaw, lo, hi, new Color(0.92f, 0.90f, 0.84f), MeshKit.TexPlaster, RoofCols[2], new Color(0.26f, 0.30f, 0.30f), 22f, 11f, 22f, 12f);
+                        houses.Add(new Vector3(cp.x, cp.y, 18f));
+                    }
+                }
+                // Haeuser entlang der Strassen im Ort (alle 16 m ein Versuch je Seite)
+                foreach (var r in roads)
+                {
+                    if (r.kind == Roads.Feldweg) continue;
+                    for (int i = 2; i < r.p.Count; i += 4)
+                    {
+                        Vector2 p = r.p[i];
+                        if (Vector2.Distance(p, v.c) > radius) continue;
+                        Vector2 dir = (r.p[i] - r.p[i - 2]).normalized, side = new Vector2(-dir.y, dir.x);
                         float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
                         foreach (float sgn in new[] { 1f, -1f })
                         {
-                            if (rng.NextDouble() < 0.35) continue;
+                            if (rng.NextDouble() < 0.4) continue;
                             float w = Rand(7f, 10f), l = Rand(9f, 14f);
-                            Vector2 hp = p + side * sgn * (8f + w * 0.5f + Rand(0f, 3f));
-                            float r = Mathf.Max(w, l) * 0.62f;
-                            if (!HouseFree(hp.x, hp.y, r)) continue;
-                            House(vt, hp.x, hp.y, yaw + (rng.NextDouble() < 0.5 ? 0f : 90f), w, l, Rand(3.5f, 5.5f), walls[rng.Next(walls.Length)], roofs[rng.Next(roofs.Length)]);
-                            houses.Add(new Vector3(hp.x, hp.y, r));
+                            bool turn = rng.NextDouble() < 0.5;
+                            Vector2 hp = p + side * sgn * (Roads.HalfWidth[r.kind] + 4.5f + (turn ? l : w) * 0.5f + Rand(0f, 3f));
+                            float rr = Mathf.Max(w, l) * 0.62f;
+                            if (!HouseFree(hp.x, hp.y, rr)) continue;
+                            KitHouse(k, hp, yaw + (turn ? 90f : 0f), w, l, Rand(3.5f, 6f), Walls[rng.Next(Walls.Length)], RoofCols[rng.Next(RoofCols.Length)]);
+                            houses.Add(new Vector3(hp.x, hp.y, rr));
                         }
                     }
-                // ein paar Scheunen/Hoefe am Ortsrand
-                for (int k = 0; k < 6; k++)
+                }
+                // Scheunen am Ortsrand
+                for (int j = 0; j < barns; j++)
                 {
-                    float a = Rand(0f, Mathf.PI * 2f), d = Rand(60f, 160f);
+                    float a = Rand(0f, Mathf.PI * 2f), d = Rand(radius * 0.35f, radius * 0.95f);
                     Vector2 hp = v.c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * d;
                     if (!HouseFree(hp.x, hp.y, 12f)) continue;
-                    House(vt, hp.x, hp.y, Rand(0f, 90f), 12f, 18f, 6f, new Color(0.45f, 0.30f, 0.20f), roofs[2]);
+                    KitHouse(k, hp, Rand(0f, 360f), 12f, 18f, 6f, Barn, RoofCols[2], true);
                     houses.Add(new Vector3(hp.x, hp.y, 12f));
                 }
             }
+            foreach (var v in villages) Place(v, 175f, true, 6);
+            foreach (var v in hamlets) Place(v, 70f, false, 2);
+            k.Build(root, "Doerfer");
         }
 
         void BuildFarms(Transform root)
         {
-            var parent = new GameObject("Bauernhoefe").transform; parent.SetParent(root, false);
-            Color[] walls = { new Color(0.85f, 0.82f, 0.74f), new Color(0.62f, 0.32f, 0.24f), new Color(0.78f, 0.74f, 0.64f) };
-            int made = 0;
-            for (int tries = 0; tries < 400 && made < 34; tries++)
+            var k = new MeshKit();
+            foreach (var hp in farmSpots)
             {
-                var pl = roads[rng.Next(roads.Count)];
-                var p = pl[rng.Next(pl.Count)];
-                Vector2 dir = Random2(); Vector2 hp = p + dir * Rand(45f, 160f);
-                byte s = SurfAt(hp.x, hp.y);
-                if (s == SWald || s == SDorf || !HouseFree(hp.x, hp.y, 30f) || !CanSpawn(hp.x, hp.y)) continue;
-                bool nearVillage = false;
-                foreach (var v in villages) if (Vector2.Distance(hp, v.c) < 450f) nearVillage = true;
-                if (nearVillage) continue;
-                float yaw = Rand(0f, 90f); var q = Quaternion.Euler(0f, yaw, 0f);
-                Vector3 o2 = q * new Vector3(18f, 0f, 4f), o3 = q * new Vector3(4f, 0f, 20f);
-                House(parent, hp.x, hp.y, yaw, 8f, 11f, 4f, walls[rng.Next(walls.Length)], new Color(0.45f, 0.16f, 0.12f));
-                House(parent, hp.x + o2.x, hp.y + o2.z, yaw + 90f, 12f, 18f, 6f, new Color(0.45f, 0.30f, 0.20f), new Color(0.30f, 0.24f, 0.22f));
-                House(parent, hp.x + o3.x, hp.y + o3.z, yaw, 7f, 14f, 3.5f, walls[rng.Next(walls.Length)], new Color(0.45f, 0.16f, 0.12f));
-                houses.Add(new Vector3(hp.x + 8f, hp.y + 8f, 26f));
-                made++;
+                // Hof: Wohnhaus, Scheune, Stall um einen Hofplatz, offen zur Zufahrt (der Feldweg endet in der Hofmitte)
+                Vector2 toRoad = Vector2.down;
+                foreach (var r in roads)
+                    if (r.kind == Roads.Feldweg && (r.p[r.p.Count - 1] - hp).sqrMagnitude < 1f && r.p.Count > 6) { toRoad = (r.p[r.p.Count - 6] - hp).normalized; break; }
+                float yaw = Mathf.Atan2(-toRoad.x, -toRoad.y) * Mathf.Rad2Deg;   // lokales +z zeigt weg von der Zufahrt
+                var q = Quaternion.Euler(0f, yaw, 0f);
+                Vector3 o1 = q * new Vector3(-15f, 0f, 2f), o2 = q * new Vector3(15f, 0f, 4f), o3 = q * new Vector3(0f, 0f, 19f);
+                KitHouse(k, hp + new Vector2(o1.x, o1.z), yaw, 8f, 11f, 4.5f, Walls[rng.Next(Walls.Length)], RoofCols[0]);
+                KitHouse(k, hp + new Vector2(o2.x, o2.z), yaw, 12f, 18f, 6f, Barn, RoofCols[2], true);
+                KitHouse(k, hp + new Vector2(o3.x, o3.z), yaw + 90f, 7f, 14f, 3.5f, Walls[rng.Next(Walls.Length)], RoofCols[rng.Next(RoofCols.Length)]);
+                houses.Add(new Vector3(hp.x + o1.x, hp.y + o1.z, 8f)); houses.Add(new Vector3(hp.x + o2.x, hp.y + o2.z, 11f)); houses.Add(new Vector3(hp.x + o3.x, hp.y + o3.z, 9f));
             }
-        }
-
-        Vector2 Random2() { float a = Rand(0f, Mathf.PI * 2f); return new Vector2(Mathf.Cos(a), Mathf.Sin(a)); }
-
-        void House(Transform root, float x, float z, float yaw, float w, float l, float hgt, Color wall, Color roof)
-        {
-            // Hangseite: tiefster Eckpunkt bestimmt die Unterkante, Sockel reicht in den Hang
-            float y = Mathf.Min(Mathf.Min(GroundY(x - w / 2f, z - l / 2f), GroundY(x + w / 2f, z + l / 2f)), Mathf.Min(GroundY(x - w / 2f, z + l / 2f), GroundY(x + w / 2f, z - l / 2f)));
-            float top = Mathf.Max(GroundY(x, z), y);
-            var house = new GameObject("Haus").transform;
-            house.SetParent(root, false);
-            house.position = new Vector3(x, y, z);
-            house.rotation = Quaternion.Euler(0f, yaw, 0f);
-            float roofY = (top - y) + hgt;   // Waende von 1 m unter dem tiefsten Eck bis zur Traufe
-            var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            body.name = "Waende"; body.transform.SetParent(house, false);
-            body.transform.localPosition = new Vector3(0f, (roofY - 1f) / 2f, 0f);
-            body.transform.localScale = new Vector3(w, roofY + 1f, l);
-            body.GetComponent<Renderer>().sharedMaterial = Mat(wall);
-            var r = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            r.name = "Dach"; r.transform.SetParent(house, false);
-            float s = w / 1.414f + 0.3f;
-            r.transform.localPosition = new Vector3(0f, roofY, 0f);
-            r.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
-            r.transform.localScale = new Vector3(s, s, l + 0.6f);
-            r.GetComponent<Renderer>().sharedMaterial = Mat(roof);
+            k.Build(root, "Bauernhoefe");
         }
 
         // ---------------- Baeume ----------------
         List<Forest.TreeInfo> PlaceTrees()
         {
-            var list = new List<Forest.TreeInfo>(100000);
+            var list = new List<Forest.TreeInfo>(120000);
             var r = new System.Random(4242);
             const float step = 11.5f;
             for (float z = -Half + 20f; z < Half - 20f; z += step)
@@ -502,11 +546,57 @@ namespace PanzerSim
                     double roll = r.NextDouble();
                     if (roll > 0.8) { r.NextDouble(); continue; }   // Lichtungen
                     float y = GroundY(px, pz);
-                    // hoeher und in kuehlen Lagen Fichten, sonst Laubwald (grossflaechig gemischt)
+                    // hoeher und in kuehlen Lagen Nadelwald (Fichte, auf Kuppen auch Kiefer), sonst Laubwald (Buche, Eiche, am Rand Birke)
                     float conifer = n.Get(px / 600f + 40f, pz / 600f + 2f) + (y - 120f) / 400f;
-                    byte kind = (byte)(conifer > 0.52f ? 0 : 1);
+                    double k = r.NextDouble();
+                    byte kind;
+                    bool edge = SurfAt(px + 14f, pz) != SWald || SurfAt(px - 14f, pz) != SWald || SurfAt(px, pz + 14f) != SWald || SurfAt(px, pz - 14f) != SWald;
+                    if (conifer > 0.52f) kind = n.Get(px / 300f + 7f, pz / 300f) > 0.62f ? (k < 0.7 ? Forest.Kiefer : Forest.Fichte) : (edge && k < 0.15 ? Forest.Birke : Forest.Fichte);
+                    else kind = Forest.MixedBroadleaf(k, edge);
                     list.Add(new Forest.TreeInfo { pos = new Vector3(px, y - 0.2f, pz), yaw = (float)r.NextDouble() * 360f, scale = 0.75f + (float)r.NextDouble() * 0.5f, kind = kind });
                 }
+            // Alleen an Abschnitten der Haupt- und Nebenstrassen (Eiche, Buche), mit Luecken
+            foreach (var rd in roads)
+            {
+                if (rd.kind == Roads.Feldweg) continue;
+                float acc = 0f, next = 0f;
+                for (int i = 1; i < rd.p.Count; i++)
+                {
+                    acc += Vector2.Distance(rd.p[i - 1], rd.p[i]);
+                    if (acc < next) continue;
+                    next = acc + (rd.kind == Roads.Haupt ? 14f : 16f);
+                    Vector2 p = rd.p[i];
+                    if (n.Get(p.x / 420f + 9f, p.y / 420f + 1f) < 0.6f) continue;
+                    Vector2 dir = (rd.p[Mathf.Min(i + 1, rd.p.Count - 1)] - rd.p[i - 1]).normalized, side = new Vector2(-dir.y, dir.x);
+                    foreach (float sg in new[] { -1f, 1f })
+                    {
+                        Vector2 q = p + side * sg * (Roads.HalfWidth[rd.kind] + 7.5f);
+                        byte s = SurfAt(q.x, q.y);
+                        if (s == SDorf || s == SWald || RoadAt(q.x, q.y) < 3f || !HouseFree(q.x, q.y, 3f)) continue;
+                        list.Add(new Forest.TreeInfo { pos = new Vector3(q.x, GroundY(q.x, q.y) - 0.2f, q.y), yaw = (float)r.NextDouble() * 360f, scale = 0.7f + (float)r.NextDouble() * 0.3f, kind = r.NextDouble() < 0.55 ? Forest.Eiche : Forest.Buche });
+                    }
+                }
+            }
+            // Obstwiesen und Hofbaeume um Doerfer, Weiler und Hoefe; einzelne Feldbaeume
+            void Around(Vector2 c, float rad, int count)
+            {
+                for (int k = 0; k < count; k++)
+                {
+                    Vector2 p = c + new Vector2((float)(r.NextDouble() - 0.5), (float)(r.NextDouble() - 0.5)) * rad * 2f;
+                    byte s = SurfAt(p.x, p.y);
+                    if ((s != SDorf && s != SWiese) || RoadAt(p.x, p.y) < 3f || !HouseFree(p.x, p.y, 3f)) continue;
+                    list.Add(new Forest.TreeInfo { pos = new Vector3(p.x, GroundY(p.x, p.y) - 0.2f, p.y), yaw = (float)r.NextDouble() * 360f, scale = 0.45f + (float)r.NextDouble() * 0.35f, kind = r.NextDouble() < 0.6 ? Forest.Eiche : Forest.Buche });
+                }
+            }
+            foreach (var v in villages) Around(v.c, 240f, 90);
+            foreach (var v in hamlets) Around(v.c, 110f, 30);
+            foreach (var f in farmSpots) Around(f, 70f, 14);
+            for (int k = 0; k < 1500; k++)
+            {
+                float x = (float)(r.NextDouble() * (Size - 200f) - Half + 100f), z = (float)(r.NextDouble() * (Size - 200f) - Half + 100f);
+                if (SurfAt(x, z) != SWiese || RoadAt(x, z) < 4f || !HouseFree(x, z, 3f)) continue;
+                list.Add(new Forest.TreeInfo { pos = new Vector3(x, GroundY(x, z) - 0.2f, z), yaw = (float)r.NextDouble() * 360f, scale = 0.8f + (float)r.NextDouble() * 0.4f, kind = r.NextDouble() < 0.6 ? Forest.Eiche : r.NextDouble() < 0.5 ? Forest.Buche : Forest.Birke });
+            }
             return list;
         }
 
@@ -539,6 +629,11 @@ namespace PanzerSim
                     c *= shade * alt;
                     // Hoehenlinien alle 20 m
                     if (Mathf.Repeat(H[id], 20f) < 0.9f && surf[id] != SWeg) c *= 0.82f;
+                    // Strassen deutlich (Hauptstrasse hell, Nebenstrasse, Feldweg duenner)
+                    int rk = roadF.kind[id]; float re = roadF.edge[id];
+                    if (rk == Roads.Haupt && re < 4.5f) c = new Color(0.98f, 0.94f, 0.80f);
+                    else if (rk == Roads.Neben && re < 3.5f) c = new Color(0.94f, 0.90f, 0.78f);
+                    else if (rk == Roads.Feldweg && re < 1.5f) c = Color.Lerp(c, new Color(0.80f, 0.72f, 0.56f), 0.7f);
                     px[py * N + qx] = c;
                 }
             });
@@ -557,6 +652,6 @@ namespace PanzerSim
         }
 
         /// <summary>Ortsnamen fuer die Karte (Mitte in Weltkoordinaten).</summary>
-        public IEnumerable<(string name, Vector2 c)> Places() { foreach (var v in villages) yield return (v.name, v.c); }
+        public override IEnumerable<(string name, Vector2 c)> Places() { foreach (var v in villages) yield return (v.name, v.c); foreach (var v in hamlets) yield return (v.name, v.c); }
     }
 }

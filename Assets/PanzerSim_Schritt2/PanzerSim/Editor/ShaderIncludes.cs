@@ -50,6 +50,9 @@ namespace PanzerSim.EditorTools
             Make("TerrainLit", "Universal Render Pipeline/Terrain/Lit", null);
             // Gelaende mit Fototexturen: Normal Map, Maske, Hoehen-Uebergaenge (Varianten muessen mit in den Build)
             Make("TerrainLitHD", "Universal Render Pipeline/Terrain/Lit", m => PanzerSim.PlainsMap.SetTerrainDetail(m, true));
+            // eigene Shader fuer Baeume (Forest, GPU-Instancing) und Strassenbelag (Roads): Instancing-Varianten behalten
+            Make("BaumMesh", "PanzerSim/BaumMesh", m => { m.enableInstancing = true; });
+            Make("Strasse", "PanzerSim/Strasse", m => { m.enableInstancing = true; });
             Make("SpritesDefault", "Sprites/Default", null);
             Make("SkyProcedural", "Skybox/Procedural", null);
             AssetDatabase.SaveAssets();

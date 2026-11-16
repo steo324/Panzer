@@ -336,7 +336,7 @@ namespace PanzerSim
             for (float g = Mathf.Ceil((ctr.y - Rv) / step) * step; g < ctr.y + Rv; g += step) { float y = toMap(new Vector3(0, 0, g)).y; GUI.DrawTexture(new Rect(r.x, y, r.width, 1), Texture2D.whiteTexture); }
             GUI.color = Color.white;
             // Ortsnamen
-            IEnumerable<(string, Vector2)> names = map is HillsMap hm ? hm.Places() : map is RealMap rm ? rm.Places() : null;
+            IEnumerable<(string, Vector2)> names = map.Places();
             if (names != null)
                 foreach (var (nm, c) in names)
                 {

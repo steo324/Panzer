@@ -21,7 +21,8 @@ namespace PanzerSim
         readonly GameMap[] maps = { new PlainsMap(), new TestRangeMap(), new HillsMap(),   // Reihenfolge = Kartennummer (-map), nicht umsortieren
             new RealMap("HornBadMeinberg", "Horn-Bad Meinberg",
                 "Echte Gegend, 5 x 5 km: Horn und Bad Meinberg mit Externsteinen am Teutoburger Wald. Gelaende aus dem amtlichen Hoehenmodell NRW (1 m genau), Strassen, Gebaeude, Waelder und Felder aus OpenStreetMap.",
-                ("Externsteine", -2254f, -1358f)).WithProp("Modelle/GolfR32", 28f, -319f, 117f) };   // Easter Egg: silberner Golf hinter der Werkstatt
+                ("Externsteine", -2254f, -1358f)).WithProp("Modelle/GolfR32", 28f, -319f, 117f),   // Easter Egg: silberner Golf hinter der Werkstatt
+            new TallandMap(), new FlandernMap() };   // 4 Talland, 5 Flandern
 
         int tankIndex, mapIndex;
         int nationTab = -1;   // Reiter in der Panzerauswahl (-1 = Nation des gewaehlten Panzers)
