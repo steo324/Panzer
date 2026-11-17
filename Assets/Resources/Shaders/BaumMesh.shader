@@ -154,5 +154,29 @@ Shader "PanzerSim/BaumMesh"
             half4 frag(Varyings i) : SV_Target { return 0; }
             ENDHLSL
         }
+
+        // Tiefe + Normalen (SSAO liest daraus die Tiefe; ohne diesen Pass malt der Hoehennebel ueber die Baeume)
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode" = "DepthNormals" }
+            ZWrite On
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile_instancing
+            struct Varyings { float4 positionCS : SV_POSITION; float3 nWS : TEXCOORD0; };
+            Varyings vert(Attributes v)
+            {
+                UNITY_SETUP_INSTANCE_ID(v);
+                Varyings o;
+                float3 nWS, rootWS;
+                o.positionCS = TransformWorldToHClip(TreeWorld(v, nWS, rootWS));
+                o.nWS = nWS;
+                return o;
+            }
+            half4 frag(Varyings i) : SV_Target { return half4(normalize(i.nWS), 0); }
+            ENDHLSL
+        }
     }
 }

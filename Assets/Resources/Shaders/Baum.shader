@@ -149,5 +149,27 @@ Shader "PanzerSim/Baum"
             half4 frag(Varyings i) : SV_Target { clip(SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv).a - _Cutoff); return 0; }
             ENDHLSL
         }
+
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode" = "DepthNormals" }
+            ZWrite On
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; float3 nWS : TEXCOORD1; };
+            Varyings vert(Attributes v)
+            {
+                Varyings o;
+                float3 nWS;
+                o.positionCS = TransformWorldToHClip(TreeWorld(v, nWS));
+                o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
+                o.nWS = nWS;
+                return o;
+            }
+            half4 frag(Varyings i) : SV_Target { clip(SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv).a - _Cutoff); return half4(normalize(i.nWS), 0); }
+            ENDHLSL
+        }
     }
 }

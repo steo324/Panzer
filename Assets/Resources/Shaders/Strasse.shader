@@ -115,5 +115,28 @@ Shader "PanzerSim/Strasse"
             half4 frag(Varyings i) : SV_Target { clip(SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv).a - _Cutoff); return 0; }
             ENDHLSL
         }
+
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode" = "DepthNormals" }
+            ZWrite On
+            Cull Back
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile_instancing
+            struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; };
+            Varyings vert(Attributes v)
+            {
+                UNITY_SETUP_INSTANCE_ID(v);
+                Varyings o;
+                o.positionCS = TransformWorldToHClip(RoadWorld(v.positionOS.xyz));
+                o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
+                return o;
+            }
+            half4 frag(Varyings i) : SV_Target { clip(SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv).a - _Cutoff); return half4(0, 1, 0, 0); }
+            ENDHLSL
+        }
     }
 }
