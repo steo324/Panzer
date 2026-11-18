@@ -497,7 +497,8 @@ namespace PanzerSim
                 if (Inp.Down(KeyCode.Escape)) { SpawnSelect.Cancel(); Time.timeScale = 1f; }
                 return;
             }
-            if (Inp.Down(KeyCode.Escape))
+            if (quitAsk) { if (Inp.Down(KeyCode.Escape)) quitAsk = false; }   // Rueckfrage offen: Esc = Nein, sonst nichts
+            else if (Inp.Down(KeyCode.Escape))
             {
                 if (settingsOpen) CloseSettings();
                 else if (state == State.Playing && (TeamHud.MapOpen || ArtilleryMode.Active)) { ArtilleryMode.Close(); TeamHud.CloseMap(); }   // Karte zu statt Pause
@@ -641,7 +642,8 @@ namespace PanzerSim
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
             float W = Screen.width / scale, H = 1080f;
 
-            if (Accounts.Required && !Accounts.LoggedIn && state == State.Menu) DrawLogin(W, H);   // ohne Konto kein Spiel
+            if (quitAsk) DrawQuitAsk(W, H);   // "Wirklich beenden?" liegt ueber allem
+            else if (Accounts.Required && !Accounts.LoggedIn && state == State.Menu) DrawLogin(W, H);   // ohne Konto kein Spiel
             else if (accountsOpen) DrawAccountList(W, H);
             else if (ammoOpen && state == State.Menu) DrawAmmo(W, H);
             else if (settingsOpen) DrawSettings(W, H);
@@ -779,7 +781,7 @@ namespace PanzerSim
             // ---- Start ----
             if (GUI.Button(new Rect(W - 490, 750, 430, 90), "LOS GEHT'S", big)) StartGame();
             if (GUI.Button(new Rect(W - 490, 856, 212, 50), "Einstellungen", btn)) settingsOpen = true;
-            if (GUI.Button(new Rect(W - 272, 856, 212, 50), "Beenden", btn)) Quit();
+            if (GUI.Button(new Rect(W - 272, 856, 212, 50), "Beenden", btn)) quitAsk = true;   // erst nachfragen (versehentlich geschlossen)
 
             GUI.Label(new Rect(60, H - 128, 1600, 26),
                 "Modelle (CC BY 4.0): Tiger I, Panzer III, Panther von Joanthan To (sketchfab.com/jonathanto99)  ·  Panzer IV von Greg McKechnie (sketchfab.com/mckechniegreg6)  ·  M4A1E9 Sherman von Sem (sketchfab.com/Sem-Hofstede)  ·  Sherman Firefly von barking_dogo (sketchfab.com/barking_dogo) ·  Leopard 2A6 und Challenger 2 von buh (sketchfab.com/buh-late)  ·  T-34-85 von DedRam (sketchfab.com/heirohindrima)  ·  Hetzer von Pechacek (sketchfab.com/pechy.v)  ·  M3 Grant von Joanthan To (sketchfab.com/Toshueyi)  ·  Gepard von xFORTUNAx (sketchfab.com/xFORTUNAx)", small);
@@ -829,7 +831,7 @@ namespace PanzerSim
             if (GUILayout.Button(registerMode ? "Ich habe schon ein Konto" : "Neues Konto erstellen", btn, GUILayout.Height(42)))
             { registerMode = !registerMode; Accounts.Message = ""; loginPw2 = ""; }
             GUI.enabled = true;
-            if (GUILayout.Button("Beenden", btn, GUILayout.Height(42))) Quit();
+            if (GUILayout.Button("Beenden", btn, GUILayout.Height(42))) quitAsk = true;
             GUILayout.Space(8);
             string msg = Accounts.Busy ? "<color=#fd6>Bitte warten ...</color>"
                 : !string.IsNullOrEmpty(GameUpdater.Status) ? $"<color=#fd6>{GameUpdater.Status}</color>"
@@ -1158,7 +1160,7 @@ namespace PanzerSim
             GUILayout.Space(6);
             if (GUILayout.Button("Einstellungen", btn, GUILayout.Height(52))) settingsOpen = true;
             GUILayout.Space(6);
-            if (GUILayout.Button("Beenden", btn, GUILayout.Height(52))) Quit();
+            if (GUILayout.Button("Beenden", btn, GUILayout.Height(52))) quitAsk = true;
             GUILayout.EndArea();
         }
 
@@ -1388,6 +1390,21 @@ namespace PanzerSim
                 $"Durchschlag: <b>{Penetration.FlatPenetration(a, v100):0} mm</b> (100 m)  ·  {Penetration.FlatPenetration(a, v1000):0} mm (1 km)\n\n" +
                 $"<b>Panzerung Wanne</b>\nFront {Arm(s.hullFront)}  ·  Seite {Arm(s.hullSide)}  ·  Heck {Arm(s.hullRear)}\n" +
                 $"<b>Panzerung Turm</b>\nFront {Arm(s.turretFront)}  ·  Seite {Arm(s.turretSide)}  ·  Blende {Arm(s.mantlet)}";
+        }
+
+        // ---- Beenden erst nach Rueckfrage ----
+        bool quitAsk;
+        void DrawQuitAsk(float W, float H)
+        {
+            GUI.DrawTexture(new Rect(0, 0, W, H), texShade);
+            var r = new Rect(W / 2f - 260, H / 2f - 110, 520, 220);
+            GUI.Box(r, GUIContent.none, panel);
+            GUI.Label(new Rect(r.x + 30, r.y + 26, r.width - 60, 50), "WIRKLICH BEENDEN?", head);
+            GUI.Label(new Rect(r.x + 30, r.y + 76, r.width - 60, 30), state == State.Menu ? "Das Spiel wird geschlossen." : "Die laufende Runde geht verloren, das Spiel wird geschlossen.", text);
+            if (GUI.Button(new Rect(r.x + 30, r.y + 140, 220, 52), "Ja, beenden", btn)) Quit();
+            if (GUI.Button(new Rect(r.x + 270, r.y + 140, 220, 52), "Nein", btnSel)) quitAsk = false;
+            var e = Event.current;
+            if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape) { quitAsk = false; e.Use(); }   // Menue: Esc = Nein
         }
 
         static void Quit()
