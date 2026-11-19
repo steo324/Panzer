@@ -126,6 +126,8 @@ namespace PanzerSim
                         var tank = hit.collider.GetComponentInParent<TankController>();
                         if (tank != b.owner || b.life > 0.05f)
                         {
+                            var soft = hit.collider.GetComponentInParent<IShellTarget>();
+                            if (soft != null && NetSync.MayApplyDamage) soft.Hit(b.round ?? Round, b.vel, hit.point, b.owner != null && b.owner.isPlayer);
                             Impact(hit, tank != null, b.vel);
                             hitSomething = true; Hits++;
                         }

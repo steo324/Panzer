@@ -156,6 +156,7 @@ namespace PanzerSim
             new ShellData("DM13 APDS-T", "35 mm KDA (Gepard)", ShellType.APDS, 22f, 0.38f, 1385f, 0f) { penRefMm = 110f, spallMul = 0.8f, dragCoefficient = 0.30f },   // 65  Hartkern
             // KI-Flugzeuge (Luftangriffe)
             new ShellData("250-kg-Bombe", "Abwurfbombe (KI-Flugzeug)", ShellType.HE, 370f, 250f, 150f, 125f) { dragCoefficient = 0.15f },   // 66  Sprengbombe, 125 kg Sprengstoff
+            new ShellData("Panzerfaust 60", "Panzerfaust (Infanterie)", ShellType.HEAT, 149f, 3.0f, 45f, 0.8f) { heatPenMm = 200f, dragCoefficient = 0.4f },   // 67  Hohlladung, langsam: im Bogen schiessen
         };
     }
 }

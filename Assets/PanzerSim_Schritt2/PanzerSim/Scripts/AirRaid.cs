@@ -9,7 +9,7 @@ namespace PanzerSim
     /// auf der normalen Ebene, siehe Shell.cs); Schaden laesst es rauchen, bei 0 stuerzt es brennend ab und zerschellt.
     /// Flug: vereinfacht (Richtung dreht mit begrenzter Rate, Querneigung aus der Kurve, Mindesthoehe ueber Grund).
     /// </summary>
-    public class AirTarget : MonoBehaviour
+    public class AirTarget : MonoBehaviour, IShellTarget
     {
         enum State { Approach, Attack, Egress, Falling }
         State state;

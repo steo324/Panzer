@@ -320,6 +320,91 @@ namespace PanzerSim
                 for (int i = RangeLog.Lines.Count - 1; i >= 0 && i > RangeLog.Lines.Count - 20; i--) Debug.Log("BENCH-AIR Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
             }
 
+            // -benchground (mit -ground): Pak, Infanterie, Minen ansehen und ausloesen
+            if (System.Array.IndexOf(args, "-benchground") >= 0 && pl != null && cam != null)
+            {
+                System.IO.Directory.CreateDirectory(outDir ?? ".");
+                string Shot(string n) => System.IO.Path.Combine(outDir ?? ".", n);
+                var gmap = GameManager.Instance.CurrentMap;
+                var ct = Camera.main.transform;
+                System.Collections.Generic.List<AtGun> guns = new System.Collections.Generic.List<AtGun>(GroundThreats.Guns);
+                System.Collections.Generic.List<Soldier> sold = new System.Collections.Generic.List<Soldier>(GroundThreats.Soldiers);
+                System.Collections.Generic.List<Minefield> mfs = new System.Collections.Generic.List<Minefield>(GroundThreats.Fields);
+                Debug.Log("BENCH-GROUND Start: " + GroundThreats.BenchText);
+                AtGun.BenchHold = true;
+                // Nahaufnahmen mit freier Kamera
+                cam.enabled = false;
+                if (guns.Count > 0) { var g = guns[0].transform; ct.position = g.position + g.forward * 9f + g.right * 5f + Vector3.up * 2.2f; ct.LookAt(g.position + Vector3.up * 0.8f); yield return new WaitForSeconds(0.3f); ScreenCapture.CaptureScreenshot(Shot("pak.png")); yield return new WaitForSeconds(0.3f); }
+                Soldier faust = sold.Find(s => s.hasFaust);
+                if (faust != null) { var s = faust.transform; ct.position = s.position + s.forward * 6f + s.right * 3f + Vector3.up * 1.8f; ct.LookAt(s.position + Vector3.up * 0.4f); yield return new WaitForSeconds(0.3f); ScreenCapture.CaptureScreenshot(Shot("infanterie.png")); yield return new WaitForSeconds(0.3f); }
+                cam.enabled = true;
+                // Mine: Panzer so hinstellen, dass die linke Kette auf einer Mine steht
+                if (mfs.Count > 0)
+                {
+                    Vector3 m = mfs[0].FirstMine;
+                    float yaw = 30f;
+                    Vector3 right = Quaternion.Euler(0f, yaw, 0f) * Vector3.right;
+                    Vector3 p = m + right * (pl.spec.hullWidth * 0.5f - 0.3f) - (Quaternion.Euler(0f, yaw, 0f) * Vector3.forward) * 4f;
+                    pl.Teleport(new Vector3(p.x, gmap.GroundY(p.x, p.z) + 0.6f, p.z), yaw);
+                    cam.SetView(yaw + 140f, 16f);
+                    TankController.BenchDrive = false;
+                    for (float w = 0f; w < 4f; w += Time.deltaTime) { pl.AiControl(0.5f, 0f, false); yield return null; }
+                    ScreenCapture.CaptureScreenshot(Shot("mine.png"));
+                    yield return new WaitForSeconds(1f);
+                    Debug.Log($"BENCH-GROUND Mine: Detonationen {Minefield.Detonations}, Kette links ab {pl.TrackBroken(true)}, rechts ab {pl.TrackBroken(false)}, zerstoert {pl.destroyed}");
+                }
+                // Panzerfaust: 55 m vor einen Trupp stellen
+                if (faust != null && !pl.destroyed)
+                {
+                    pl.FullRepair();
+                    var s = faust.transform;
+                    Vector3 p = s.position + s.forward * 55f;
+                    pl.Teleport(new Vector3(p.x, gmap.GroundY(p.x, p.z) + 0.6f, p.z), s.eulerAngles.y + 90f);
+                    int before = Soldier.FaustShots;
+                    for (float w = 0f; w < 9f; w += Time.deltaTime)
+                    {
+                        Vector3 d = s.position + Vector3.up - Camera.main.transform.position;
+                        cam.SetView(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, -Mathf.Asin(d.normalized.y) * Mathf.Rad2Deg);
+                        if (Soldier.FaustShots > before && w < 20f) { yield return new WaitForSeconds(0.4f); ScreenCapture.CaptureScreenshot(Shot("panzerfaust.png")); w = 20f; }
+                        yield return null;
+                    }
+                    yield return new WaitForSeconds(2f);
+                    Debug.Log($"BENCH-GROUND Panzerfaust: Schuesse {Soldier.FaustShots - before}, Spieler zerstoert {pl.destroyed}");
+                    // Gegenwehr: 20-mm-Geschoss auf den Schuetzen, Sprenggranate auf die Pak
+                    Shell.Fire(AmmoLibrary.All[60], s.position + Vector3.up * 0.9f + s.forward * 20f, -s.forward, false);
+                    yield return new WaitForSeconds(0.5f);
+                    Debug.Log($"BENCH-GROUND Schuss auf Schuetzen: tot {faust.Dead}");
+                }
+                if (guns.Count > 1)
+                {
+                    var g = guns[1].transform;
+                    Shell.Fire(AmmoLibrary.All[11], g.position + Vector3.up * 30f + g.right * 3f, Vector3.down, false);   // 88-mm-Sprenggranate 3 m daneben
+                    yield return new WaitForSeconds(1f);
+                    Debug.Log($"BENCH-GROUND Sprenggranate neben Pak: ausgeschaltet {guns[1].Dead}");
+                }
+                AtGun.BenchHold = false;
+                // Pak beschiesst den Spieler
+                if (guns.Count > 0 && !guns[0].Dead)
+                {
+                    pl.FullRepair();
+                    var g = guns[0].transform;
+                    Vector3 p = g.position + g.forward * 700f;
+                    pl.Teleport(new Vector3(p.x, gmap.GroundY(p.x, p.z) + 0.6f, p.z), g.eulerAngles.y + 180f);
+                    int lines = RangeLog.Lines.Count;
+                    for (float w = 0f; w < 30f; w += Time.deltaTime)
+                    {
+                        Vector3 d = g.position + Vector3.up - Camera.main.transform.position;
+                        cam.SetView(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, -Mathf.Asin(d.normalized.y) * Mathf.Rad2Deg);
+                        yield return null;
+                    }
+                    int pakHits = 0; for (int i = 0; i < RangeLog.Lines.Count - lines; i++) if (RangeLog.Lines[i].Contains("PzGr. 39")) pakHits++;
+                    ScreenCapture.CaptureScreenshot(Shot("pak_feuer.png"));
+                    Debug.Log($"BENCH-GROUND Pak: Treffer am Spieler {pakHits}, Spieler zerstoert {pl.destroyed}");
+                }
+                Debug.Log("BENCH-GROUND Ende: " + GroundThreats.BenchText);
+                for (int i = Mathf.Min(RangeLog.Lines.Count - 1, 25); i >= 0; i--) Debug.Log("BENCH-GROUND Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
+            }
+
             // -benchwobble: Zittern von Wanne und Rohr waehrend der Fahrt messen (Abweichung vom geglaetteten Neigungswinkel)
             if (System.Array.IndexOf(args, "-noroughness") >= 0) TankController.GroundRoughness = 0f;
             if (System.Array.IndexOf(args, "-benchwobble") >= 0 && pl != null)

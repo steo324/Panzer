@@ -179,12 +179,12 @@ namespace PanzerSim
                 }
 
                 // Flugzeug (Luftziel): Treffer zaehlen, Sprenggranaten zerlegen sich dort
-                var air = hit.collider.GetComponentInParent<AirTarget>();
+                var air = hit.collider.GetComponentInParent<IShellTarget>();
                 if (air != null)
                 {
                     if (NetSync.MayApplyDamage) air.Hit(data, velocity, pos, fromPlayer);
                     Effects.Impact(pos, hit.normal, dir, data.caliberMm, true, false);
-                    if (data.HasFiller) { Effects.Explosion(pos, data.fillerKg, false); Finish(); return; }
+                    if (data.HasFiller) { Effects.Explosion(pos, data.fillerKg, false); SoftTargets.Splash(pos, data.fillerKg, fromPlayer); Finish(); return; }
                     velocity *= 0.85f; pos += dir * 0.3f; remaining -= 0.3f;   // Vollgeschoss: durch die duenne Haut
                     continue;
                 }
@@ -355,6 +355,7 @@ namespace PanzerSim
                 }
                 Effects.Crater(pos, hit.normal, radius, hit.collider.transform);
                 if (data.IsHE) { NearMissTracks(pos); DestructiblePart.BlowOff(pos, data.fillerKg); LastHEImpact = pos; LastHEImpactTime = Time.time; }
+                if (data.HasFiller) SoftTargets.Splash(pos, data.fillerKg, fromPlayer);
             }
 
             if (!data.HasFiller) Effects.Impact(pos, hit.normal, dir, data.caliberMm, false, false);
@@ -370,6 +371,7 @@ namespace PanzerSim
 
         void HitHE(Vector3 pos, Vector3 normal, TankController tank, float plateMm, string plateName, HitResult r)
         {
+            SoftTargets.Splash(pos, data.fillerKg, fromPlayer);
             LastHEImpact = pos; LastHEImpactTime = Time.time;
             Effects.Explosion(pos, data.fillerKg, false);
             Shell.Marker(pos, new Color(1f, 0.55f, 0.1f), 0.3f);

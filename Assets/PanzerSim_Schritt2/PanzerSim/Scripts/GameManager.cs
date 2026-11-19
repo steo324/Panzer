@@ -37,6 +37,9 @@ namespace PanzerSim
         /// <summary>Luftangriffe: KI-Flugzeuge greifen an (Einzelspieler, alle Modi ausser Testflug; gespeichert).</summary>
         bool airRaids { get => PlayerPrefs.GetInt("luftangriffe", 0) == 1; set { PlayerPrefs.SetInt("luftangriffe", value ? 1 : 0); PlayerPrefs.Save(); } }
         bool airRaidsBench;
+        /// <summary>Bodenabwehr: Pak, Panzerfaust-Trupps, Minenfelder (Einzelspieler; gespeichert).</summary>
+        bool groundThreats { get => PlayerPrefs.GetInt("bodenabwehr", 0) == 1; set { PlayerPrefs.SetInt("bodenabwehr", value ? 1 : 0); PlayerPrefs.Save(); } }
+        bool groundBench;
         JetController jet;
         static readonly string[] NationNames = { "Deutschland", "USA", "UdSSR", "UK" };
         GameMap map;
@@ -115,6 +118,7 @@ namespace PanzerSim
                 if (Has("-duel")) duelMode = true;           // Test: Duell
                 if (Has("-defense")) defenseMode = true;     // Test: Verteidigung
                 if (Has("-air")) airRaidsBench = true;       // Test: Luftangriffe
+                if (Has("-ground")) groundBench = true;       // Test: Bodenabwehr
                 if (int.TryParse(Arg("-tageszeit"), out int tod)) GameSettings.TimeOfDay = Mathf.Clamp(tod, 0, 3);   // Test: Tageszeit fuer Bilder
                 TankCamera.BenchSight = Has("-benchsight");
                 TankCamera.BenchThermal = Has("-benchthermal");
@@ -396,6 +400,7 @@ namespace PanzerSim
             if (jetMode && !netGame) { StartJetGame(); return; }
             BuildMap(mapIndex);
             if ((airRaids || airRaidsBench) && !netGame) AirRaid.Begin(map, () => player); else AirRaid.Stop();
+            if ((groundThreats || groundBench) && !netGame && !duelMode) { TeamStart(GameSettings.Team, out Vector2 gs, out float gy); TeamStart(1 - GameSettings.Team, out Vector2 go2, out _); if ((go2 - gs).magnitude > 300f) gy = Mathf.Atan2(go2.x - gs.x, go2.y - gs.y) * Mathf.Rad2Deg; else if (gs.magnitude > 300f) gy = Mathf.Atan2(-gs.x, -gs.y) * Mathf.Rad2Deg; GroundThreats.Begin(map, gs, gy, GameSettings.Team == 0 ? 1 : 0); } else GroundThreats.Stop();
             if (conquestMode)
             {
                 foreach (var t in targets) if (t != null) Destroy(t.gameObject);
@@ -497,6 +502,7 @@ namespace PanzerSim
             DuelMode.Stop();
             DefenseMode.Stop();
             AirRaid.Stop();
+            GroundThreats.Stop();
         }
 
         // ================= Eingabe =================
@@ -831,6 +837,8 @@ namespace PanzerSim
             {
                 bool ar = airRaids;
                 if (GUILayout.Button(ar ? "Luftangriffe: AN  (KI-Flugzeuge, Ziel fuer Flakpanzer)" : "Luftangriffe: aus", ar ? btnSel : btn, GUILayout.Height(34))) airRaids = !ar;
+                bool gt = groundThreats;
+                if (!duelMode && GUILayout.Button(gt ? "Bodenabwehr: AN  (Pak, Panzerfaeuste, Minen)" : "Bodenabwehr: aus", gt ? btnSel : btn, GUILayout.Height(34))) groundThreats = !gt;
             }
             if (conquestMode) GUILayout.Label("Flaggen A, B, C einnehmen, 6 gegen 6 (KI fuellt auf). 0 Tickets = verloren. Gilt auch beim Hosten.", text);
             if (waveMode) GUILayout.Label("KI-Panzer greifen in Wellen an, jede Welle mehr und staerker. Zwischen den Wellen wird repariert.", text);
