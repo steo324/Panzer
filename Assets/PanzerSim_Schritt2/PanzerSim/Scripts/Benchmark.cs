@@ -247,6 +247,79 @@ namespace PanzerSim
                 }
             }
 
+            // -benchair (mit -air, am besten -tank 27 Gepard): Flugzeug kommt, Kamera auf den Vorhalt, Dauerfeuer, Abschuss und Absturz
+            if (System.Array.IndexOf(args, "-benchair") >= 0 && pl != null && cam != null)
+            {
+                System.IO.Directory.CreateDirectory(outDir ?? ".");
+                string Shot(string n) => System.IO.Path.Combine(outDir ?? ".", n);
+                bool shotApproach = false, shotFall = false, shotCrash = false;
+                int killsBefore = AirRaid.Kills; float fallSeen = -1f;
+                AirTarget watch = null;
+                for (float w = 0f; w < 150f; w += Time.deltaTime)
+                {
+                    AirTarget near = null; float bd = 1e9f;
+                    foreach (var a in AirTarget.All) if (a != null && !a.Down) { float d = Vector3.Distance(a.transform.position, pl.transform.position); if (d < bd) { bd = d; near = a; } }
+                    if (near != null && !pl.destroyed)
+                    {
+                        Vector3 aim = pl.AutoGun ? AirRaid.LeadPoint(pl, near) : near.transform.position;
+                        Vector3 d = aim - Camera.main.transform.position;
+                        cam.SetView(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, -Mathf.Asin(d.normalized.y) * Mathf.Rad2Deg);
+                        TankController.BenchHold = bd < 2200f;
+                        if (bd < 2400f && !shotApproach)
+                        {
+                            shotApproach = true; ScreenCapture.CaptureScreenshot(Shot("flugzeug_anflug.png"));
+                            yield return null;
+                            // Nahaufnahme: freie Kamera neben dem Flugzeug
+                            cam.enabled = false;
+                            var ct = Camera.main.transform;
+                            ct.position = near.transform.position - near.Velocity.normalized * 30f + near.transform.right * 18f + Vector3.up * 6f;
+                            ct.LookAt(near.transform.position);
+                            yield return null;
+                            ScreenCapture.CaptureScreenshot(Shot("flugzeug_nah.png"));
+                            yield return null; yield return null;
+                            cam.enabled = true;
+                        }
+                        watch = near;
+                    }
+                    else TankController.BenchHold = false;
+                    if (watch != null && watch.Down && fallSeen < 0f) fallSeen = w;
+                    if (watch != null && fallSeen >= 0f)
+                    {
+                        // abgeschossenes Flugzeug weiter ansehen
+                        Vector3 d = watch.transform.position - Camera.main.transform.position;
+                        cam.SetView(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, -Mathf.Asin(d.normalized.y) * Mathf.Rad2Deg);
+                        TankController.BenchHold = false;
+                        if (!shotFall && w - fallSeen > 1.2f)
+                        {
+                            shotFall = true; ScreenCapture.CaptureScreenshot(Shot("flugzeug_absturz.png"));
+                            yield return null;
+                            cam.enabled = false;
+                            var ct = Camera.main.transform;
+                            ct.position = watch.transform.position - watch.Velocity.normalized * 45f + Vector3.Cross(Vector3.up, watch.Velocity.normalized) * 30f + Vector3.up * 10f;
+                            ct.LookAt(watch.transform.position);
+                            yield return null;
+                            ScreenCapture.CaptureScreenshot(Shot("flugzeug_absturz_nah.png"));
+                            yield return null; yield return null;
+                            cam.enabled = true;
+                        }
+                    }
+                    if (fallSeen >= 0f && watch == null && !shotCrash)
+                    {
+                        shotCrash = true;
+                        yield return new WaitForSeconds(0.6f);
+                        ScreenCapture.CaptureScreenshot(Shot("flugzeug_aufschlag.png"));
+                        Debug.Log($"BENCH-AIR: Absturz nach {w - fallSeen:0.0} s");
+                        break;
+                    }
+                    if (Mathf.FloorToInt(w / 3f) != Mathf.FloorToInt((w - Time.deltaTime) / 3f))
+                        Debug.Log($"BENCH-AIR t={w:0}s: {AirRaid.BenchText}, Spieler {pl.spec.name} zerstoert {pl.destroyed}, Schuss {pl.RoundsLeft}");
+                    yield return null;
+                }
+                TankController.BenchHold = false;
+                Debug.Log($"BENCH-AIR Ende: Abschuesse {AirRaid.Kills - killsBefore}, {AirRaid.BenchText}");
+                for (int i = RangeLog.Lines.Count - 1; i >= 0 && i > RangeLog.Lines.Count - 20; i--) Debug.Log("BENCH-AIR Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
+            }
+
             // -benchwobble: Zittern von Wanne und Rohr waehrend der Fahrt messen (Abweichung vom geglaetteten Neigungswinkel)
             if (System.Array.IndexOf(args, "-noroughness") >= 0) TankController.GroundRoughness = 0f;
             if (System.Array.IndexOf(args, "-benchwobble") >= 0 && pl != null)

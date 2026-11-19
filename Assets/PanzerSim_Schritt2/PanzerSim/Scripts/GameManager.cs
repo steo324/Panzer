@@ -34,6 +34,9 @@ namespace PanzerSim
         bool defenseMode { get => spMode == 4; set => SetMode(4, value); }
         bool jetMode { get => spMode == 5; set => SetMode(5, value); }
         void SetMode(int m, bool on) { if (on) spMode = m; else if (spMode == m) spMode = 0; }
+        /// <summary>Luftangriffe: KI-Flugzeuge greifen an (Einzelspieler, alle Modi ausser Testflug; gespeichert).</summary>
+        bool airRaids { get => PlayerPrefs.GetInt("luftangriffe", 0) == 1; set { PlayerPrefs.SetInt("luftangriffe", value ? 1 : 0); PlayerPrefs.Save(); } }
+        bool airRaidsBench;
         JetController jet;
         static readonly string[] NationNames = { "Deutschland", "USA", "UdSSR", "UK" };
         GameMap map;
@@ -111,6 +114,7 @@ namespace PanzerSim
                 if (Has("-conquest")) conquestMode = true;   // Test: Eroberung
                 if (Has("-duel")) duelMode = true;           // Test: Duell
                 if (Has("-defense")) defenseMode = true;     // Test: Verteidigung
+                if (Has("-air")) airRaidsBench = true;       // Test: Luftangriffe
                 if (int.TryParse(Arg("-tageszeit"), out int tod)) GameSettings.TimeOfDay = Mathf.Clamp(tod, 0, 3);   // Test: Tageszeit fuer Bilder
                 TankCamera.BenchSight = Has("-benchsight");
                 TankCamera.BenchThermal = Has("-benchthermal");
@@ -391,6 +395,7 @@ namespace PanzerSim
         {
             if (jetMode && !netGame) { StartJetGame(); return; }
             BuildMap(mapIndex);
+            if ((airRaids || airRaidsBench) && !netGame) AirRaid.Begin(map, () => player); else AirRaid.Stop();
             if (conquestMode)
             {
                 foreach (var t in targets) if (t != null) Destroy(t.gameObject);
@@ -491,6 +496,7 @@ namespace PanzerSim
             Conquest.Stop();
             DuelMode.Stop();
             DefenseMode.Stop();
+            AirRaid.Stop();
         }
 
         // ================= Eingabe =================
@@ -821,6 +827,11 @@ namespace PanzerSim
             }
             if (duelMode) GUILayout.Label("1 gegen 1 gegen den gleichen Panzer als KI, in einer kleinen Kampfflaeche. 3 Rundensiege gewinnen.", text);
             if (defenseMode) GUILayout.Label("Gruene Stellung gegen 10 KI-Wellen aus mehreren Richtungen halten. 2 Verbuendete, 3 Leben.", text);
+            if (!jetMode)
+            {
+                bool ar = airRaids;
+                if (GUILayout.Button(ar ? "Luftangriffe: AN  (KI-Flugzeuge, Ziel fuer Flakpanzer)" : "Luftangriffe: aus", ar ? btnSel : btn, GUILayout.Height(34))) airRaids = !ar;
+            }
             if (conquestMode) GUILayout.Label("Flaggen A, B, C einnehmen, 6 gegen 6 (KI fuellt auf). 0 Tickets = verloren. Gilt auch beim Hosten.", text);
             if (waveMode) GUILayout.Label("KI-Panzer greifen in Wellen an, jede Welle mehr und staerker. Zwischen den Wellen wird repariert.", text);
             if (jetMode) GUILayout.Label("Jet (Test): ueber die Zielpanzer fliegen, 5-t-Bomben werfen (rotes X = Einschlag), 20-mm-Kanone. Shift/Strg Schub, W/S, A/D, Q/E.", text);

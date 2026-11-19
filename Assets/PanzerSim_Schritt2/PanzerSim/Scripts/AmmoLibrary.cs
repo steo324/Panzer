@@ -154,6 +154,8 @@ namespace PanzerSim
             // Gepard 1A2: 35 mm Oerlikon KDA (Zwillingskanone, je 550 Schuss/min)
             new ShellData("DM21 HEI-T", "35 mm KDA (Gepard)", ShellType.HE,   35f, 0.55f, 1175f, 0.112f) { dragCoefficient = 0.32f },                            // 64  Spreng-Brand mit Leuchtspur
             new ShellData("DM13 APDS-T", "35 mm KDA (Gepard)", ShellType.APDS, 22f, 0.38f, 1385f, 0f) { penRefMm = 110f, spallMul = 0.8f, dragCoefficient = 0.30f },   // 65  Hartkern
+            // KI-Flugzeuge (Luftangriffe)
+            new ShellData("250-kg-Bombe", "Abwurfbombe (KI-Flugzeug)", ShellType.HE, 370f, 250f, 150f, 125f) { dragCoefficient = 0.15f },   // 66  Sprengbombe, 125 kg Sprengstoff
         };
     }
 }

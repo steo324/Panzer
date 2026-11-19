@@ -178,6 +178,17 @@ namespace PanzerSim
                     continue;
                 }
 
+                // Flugzeug (Luftziel): Treffer zaehlen, Sprenggranaten zerlegen sich dort
+                var air = hit.collider.GetComponentInParent<AirTarget>();
+                if (air != null)
+                {
+                    if (NetSync.MayApplyDamage) air.Hit(data, velocity, pos, fromPlayer);
+                    Effects.Impact(pos, hit.normal, dir, data.caliberMm, true, false);
+                    if (data.HasFiller) { Effects.Explosion(pos, data.fillerKg, false); Finish(); return; }
+                    velocity *= 0.85f; pos += dir * 0.3f; remaining -= 0.3f;   // Vollgeschoss: durch die duenne Haut
+                    continue;
+                }
+
                 // Anbauteil (Kotfluegel, Kasten, Tank ...): keine Panzerung, wird abgerissen
                 var part = hit.collider.GetComponentInParent<DestructiblePart>();
                 if (part != null)
