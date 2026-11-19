@@ -520,7 +520,7 @@ namespace PanzerSim
                 float best = float.MaxValue;
                 foreach (var t in FindObjectsByType<TankController>(FindObjectsSortMode.None))
                 {
-                    if (t == this || t.destroyed || t.spec == null) continue;
+                    if (t == this || t.destroyed || t.spec == null || (t.team != TeamTarget && t.team == team)) continue;   // keine eigenen Leute
                     float d = (t.transform.position - transform.position).sqrMagnitude;
                     if (d < best) { best = d; autoTarget = t; }
                 }

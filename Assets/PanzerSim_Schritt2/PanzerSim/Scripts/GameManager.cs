@@ -26,9 +26,14 @@ namespace PanzerSim
 
         int tankIndex, mapIndex;
         int nationTab = -1;   // Reiter in der Panzerauswahl (-1 = Nation des gewaehlten Panzers)
-        bool waveMode;        // Einzelspieler: Wellen gegen KI-Panzer statt Zielpanzer
-        bool jetMode;         // Einzelspieler: Testflug mit dem Jet ueber den Zielpanzern
-        bool conquestMode;    // Eroberung (Einzelspieler mit KI, beim Hosten fuer alle)
+        // Spielmodus im Einzelspieler: 0 frei, 1 Wellen, 2 Eroberung (auch beim Hosten), 3 Duell, 4 Verteidigung, 5 Testflug
+        int spMode;
+        bool waveMode { get => spMode == 1; set => SetMode(1, value); }
+        bool conquestMode { get => spMode == 2; set => SetMode(2, value); }
+        bool duelMode { get => spMode == 3; set => SetMode(3, value); }
+        bool defenseMode { get => spMode == 4; set => SetMode(4, value); }
+        bool jetMode { get => spMode == 5; set => SetMode(5, value); }
+        void SetMode(int m, bool on) { if (on) spMode = m; else if (spMode == m) spMode = 0; }
         JetController jet;
         static readonly string[] NationNames = { "Deutschland", "USA", "UdSSR", "UK" };
         GameMap map;
@@ -104,6 +109,8 @@ namespace PanzerSim
                 if (Has("-waves")) waveMode = true;   // Test: Wellen-Modus
                 if (Has("-jet")) jetMode = true;      // Test: Testflug
                 if (Has("-conquest")) conquestMode = true;   // Test: Eroberung
+                if (Has("-duel")) duelMode = true;           // Test: Duell
+                if (Has("-defense")) defenseMode = true;     // Test: Verteidigung
                 if (int.TryParse(Arg("-tageszeit"), out int tod)) GameSettings.TimeOfDay = Mathf.Clamp(tod, 0, 3);   // Test: Tageszeit fuer Bilder
                 TankCamera.BenchSight = Has("-benchsight");
                 TankCamera.BenchThermal = Has("-benchthermal");
@@ -393,8 +400,17 @@ namespace PanzerSim
                 EnterPlaying();
                 return;
             }
-            Conquest.Stop();
+            Conquest.Stop(); DuelMode.Stop(); DefenseMode.Stop();
+            if (duelMode)
+            {
+                foreach (var t in targets) if (t != null) Destroy(t.gameObject);
+                targets.Clear(); WaveMode.Stop();
+                DuelMode.Begin(map, () => Tanks[tankIndex](), PlacePlayer);   // setzt Spieler und Gegner selbst
+                EnterPlaying();
+                return;
+            }
             SpawnPlayer();
+            if (defenseMode) { foreach (var t in targets) if (t != null) Destroy(t.gameObject); targets.Clear(); WaveMode.Stop(); StartDefense(); EnterPlaying(); return; }
             if (waveMode) { foreach (var t in targets) if (t != null) Destroy(t.gameObject); targets.Clear(); WaveMode.Begin(map, () => player); }
             else { WaveMode.Stop(); SpawnTargets(); }
             EnterPlaying();
@@ -417,15 +433,30 @@ namespace PanzerSim
 
         void SpawnPlayer()
         {
-            if (player != null) Destroy(player.gameObject);
             TeamStart(GameSettings.Team, out Vector2 p, out float yaw0);
             var pos = new Vector3(p.x, map.GroundY(p.x, p.y) + 0.4f, p.y);
             if (Conquest.On) Conquest.SpawnPoint(GameSettings.Team, 0, out pos, out yaw0);
-            player = TankBuilder.Build(Tanks[tankIndex](), pos, Quaternion.Euler(0f, yaw0 + BenchYaw, 0f), true);
+            PlacePlayer(pos, yaw0 + BenchYaw);
+        }
+
+        /// <summary>Verteidigung (neu) starten, eigener Panzer in die Stellung.</summary>
+        void StartDefense()
+        {
+            DefenseMode.Begin(map, () => player);
+            DefenseMode.RespawnPoint(out Vector3 rp, out float ry);
+            PlacePlayer(rp, ry);
+        }
+
+        /// <summary>Eigenen Panzer (neu) an diese Stelle setzen (Spielmodi: Duell-Runde, Neustart in der Stellung).</summary>
+        public TankController PlacePlayer(Vector3 pos, float yaw)
+        {
+            if (player != null) Destroy(player.gameObject);
+            player = TankBuilder.Build(Tanks[tankIndex](), pos, Quaternion.Euler(0f, yaw, 0f), true);
             player.team = GameSettings.Team; player.playerName = GameSettings.PlayerName;
             TankController.LocalTeam = player.team;
             player.autoFire = autoFire;
             tankCam.target = player;
+            return player;
         }
 
         void SpawnTargets()
@@ -458,6 +489,8 @@ namespace PanzerSim
             RangeLog.Lines.Clear();
             WaveMode.Stop();
             Conquest.Stop();
+            DuelMode.Stop();
+            DefenseMode.Stop();
         }
 
         // ================= Eingabe =================
@@ -553,6 +586,15 @@ namespace PanzerSim
             {
                 // Mehrspieler: neuer Panzer nur, wenn der eigene zerstoert ist (Server erzeugt ihn)
                 if (localNet != null && (player == null || player.destroyed)) localNet.RequestRespawn();
+            }
+            else if (Inp.Down(KeyCode.N) && DuelMode.On)
+            {
+                if (DuelMode.MatchOver) { DuelMode.Restart(); RangeLog.Lines.Clear(); }   // sonst laufen die Runden von selbst
+            }
+            else if (Inp.Down(KeyCode.N) && DefenseMode.On)
+            {
+                if (DefenseMode.Over) { StartDefense(); RangeLog.Lines.Clear(); }
+                else if ((player == null || player.destroyed) && DefenseMode.CanRespawn) { DefenseMode.RespawnPoint(out Vector3 rp, out float ry); PlacePlayer(rp, ry); }
             }
             else if (Inp.Down(KeyCode.N) && Conquest.On)
             {
@@ -765,12 +807,20 @@ namespace PanzerSim
 
             // ---- Spielmodus (Einzelspieler) ----
             GUILayout.Space(10);
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Frei", !waveMode && !jetMode && !conquestMode ? btnSel : btn, GUILayout.Height(40))) { waveMode = false; jetMode = false; conquestMode = false; }
-            if (GUILayout.Button("Wellen", waveMode ? btnSel : btn, GUILayout.Height(40))) { waveMode = true; jetMode = false; conquestMode = false; }
-            if (GUILayout.Button("Eroberung", conquestMode ? btnSel : btn, GUILayout.Height(40))) { conquestMode = true; waveMode = false; jetMode = false; }
-            if (GUILayout.Button("Testflug", jetMode ? btnSel : btn, GUILayout.Height(40))) { if (!jetMode) mapIndex = 2; jetMode = true; waveMode = false; conquestMode = false; }   // Huegelland: 10 km, genug Platz zum Fliegen
-            GUILayout.EndHorizontal();
+            string[] modeNames = { "Frei", "Wellen", "Eroberung", "Duell", "Verteidigung", "Testflug" };
+            for (int row = 0; row < 2; row++)
+            {
+                GUILayout.BeginHorizontal();
+                for (int mi = row * 3; mi < row * 3 + 3; mi++)
+                    if (GUILayout.Button(modeNames[mi], spMode == mi ? btnSel : btn, GUILayout.Height(36)) && spMode != mi)
+                    {
+                        if (mi == 5) mapIndex = 2;   // Testflug: Huegelland, 10 km, genug Platz zum Fliegen
+                        spMode = mi;
+                    }
+                GUILayout.EndHorizontal();
+            }
+            if (duelMode) GUILayout.Label("1 gegen 1 gegen den gleichen Panzer als KI, in einer kleinen Kampfflaeche. 3 Rundensiege gewinnen.", text);
+            if (defenseMode) GUILayout.Label("Gruene Stellung gegen 10 KI-Wellen aus mehreren Richtungen halten. 2 Verbuendete, 3 Leben.", text);
             if (conquestMode) GUILayout.Label("Flaggen A, B, C einnehmen, 6 gegen 6 (KI fuellt auf). 0 Tickets = verloren. Gilt auch beim Hosten.", text);
             if (waveMode) GUILayout.Label("KI-Panzer greifen in Wellen an, jede Welle mehr und staerker. Zwischen den Wellen wird repariert.", text);
             if (jetMode) GUILayout.Label("Jet (Test): ueber die Zielpanzer fliegen, 5-t-Bomben werfen (rotes X = Einschlag), 20-mm-Kanone. Shift/Strg Schub, W/S, A/D, Q/E.", text);
@@ -1195,6 +1245,8 @@ namespace PanzerSim
                 {
                     Pause(false);
                     if (Conquest.On) { Conquest.RestartOffline(); SpawnPlayer(); RangeLog.Lines.Clear(); }
+                    else if (DuelMode.On) { DuelMode.Restart(); RangeLog.Lines.Clear(); }
+                    else if (DefenseMode.On) { StartDefense(); RangeLog.Lines.Clear(); }
                     else { SpawnPlayer(); SpawnTargets(); RangeLog.Lines.Clear(); OpenSpawnSelect(); }
                 }
                 if (map != null && map.SpawnSelect)

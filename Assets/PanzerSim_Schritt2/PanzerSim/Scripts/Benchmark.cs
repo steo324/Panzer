@@ -200,6 +200,53 @@ namespace PanzerSim
                 for (int i = RangeLog.Lines.Count - 1; i >= 0 && i > RangeLog.Lines.Count - 40; i--) Debug.Log("BENCH-CONQUEST Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
             }
 
+            // -benchduel (mit -duel): Duell-Runden laufen lassen (mit -autofire schiesst der Spieler), Bilder
+            if (System.Array.IndexOf(args, "-benchduel") >= 0)
+            {
+                System.IO.Directory.CreateDirectory(outDir ?? ".");
+                for (int s = 0; s < 20; s++)
+                {
+                    pl = GameManager.Instance.BenchPlayer;
+                    if (s == 1 && cam != null && pl != null && DuelMode.Enemy != null) cam.SetView(ModeKit.Yaw(pl.transform.position, DuelMode.Enemy.transform.position), 3f);
+                    if (s == 2) ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", "duell_start.png"));
+                    if (s == 3 && pl != null) TeamHud.ToggleMap(pl, Camera.main);
+                    if (s == 4) { ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", "duell_karte.png")); }
+                    if (s == 5) TeamHud.CloseMap();
+                    if (s == 12) ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", "duell_spaeter.png"));
+                    if (cam != null && pl != null && DuelMode.Enemy != null && s > 5) cam.SetView(ModeKit.Yaw(pl.transform.position, DuelMode.Enemy.transform.position), 3f);
+                    Debug.Log($"BENCH-DUEL t={s * 5}s: {DuelMode.BenchText}");
+                    yield return new WaitForSeconds(5f);
+                }
+                ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", "duell_ende.png"));
+                yield return new WaitForSeconds(0.5f);
+            }
+
+            // -benchdefense (mit -defense): Verteidigung, erste Welle sofort, protokollieren, Bilder
+            if (System.Array.IndexOf(args, "-benchdefense") >= 0)
+            {
+                System.IO.Directory.CreateDirectory(outDir ?? ".");
+                DefenseMode.BenchSkipPause();
+                for (int s = 0; s < 18; s++)
+                {
+                    pl = GameManager.Instance.BenchPlayer;
+                    if (s == 1 && cam != null && pl != null) cam.SetView(pl.transform.eulerAngles.y + 150f, 14f);
+                    if (s == 2) ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", "verteidigung_stellung.png"));
+                    if (s == 6 && pl != null) TeamHud.ToggleMap(pl, Camera.main);
+                    if (s == 7) ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", "verteidigung_karte.png"));
+                    if (s == 8) TeamHud.CloseMap();
+                    if (s == 10 && cam != null && pl != null)
+                    {
+                        TankController near = null; float bd = 1e9f;
+                        foreach (var e in DefenseMode.Enemies) if (e != null) { float d = Vector3.Distance(e.transform.position, pl.transform.position); if (d < bd) { bd = d; near = e; } }
+                        if (near != null) cam.SetView(ModeKit.Yaw(pl.transform.position, near.transform.position), 2f);
+                    }
+                    if (s == 11) ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", "verteidigung_welle.png"));
+                    if (DefenseMode.EnemyCount == 0) DefenseMode.BenchSkipPause();
+                    Debug.Log($"BENCH-DEFENSE t={s * 6}s: {DefenseMode.BenchText}, Spieler zerstoert {(pl != null && pl.destroyed)}");
+                    yield return new WaitForSeconds(6f);
+                }
+            }
+
             // -benchwobble: Zittern von Wanne und Rohr waehrend der Fahrt messen (Abweichung vom geglaetteten Neigungswinkel)
             if (System.Array.IndexOf(args, "-noroughness") >= 0) TankController.GroundRoughness = 0f;
             if (System.Array.IndexOf(args, "-benchwobble") >= 0 && pl != null)
