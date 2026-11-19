@@ -17,6 +17,8 @@ namespace PanzerSim
         readonly Dictionary<long, Part> parts = new Dictionary<long, Part>();
         readonly Dictionary<long, (Color c, int tex)> matKeys = new Dictionary<long, (Color, int)>();
         Part cur; long curKey;
+        // Haeuser fuer Ruinen.cs: Block, Vertexbereich, Grundflaeche (Mitte unten), Groesse, Drehung
+        readonly List<(Part part, int v0, int v1, Vector3 pos, Vector3 size, float yaw)> houseRecs = new List<(Part, int, int, Vector3, Vector3, float)>();
 
         public MeshKit(float chunk = 400f) { this.chunk = chunk; }
 
@@ -101,6 +103,7 @@ namespace PanzerSim
                           Color? upper = null, int upperTex = TexWood, float upperFrom = 3f)
         {
             At(p.x, p.y);
+            int hv0 = cur.v.Count;   // Ruinen: Vertexbereich dieses Hauses merken
             var q = Quaternion.Euler(0f, yaw, 0f);
             Vector3 ax = q * Vector3.right, az = q * Vector3.forward;   // x quer (Giebelbreite), z laengs (First)
             Vector2 X = new Vector2(ax.x, ax.z) * (w / 2f), Z = new Vector2(az.x, az.z) * (l / 2f);
@@ -158,6 +161,7 @@ namespace PanzerSim
                     }
                 }
             }
+            houseRecs.Add((cur, hv0, cur.v.Count, new Vector3(p.x, top, p.y), new Vector3(w, ridge - top, l), yaw));
         }
 
         /// <summary>Kirche: Schiff mit Satteldach, Turm am Westende mit Spitzhelm.</summary>
@@ -330,9 +334,11 @@ namespace PanzerSim
                     go.AddComponent<MeshFilter>().sharedMesh = m;
                     go.AddComponent<MeshRenderer>().sharedMaterials = ms;
                 }
-                if (collider) go.AddComponent<MeshCollider>().sharedMesh = m;
+                MeshCollider mc = null;
+                if (collider) { mc = go.AddComponent<MeshCollider>(); mc.sharedMesh = m; }
+                foreach (var h in houseRecs) if (h.part == part) Ruins.Register(m, mc, h.v0, h.v1, h.pos, h.size, h.yaw);   // einzeln zerstoerbar
             }
-            parts.Clear(); cur = null;
+            parts.Clear(); cur = null; houseRecs.Clear();
             return tris;
         }
 

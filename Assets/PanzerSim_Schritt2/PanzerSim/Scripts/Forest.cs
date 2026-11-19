@@ -62,6 +62,13 @@ namespace PanzerSim
             return f;
         }
 
+        // ---- Faellen (Treeline.cs-unabhaengig): je Block die Baumliste und der Stamm-Collider ----
+        readonly Dictionary<long, (List<TreeInfo> list, GameObject col, Chunk chunk)> blocks = new Dictionary<long, (List<TreeInfo>, GameObject, Chunk)>();
+        static readonly List<Forest> all = new List<Forest>();
+        public static int Felled;
+        void OnEnable() { if (!all.Contains(this)) all.Add(this); }
+        void OnDestroy() => all.Remove(this);
+
         void Build(List<TreeInfo> trees)
         {
             var map = new Dictionary<long, Chunk>();
@@ -94,7 +101,7 @@ namespace PanzerSim
             }
             foreach (var s in supers) s.batches = ToBatches(superLists[s]);
             foreach (var c in chunks) { c.batches = ToBatches(c.mats); foreach (var l in c.mats) l.Clear(); }
-            foreach (var kv in colliders) BuildColliders(kv.Value);
+            foreach (var kv in colliders) blocks[kv.Key] = (kv.Value, BuildColliders(kv.Value), map[kv.Key]);
             if (!NetSync.Headless) SetupRendering();
             var counts = new int[Kinds]; foreach (var t in trees) counts[Mathf.Clamp(t.kind, 0, Kinds - 1)]++;
             Debug.Log($"[Wald] {trees.Count} Baeume in {chunks.Count} Bloecken (Fichte {counts[0]}, Buche {counts[1]}, Eiche {counts[2]}, Kiefer {counts[3]}, Birke {counts[4]}, Pappel {counts[5]}, Weide {counts[6]})");
@@ -112,7 +119,7 @@ namespace PanzerSim
             return res;
         }
 
-        void BuildColliders(List<TreeInfo> list)
+        GameObject BuildColliders(List<TreeInfo> list)
         {
             var v = new List<Vector3>(list.Count * 8); var tri = new List<int>(list.Count * 24);
             foreach (var t in list)
@@ -137,6 +144,109 @@ namespace PanzerSim
             var go = new GameObject("Staemme");
             go.transform.SetParent(transform, false);
             go.AddComponent<MeshCollider>().sharedMesh = m;
+            return go;
+        }
+
+        // ---------------- Faellen ----------------
+        /// <summary>
+        /// Baum nahe p faellen (Panzer faehrt dagegen, Granate trifft den Stamm): aus den Instanzlisten nehmen, Stamm-Collider
+        /// des Blocks neu bauen, ein umfallendes Modell zeigen (liegt danach ohne Kollision). dir = Fallrichtung (Null: weg von p).
+        /// </summary>
+        public static bool TryFell(Vector3 p, Vector3 dir, float radius)
+        {
+            foreach (var f in all) if (f != null && f.Fell(p, dir, radius)) return true;
+            return false;
+        }
+
+        /// <summary>Test: naechster stehender Baum.</summary>
+        public static bool NearestTree(Vector3 p, out Vector3 pos)
+        {
+            pos = Vector3.zero; float bd = float.MaxValue;
+            foreach (var f in all) foreach (var b in f.blocks.Values) foreach (var t in b.list) { float d = (t.pos - p).sqrMagnitude; if (d < bd) { bd = d; pos = t.pos; } }
+            return bd < float.MaxValue;
+        }
+
+        /// <summary>Alle Baeume im Umkreis faellen (Bombe, Artillerie), hoechstens max.</summary>
+        public static int FellArea(Vector3 p, float radius, int max)
+        {
+            int n = 0;
+            while (n < max && TryFell(p, Vector3.zero, radius)) n++;
+            return n;
+        }
+
+        bool Fell(Vector3 p, Vector3 dir, float radius)
+        {
+            int bx = Mathf.FloorToInt(p.x / Block), bz = Mathf.FloorToInt(p.z / Block);
+            long bestKey = 0; int bestIdx = -1; float bestD = radius * radius;
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    long key = ((long)(bx + dx) << 32) ^ (uint)(bz + dz);
+                    if (!blocks.TryGetValue(key, out var b)) continue;
+                    for (int i = 0; i < b.list.Count; i++)
+                    {
+                        Vector3 d = b.list[i].pos - p; d.y = 0f;
+                        if (d.sqrMagnitude < bestD) { bestD = d.sqrMagnitude; bestKey = key; bestIdx = i; }
+                    }
+                }
+            if (bestIdx < 0) return false;
+            var blk = blocks[bestKey];
+            var t = blk.list[bestIdx];
+            blk.list.RemoveAt(bestIdx);
+            if (blk.col != null) Destroy(blk.col);
+            blocks[bestKey] = (blk.list, blk.list.Count > 0 ? BuildColliders(blk.list) : null, blk.chunk);
+            int kind = Mathf.Clamp(t.kind, 0, Kinds - 1);
+            Remove(blk.chunk.batches, kind, t.pos);
+            foreach (var s in supers) if (s.chunks.Contains(blk.chunk)) Remove(s.batches, kind, t.pos);
+            Felled++;
+            if (dir.sqrMagnitude < 0.01f) { dir = t.pos - p; dir.y = 0f; if (dir.sqrMagnitude < 0.01f) dir = Random.insideUnitSphere; }
+            dir.y = 0f; dir.Normalize();
+            if (!NetSync.Headless && meshes != null && mat != null)
+            {
+                var go = new GameObject("Gefaellter Baum");
+                go.transform.SetParent(transform, false);
+                go.transform.SetPositionAndRotation(t.pos, Quaternion.Euler(0f, t.yaw, 0f));
+                go.transform.localScale = Vector3.one * t.scale;
+                go.AddComponent<MeshFilter>().sharedMesh = meshes[kind, 0];
+                var r = go.AddComponent<MeshRenderer>(); r.sharedMaterial = mat;
+                go.AddComponent<FallingTree>().Init(t.pos, dir);
+                Effects.SmokeOne(t.pos + Vector3.up * 0.5f, Vector3.up * 0.5f, 2.5f, 3f, 0.55f, 0.6f);   // Staub am Stamm
+            }
+            return true;
+        }
+
+        static void Remove(Matrix4x4[][][] batches, int kind, Vector3 pos)
+        {
+            if (batches == null) return;
+            var arr = batches[kind];
+            for (int b = 0; b < arr.Length; b++)
+            {
+                var src = arr[b];
+                int idx = -1;
+                for (int i = 0; i < src.Length; i++) { Vector3 q = src[i].GetColumn(3); if ((q - pos).sqrMagnitude < 0.0004f) { idx = i; break; } }
+                if (idx < 0) continue;
+                var dst = new Matrix4x4[src.Length - 1];
+                System.Array.Copy(src, 0, dst, 0, idx);
+                System.Array.Copy(src, idx + 1, dst, idx, src.Length - idx - 1);
+                arr[b] = dst;
+                return;
+            }
+        }
+
+        /// <summary>Umfallender Baum: kippt um den Fuss in Fallrichtung (schneller werdend), liegt dann.</summary>
+        class FallingTree : MonoBehaviour
+        {
+            Vector3 pivot, axis; float angle, speed;
+            public void Init(Vector3 basePos, Vector3 dir) { pivot = basePos; axis = Vector3.Cross(Vector3.up, dir).normalized; speed = 4f; Destroy(gameObject, 180f); }
+            void Update()
+            {
+                if (angle >= 86f) return;
+                speed += 70f * Time.deltaTime;
+                float d = Mathf.Min(speed * Time.deltaTime, 86f - angle);
+                angle += d;
+                transform.RotateAround(pivot, axis, d);
+                if (angle >= 86f && !NetSync.Headless) { Vector3 top = pivot + Vector3.Cross(axis, Vector3.up) * -6f; Effects.SmokeOne(top, Vector3.up * 0.4f, 4f, 3f, 0.55f, 0.5f); }
+            }
         }
 
         // ---------------- Zeichnen ----------------

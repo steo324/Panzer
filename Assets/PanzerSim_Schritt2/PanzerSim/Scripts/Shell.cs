@@ -330,6 +330,12 @@ namespace PanzerSim
         void HitGround(RaycastHit hit, Vector3 dir)
         {
             Vector3 pos = hit.point;
+            // Baumstamm: ab 50 mm oder mit Sprengladung faellt der Baum; Haus: Treffer zehrt an der Haltbarkeit
+            if (!NetSync.GhostActive && NetSync.MayApplyDamage)
+            {
+                if (hit.collider.name == "Staemme" && (data.caliberMm >= 50f || data.fillerKg > 0.2f)) Forest.TryFell(hit.point, dir, 1.6f);
+                else Ruins.Hit(hit.collider, hit.point, data);
+            }
             bool isGround = hit.collider is TerrainCollider || (hit.normal.y > 0.5f && hit.collider.attachedRigidbody == null);
             float graze = 90f - Vector3.Angle(-dir, hit.normal);   // 90 = senkrecht hinein, 0 = streifend
             float cal = data.caliberMm / 1000f;

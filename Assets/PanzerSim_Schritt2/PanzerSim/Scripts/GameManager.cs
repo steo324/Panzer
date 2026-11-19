@@ -144,8 +144,10 @@ namespace PanzerSim
             mapIndex = index;
             map = maps[index];
             mapRoot = new GameObject("Karte: " + map.Name).transform;
+            Ruins.Clear();
             map.Build(mapRoot);
             GroundTracks.Create(mapRoot, map);   // Kettenspuren je nach Untergrund
+            GroundEffect.OnMapBuilt(map, mapRoot);   // Wasserflaechen fuer Furten
             RenderSettings.fog = map.Fog && !NetSync.Headless;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = new Color(0.72f, 0.78f, 0.84f);

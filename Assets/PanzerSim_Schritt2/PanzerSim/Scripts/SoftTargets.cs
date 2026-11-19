@@ -27,6 +27,9 @@ namespace PanzerSim
         public static void Splash(Vector3 pos, float fillerKg, bool byPlayer)
         {
             if (!NetSync.MayApplyDamage || fillerKg <= 0f) return;
+            // grosse Ladungen (Artillerie, Bomben): Baeume im Umkreis fallen, Haeuser nehmen Schaden
+            if (fillerKg >= 2f) Forest.FellArea(pos, Mathf.Clamp(Mathf.Pow(fillerKg, 1f / 3f) * 2.2f, 2f, 18f), fillerKg > 50f ? 40 : 4);
+            Ruins.Splash(pos, fillerKg);
             float r = Radius(fillerKg);
             for (int i = All.Count - 1; i >= 0; i--)
             {

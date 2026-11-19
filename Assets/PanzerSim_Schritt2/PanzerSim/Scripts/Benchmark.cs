@@ -465,6 +465,107 @@ namespace PanzerSim
                 }
             }
 
+            // -benchsoil: Bodenwirkung messen: je 8 s Vollgas auf Weg, Acker/Schlamm, Wiese und in einer Furt
+            if (System.Array.IndexOf(args, "-benchsoil") >= 0 && pl != null && cam != null)
+            {
+                System.IO.Directory.CreateDirectory(outDir ?? ".");
+                var gmap = GameManager.Instance.CurrentMap;
+                TankController.BenchDrive = false;
+                int[] kinds = { GroundTracks.Weg, GroundTracks.Acker, GroundTracks.Wiese };
+                string[] kn = { "Weg", "Acker", "Wiese" };
+                for (int s = 0; s < 4; s++)
+                {
+                    Vector3 p = Vector3.zero; bool ok = false;
+                    if (s < 3)
+                    {
+                        // Platz mit dieser Bodenart und 60 m Anlauf derselben Art geradeaus
+                        for (int k = 0; k < 4000 && !ok; k++)
+                        {
+                            float x = Random.Range(-gmap.Extent * 0.7f, gmap.Extent * 0.7f), z = Random.Range(-gmap.Extent * 0.7f, gmap.Extent * 0.7f);
+                            ok = gmap.SurfaceAt(x, z) == kinds[s] && gmap.SurfaceAt(x, z + 30f) == kinds[s] && gmap.SurfaceAt(x, z + 60f) == kinds[s] && gmap.CanSpawn(x, z)
+                                 && Mathf.Abs(gmap.GroundY(x, z + 60f) - gmap.GroundY(x, z)) < 3f;
+                            p = new Vector3(x, gmap.GroundY(x, z), z);
+                        }
+                    }
+                    else ok = GroundEffect.FindFord(out p);
+                    if (!ok) { Debug.Log($"BENCH-SOIL {(s < 3 ? kn[s] : "Furt")}: keine Stelle gefunden"); continue; }
+                    pl.FullRepair();
+                    pl.Teleport(p + Vector3.up * 0.6f, 0f);
+                    yield return new WaitForSeconds(1f);
+                    float vmax = 0f;
+                    for (float w = 0f; w < 8f; w += Time.deltaTime) { pl.AiControl(1f, 0f, false); vmax = Mathf.Max(vmax, pl.SpeedKmh); cam.SetView(pl.transform.eulerAngles.y + 150f, 14f); yield return null; }
+                    if (s == 3 || (s == 1 && Weather.Current == Weather.Rain)) ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", s == 3 ? "furt.png" : "schlamm.png"));
+                    var g = pl.Ground;
+                    Debug.Log($"BENCH-SOIL {(s < 3 ? kn[s] : "Furt")} (Wetter {Weather.Names[Weather.Current]}): Boden '{g.label}' Tempo x{g.speed:0.00} Haftung x{g.grip:0.00}, Hoechstgeschw. {vmax:0} km/h (Spezifikation {pl.spec.maxSpeedKmh:0}), Wasser {GroundEffect.WaterDepth(pl.transform.position):0.0} m");
+                    pl.AiControl(0f, 0f, true);
+                    yield return new WaitForSeconds(0.5f);
+                }
+            }
+
+            // -benchdestroy: Baum umfahren, Haus zusammenschiessen (Bilder vorher/nachher)
+            if (System.Array.IndexOf(args, "-benchdestroy") >= 0 && pl != null && cam != null)
+            {
+                System.IO.Directory.CreateDirectory(outDir ?? ".");
+                string Shot(string n) => System.IO.Path.Combine(outDir ?? ".", n);
+                var gmap = GameManager.Instance.CurrentMap;
+                TankController.BenchDrive = false;
+                TankController.BenchLogFell = true;
+                // Baum: einzeln stehenden Baum am Rand suchen, 18 m davor hinstellen, drauf zu fahren
+                if (Forest.NearestTree(pl.transform.position + pl.transform.forward * 150f, out Vector3 tree))
+                {
+                    Vector3 from = tree - pl.transform.forward * 18f;
+                    float yaw = ModeKit.Yaw(from, tree);   // genau auf den Stamm
+                    pl.Teleport(new Vector3(from.x, gmap.GroundY(from.x, from.z) + 0.6f, from.z), yaw);
+                    yield return new WaitForSeconds(1.5f);
+                    int before = Forest.Felled;
+                    for (float w = 0f; w < 7f; w += Time.deltaTime)
+                    {
+                        pl.AiControl(1f, 0f, false);
+                        cam.SetView(yaw + 120f, 12f);
+                        if (Forest.Felled > before && w < 50f) { yield return new WaitForSeconds(1.2f); ScreenCapture.CaptureScreenshot(Shot("baum_umgefahren.png")); w = 50f; }
+                        yield return null;
+                    }
+                    pl.AiControl(0f, 0f, true);
+                    Debug.Log($"BENCH-DESTROY Baum: Gelaende am Startplatz {gmap.GroundY(from.x, from.z):0.0} m, am Baum {gmap.GroundY(tree.x, tree.z):0.0} m");
+                    Debug.Log($"BENCH-DESTROY Baum bei {tree}: gefaellt {Forest.Felled - before}, Panzer {pl.SpeedKmh:0} km/h, Abstand jetzt {Vector3.Distance(pl.transform.position, tree):0} m");
+                }
+                // Haus: 120 m davor, Sprenggranaten (88 mm) auf die Wand, bis es einstuerzt
+                bool found = Ruins.Nearest(pl.transform.position, out Vector3 hp, out Vector3 hs, out float hy);
+                if (!found)
+                {
+                    // Karte mit Einzelteil-Haeusern (Weite Ebene): naechstes Objekt "Haus"
+                    float bd = 1e9f;
+                    foreach (var tr in Object.FindObjectsByType<Transform>(FindObjectsSortMode.None))
+                        if (tr.name == "Haus") { float dd = Vector3.Distance(tr.position, pl.transform.position); if (dd < bd) { bd = dd; hp = tr.position; hy = tr.eulerAngles.y; found = true; } }
+                    hs = new Vector3(10f, 8f, 12f);
+                }
+                if (found)
+                {
+                    Vector3 dir = Quaternion.Euler(0f, hy, 0f) * Vector3.right;
+                    Vector3 stand = hp + dir * (hs.x * 0.5f + 120f);
+                    pl.Teleport(new Vector3(stand.x, gmap.GroundY(stand.x, stand.z) + 0.6f, stand.z), hy - 90f);
+                    yield return new WaitForSeconds(2f);
+                    Vector3 aim = hp + Vector3.up * hs.y * 0.35f;
+                    Vector3 d0 = aim - Camera.main.transform.position;
+                    cam.SetView(Mathf.Atan2(d0.x, d0.z) * Mathf.Rad2Deg, -Mathf.Asin(d0.normalized.y) * Mathf.Rad2Deg);
+                    yield return new WaitForSeconds(0.5f);
+                    ScreenCapture.CaptureScreenshot(Shot("haus_vorher.png"));
+                    int c0 = Ruins.Collapsed, shots = 0;
+                    for (; shots < 30 && Ruins.Collapsed == c0; shots++)
+                    {
+                        Vector3 o = aim + dir * 60f + Vector3.up * 1f;
+                        Shell.Fire(AmmoLibrary.All[11], o, (aim + Random.insideUnitSphere * 1.5f - o).normalized, false);
+                        yield return new WaitForSeconds(0.4f);
+                    }
+                    yield return new WaitForSeconds(2.5f);
+                    cam.SetView(Mathf.Atan2(d0.x, d0.z) * Mathf.Rad2Deg, -Mathf.Asin(d0.normalized.y) * Mathf.Rad2Deg);
+                    yield return new WaitForSeconds(0.3f);
+                    ScreenCapture.CaptureScreenshot(Shot("haus_nachher.png"));
+                    Debug.Log($"BENCH-DESTROY Haus {hs.x:0}x{hs.z:0}x{hs.y:0} m: eingestuerzt nach {shots} Treffern ({Ruins.BenchText})");
+                }
+                else Debug.Log("BENCH-DESTROY: keine Haeuser registriert (" + Ruins.BenchText + ")");
+            }
+
             // -benchwobble: Zittern von Wanne und Rohr waehrend der Fahrt messen (Abweichung vom geglaetteten Neigungswinkel)
             if (System.Array.IndexOf(args, "-noroughness") >= 0) TankController.GroundRoughness = 0f;
             if (System.Array.IndexOf(args, "-benchwobble") >= 0 && pl != null)

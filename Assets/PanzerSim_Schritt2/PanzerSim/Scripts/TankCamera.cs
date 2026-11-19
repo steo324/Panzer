@@ -282,6 +282,13 @@ namespace PanzerSim
             cmdHint.normal.textColor = new Color(1f, 0.92f, 0.7f); GUI.Label(rr, txt, cmdHint);
         }
         GUIStyle cmdHint;
+        /// <summary>Boden mit Wirkung in der Panzeranzeige (nur, wenn er bremst).</summary>
+        static string GroundTag(TankController t)
+        {
+            var g = t.Ground;
+            if (g.speed > 0.9f && g.grip > 0.95f) return "";
+            return $"   <color=#fc8>{g.label} (max {Mathf.RoundToInt(g.speed * 100f)} %)</color>";
+        }
 
         void SetViewMode(int mode)
         {
@@ -386,7 +393,7 @@ namespace PanzerSim
                 ? $"Laedt ... {t.reloadLeft * t.ReloadMultiplier():0.0} s{(t.ReloadMultiplier() > 1f ? " (ohne Ladeschuetze!)" : "")}"
                 : "<color=#7f7>GELADEN</color>";
             string s = t.spec.noGun ? $"<b>{t.spec.name}</b>   {t.SpeedKmh:0} km/h\nWaffe: TOW-Lenkrakete (kommt spaeter)\n" + TrackStatus(t) + "\n<b>Besatzung</b>\n" :
-                       $"<b>{t.spec.name}</b>   {t.SpeedKmh:0} km/h\n" +
+                       $"<b>{t.spec.name}</b>   {t.SpeedKmh:0} km/h" + GroundTag(t) + "\n" +
                        (t.Gun2 != null ? $"Waffe: <b>{t.WeaponName}</b>   (H: umschalten)\n" : "") +
                        $"Munition [{t.AmmoSlot}/{t.AmmoLoadout.Length}]: {a.name} ({a.type}, {a.gun})" + (t.RoundsLeft >= 0 ? $"   <b>{t.RoundsLeft}</b> Schuss" : "") + "\n" +
                        AmmoStock(t) +

@@ -746,6 +746,9 @@ namespace PanzerSim
         /// ~5 cm Wellen alle 1-2 m, dazu ~1,5 cm feines Gerappel.
         /// </summary>
         public static float GroundRoughness = 1f;
+        GroundEffect.Grip groundNow = new GroundEffect.Grip { speed = 1f, grip = 1f };
+        /// <summary>Boden unter dem Panzer (Anzeige, Tests).</summary>
+        public GroundEffect.Grip Ground => groundNow;
         static float GroundBump(Vector3 p)
         {
             float big = Mathf.PerlinNoise(p.x * 0.62f + 113.1f, p.z * 0.62f + 57.3f) - 0.5f;
@@ -753,11 +756,36 @@ namespace PanzerSim
             return (big * 0.10f + fine * 0.03f) * GroundRoughness;
         }
 
+        // Baeume umfahren: ein schwerer Panzer, der gegen einen Stamm faehrt oder drueckt, faellt ihn
+        float fellCool;
+        public static bool BenchLogFell;
+        void OnCollisionEnter(Collision c) => TryFellTree(c);
+        void TryFellTree(Collision c)
+        {
+            if (spec == null || destroyed || rb == null || rb.isKinematic || c.collider == null || c.collider.name != "Staemme") return;
+            if (spec.massT < 12f || Time.time < fellCool) return;
+            if (BenchLogFell) Debug.Log($"FELL-KONTAKT {spec.name}: {Mathf.Abs(Vector3.Dot(rb.linearVelocity, transform.forward)):0.0} m/s, Gas {throttle}");
+            float push = Mathf.Abs(Vector3.Dot(rb.linearVelocity, transform.forward));
+            if (push < 1.2f && Mathf.Abs(throttle) < 0.4f) return;   // nur bei Fahrt oder Gas gegen den Baum
+            fellCool = Time.time + 0.25f;
+            Vector3 p = c.contactCount > 0 ? c.GetContact(0).point : transform.position + transform.forward * spec.hullLength * 0.5f;
+            Forest.TryFell(p, transform.forward * Mathf.Sign(throttle == 0f ? 1f : throttle), 2.5f);
+        }
+
         void FixedUpdate()
         {
             if (spec == null) return;
             if (rb.isKinematic) return;   // fremder Panzer im Mehrspieler: folgt nur der uebertragenen Lage
             float dt = Time.fixedDeltaTime;
+            // gegen einen Baum druecken (Gas, kaum Fahrt): Stamm direkt voraus? -> faellen (guenstiger als OnCollisionStay)
+            if (spec.massT >= 12f && Mathf.Abs(throttle) > 0.4f && Time.time >= fellCool && Velocity.magnitude < 1.5f && !destroyed)
+            {
+                fellCool = Time.time + 0.3f;
+                Vector3 dirF = transform.forward * Mathf.Sign(throttle);
+                Vector3 o = transform.position + Vector3.up * 1.2f + dirF * (spec.hullLength * 0.45f);
+                if (Physics.Raycast(o, dirF, out RaycastHit th, 2.5f, ArmorPlate.ShotMask, QueryTriggerInteraction.Ignore) && th.collider.name == "Staemme")
+                    Forest.TryFell(th.point, dirF, 2.5f);
+            }
             int n = wheelPoints.Count;
             int roadCount = 0;
             foreach (float h in contactHeights) if (h <= 0.001f) roadCount++;
@@ -771,6 +799,8 @@ namespace PanzerSim
             float vMax = spec.maxSpeedKmh / 3.6f;
             float vRev = spec.reverseKmh / 3.6f;
             float target = throttle >= 0f ? throttle * vMax : throttle * vRev;
+            groundNow = GroundEffect.At(transform.position);   // Schlamm, Schnee, Furt: langsamer, weniger Haftung
+            target *= groundNow.speed;
 
             float speed = Velocity.magnitude;
             float power = spec.powerPS * 735.5f * 0.7f; // Watt am Kettenrad (70% Wirkungsgrad)
@@ -832,11 +862,12 @@ namespace PanzerSim
                     fF = (want - vF) * massPer * 2.5f;
                     if (fF * want > 0f) fF = Mathf.Clamp(fF, -maxDrivePer, maxDrivePer); // Motorleistung begrenzt Beschleunigung
                 }
-                float fR = -vR * massPer * 6f - gR;                  // seitlich rutscht eine Kette nicht (bis zur Haftgrenze)
+                if (groundNow.drag > 0f && !(throttle == 0f && brake)) fF -= vF * massPer * groundNow.drag * 0.4f;   // Rollwiderstand (Schlamm, Wasser)
+                float fR = (-vR * massPer * 6f - gR) * Mathf.Lerp(0.35f, 1f, groundNow.grip);   // seitlich rutscht eine Kette nicht (bis zur Haftgrenze; Schnee/Schlamm: rutscht)
 
                 // Haftung begrenzt alles (Reibwert 0,9)
                 Vector3 f = fwd * fF + right * fR;
-                float maxF = fN * 0.9f;
+                float maxF = fN * 0.9f * groundNow.grip;
                 if (f.magnitude > maxF) f = f.normalized * maxF;
                 rb.AddForceAtPosition(f, h.point);
                 sumDrive += Vector3.Dot(f, fwd); sumN += fN; contact++;
