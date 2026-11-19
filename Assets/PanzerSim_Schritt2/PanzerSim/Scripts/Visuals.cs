@@ -86,7 +86,16 @@ namespace PanzerSim
         }
 
         // ================= Tageszeit =================
-        public static readonly string[] TimeNames = { "Morgen (Dunst)", "Mittag", "Nachmittag", "Abend" };
+        public static readonly string[] TimeNames = { "Morgen (Dunst)", "Mittag", "Nachmittag", "Abend", "Nacht" };
+        // Wetter (Weather.cs setzt diese Werte): Nebeldichte, Licht, Himmelshelligkeit, Grau-Anteil
+        public static float WeatherFogMul = 1f, WeatherSunMul = 1f, WeatherSkyMul = 1f, WeatherGrey = 0f;
+        public static Color WeatherFogColor = Color.clear;
+        public static bool IsNight => GameSettings.TimeOfDay == 4;
+        /// <summary>Waermebild an: Nebel nur schwach (das Geraet sieht durch Dunst).</summary>
+        public static bool ThermalView;
+        public static void RefreshFog() { if (!NetSync.Headless) UpdateFog(); }
+        /// <summary>Himmel, Licht und Nebel neu setzen (Wetter oder Tageszeit geaendert).</summary>
+        public static void RefreshSky() { if (!NetSync.Headless) ApplySky(!disabled); }
         struct DayLook
         {
             public float elev, azim, sunI, temp, exposure, fogDensity, fogFalloff, sunGlow;
@@ -106,6 +115,9 @@ namespace PanzerSim
             // Abend: tief im Westen, orange, lange Schatten
             new DayLook { elev = 8f, azim = 278f, sunI = 1.3f, temp = 20f, exposure = 0.6f, fogDensity = 0.0005f, fogFalloff = 0.012f, sunGlow = 1f,
                           sun = new Color(1f, 0.62f, 0.38f), fog = new Color(0.78f, 0.68f, 0.62f), sunFog = new Color(1f, 0.66f, 0.38f), skyTint = new Color(0.58f, 0.52f, 0.52f) },
+            // Nacht: Mondlicht von hoch im Sueden, kalt und schwach, dunkler Himmel
+            new DayLook { elev = 42f, azim = 160f, sunI = 0.22f, temp = -25f, exposure = 0.15f, fogDensity = 0.0006f, fogFalloff = 0.012f, sunGlow = 0.1f,
+                          sun = new Color(0.62f, 0.72f, 1f), fog = new Color(0.10f, 0.12f, 0.17f), sunFog = new Color(0.4f, 0.45f, 0.6f), skyTint = new Color(0.10f, 0.12f, 0.20f) },
         };
         static DayLook Day => Days[Mathf.Clamp(GameSettings.TimeOfDay, 0, Days.Length - 1)];
 
@@ -134,8 +146,8 @@ namespace PanzerSim
             var d = Day;
             bool on = !disabled && GameSettings.Effects >= 1 && fogScale > 0f && !NetSync.Headless;
             FogOn = on;
-            Shader.SetGlobalVector("_PzFogParams", new Vector4(on ? d.fogDensity * fogScale : 0f, d.fogFalloff, fogGround, 0.92f));
-            Shader.SetGlobalColor("_PzFogColor", d.fog);
+            Shader.SetGlobalVector("_PzFogParams", new Vector4(on ? d.fogDensity * fogScale * WeatherFogMul * (ThermalView ? 0.12f : 1f) : 0f, d.fogFalloff / Mathf.Sqrt(Mathf.Max(WeatherFogMul, 1f)), fogGround, 0.92f));
+            Shader.SetGlobalColor("_PzFogColor", ThermalView ? new Color(0.25f, 0.25f, 0.25f) : WeatherFogColor.a > 0f ? (IsNight ? WeatherFogColor * 0.2f : WeatherFogColor) : d.fog);
             Shader.SetGlobalColor("_PzSunColor", new Color(d.sunFog.r, d.sunFog.g, d.sunFog.b, d.sunGlow));
             Vector3 toSun = Quaternion.Euler(d.elev, d.azim, 0f) * Vector3.back;
             Shader.SetGlobalVector("_PzSunDir", toSun.normalized);
@@ -207,7 +219,7 @@ namespace PanzerSim
             var day = Day;
             if (sun != null)
             {
-                sun.intensity = on ? day.sunI : 1f;
+                sun.intensity = on ? day.sunI * WeatherSunMul : 1f;
                 sun.color = on ? day.sun : new Color(1f, 0.957f, 0.839f);
                 sun.shadowStrength = on ? 0.92f : 1f;
                 if (on) sun.transform.rotation = Quaternion.Euler(day.elev, day.azim, 0f);
@@ -225,11 +237,11 @@ namespace PanzerSim
                 sky.SetColor("_GroundColor", new Color(0.36f, 0.35f, 0.32f));
                 sky.SetFloat("_Exposure", 1.15f);
             }
-            if (sky != null) sky.SetColor("_SkyTint", day.skyTint);
+            if (sky != null) { sky.SetColor("_SkyTint", Color.Lerp(day.skyTint, new Color(0.5f, 0.5f, 0.5f) * (IsNight ? 0.2f : 1f), WeatherGrey)); sky.SetFloat("_Exposure", 1.15f * WeatherSkyMul * (IsNight ? 0.12f : 1f)); sky.SetFloat("_SunDisk", WeatherGrey > 0.5f || IsNight ? 0f : 2f); }
             if (sky != null && on) RenderSettings.skybox = sky;
             RenderSettings.sun = sun;
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Skybox;
-            RenderSettings.ambientIntensity = on ? 1.1f : 1f;
+            RenderSettings.ambientIntensity = (on ? 1.1f : 1f) * (IsNight ? 0.45f : Mathf.Lerp(1f, 0.85f, WeatherGrey));
             DynamicGI.UpdateEnvironment();
             UpdateFog();
             if (probe != null) RenderReflections();   // Tageszeit geaendert: Spiegelung neu

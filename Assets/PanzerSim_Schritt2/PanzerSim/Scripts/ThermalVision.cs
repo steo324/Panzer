@@ -19,6 +19,7 @@ namespace PanzerSim
         static Material normalSky, coldSky;
         static Material hotMat;
         static readonly Dictionary<TankController, List<(Renderer src, Renderer hot)>> overlays = new Dictionary<TankController, List<(Renderer, Renderer)>>();
+        static ColorAdjustments adjust;
         static Runner runner;
         static readonly MaterialPropertyBlock block = new MaterialPropertyBlock();
 
@@ -28,6 +29,9 @@ namespace PanzerSim
             Active = on;
             Ensure();
             volume.weight = on ? 1f : 0f;
+            // Waermebild haengt nicht vom Licht ab: nachts heller belichten; Dunst und Nebel stoeren es kaum
+            if (adjust != null) adjust.postExposure.Override(Visuals.IsNight ? 1.7f : -1.4f);
+            Visuals.ThermalView = on; Visuals.RefreshFog();
             // Klarer Himmel ist im Waermebild eiskalt -> fast schwarz: Himmel fuer die Dauer stark abdunkeln
             if (on && RenderSettings.skybox != null && RenderSettings.skybox != coldSky)
             {
@@ -50,7 +54,7 @@ namespace PanzerSim
             volume.isGlobal = true; volume.priority = 50; volume.weight = 0f;
             var p = ScriptableObject.CreateInstance<VolumeProfile>();
             volume.sharedProfile = p;
-            var ca = p.Add<ColorAdjustments>(true);
+            var ca = p.Add<ColorAdjustments>(true); adjust = ca;
             ca.saturation.Override(-100f);
             ca.contrast.Override(35f);
             ca.postExposure.Override(-1.4f);

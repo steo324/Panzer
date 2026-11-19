@@ -460,6 +460,7 @@ namespace PanzerSim
         {
             Vector3 to = t.transform.TransformPoint(0f, t.spec.clearance + t.spec.hullHeight * 0.7f, 0f);
             if (Smoke.Hides(from, to)) return false;   // Nebel verdeckt
+            if (!Weather.InRange(Vector3.Distance(from, to))) return false;   // Nacht, Nebel
             Vector3 d = to - from;
             if (!Physics.Raycast(from, d.normalized, out RaycastHit hit, d.magnitude, ArmorPlate.ShotMask, QueryTriggerInteraction.Ignore)) return true;
             if (hit.distance > d.magnitude - 5f) return true;

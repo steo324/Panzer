@@ -119,7 +119,8 @@ namespace PanzerSim
                 if (Has("-defense")) defenseMode = true;     // Test: Verteidigung
                 if (Has("-air")) airRaidsBench = true;       // Test: Luftangriffe
                 if (Has("-ground")) groundBench = true;       // Test: Bodenabwehr
-                if (int.TryParse(Arg("-tageszeit"), out int tod)) GameSettings.TimeOfDay = Mathf.Clamp(tod, 0, 3);   // Test: Tageszeit fuer Bilder
+                if (int.TryParse(Arg("-tageszeit"), out int tod)) GameSettings.TimeOfDay = Mathf.Clamp(tod, 0, 4);   // Test: Tageszeit fuer Bilder
+                if (int.TryParse(Arg("-wetter"), out int wet)) Weather.Override = wet;   // Test: Wetter 0-3
                 TankCamera.BenchSight = Has("-benchsight");
                 TankCamera.BenchThermal = Has("-benchthermal");
                 TankCamera.BenchArty = Has("-bencharty");
@@ -151,6 +152,7 @@ namespace PanzerSim
             RenderSettings.fogStartDistance = map.FogStart;
             RenderSettings.fogEndDistance = map.FogEnd;
             if (!NetSync.Headless) Visuals.OnMapBuilt(map.GroundY(0f, 0f), map.Fog ? 1f : 0.4f);   // Hoehennebel, Spiegelung
+            Weather.Apply(Weather.Setting);   // Wetter der Runde (Optik, Sichtweite)
         }
 
         void EnterPlaying()
@@ -364,6 +366,7 @@ namespace PanzerSim
         void BuildPreview()
         {
             Visuals.MenuMode();   // kein Hoehennebel am Podest
+            Weather.Apply(Weather.Clear);   // Podest: kein Regen/Schnee
             if (stage == null)
             {
                 stage = new GameObject("Menue-Vorschau").transform;
@@ -818,6 +821,10 @@ namespace PanzerSim
             }
             GUILayout.Space(14);
             GUILayout.Label(maps[mapIndex].Description, text);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button($"Wetter: <b>{Weather.Names[Weather.Setting]}</b>", btn, GUILayout.Height(34))) Weather.Setting = (Weather.Setting + 1) % Weather.Names.Length;
+            if (GUILayout.Button($"Tageszeit: <b>{Visuals.TimeNames[Mathf.Clamp(GameSettings.TimeOfDay, 0, Visuals.TimeNames.Length - 1)]}</b>", btn, GUILayout.Height(34))) { GameSettings.TimeOfDay = (GameSettings.TimeOfDay + 1) % Visuals.TimeNames.Length; GameSettings.Save(); GameSettings.Apply(false); }
+            GUILayout.EndHorizontal();
 
             // ---- Spielmodus (Einzelspieler) ----
             GUILayout.Space(10);

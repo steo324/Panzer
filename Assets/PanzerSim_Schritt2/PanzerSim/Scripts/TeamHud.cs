@@ -157,6 +157,7 @@ namespace PanzerSim
             float d = Vector3.Distance(eye, c);
             if (d > 4000f) return false;
             if (Smoke.Hides(eye, c)) return false;   // Nebel verdeckt
+            if (!Weather.InRange(from, d)) return false;   // Nacht, Nebel, Schnee
             foreach (var h in Physics.RaycastAll(eye, (c - eye) / d, d - 2f, ~0, QueryTriggerInteraction.Ignore))
             {
                 var owner = h.collider.GetComponentInParent<TankController>();

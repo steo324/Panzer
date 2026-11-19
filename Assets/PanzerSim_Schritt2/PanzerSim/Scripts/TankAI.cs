@@ -98,6 +98,7 @@ namespace PanzerSim
             Vector3 from = tc.parts.muzzle != null ? tc.parts.muzzle.position : tc.transform.position + Vector3.up * 2.5f;
             Vector3 d = TargetPoint() - from;
             if (Smoke.Hides(from, TargetPoint())) return false;   // Nebel verdeckt
+            if (!Weather.InRange(tc, (TargetPoint() - from).magnitude)) return false;   // zu dunkel / zu dunstig
             if (!tc.RaycastIgnoringSelf(from, d.normalized, d.magnitude + 2f, out RaycastHit hit)) return true;
             return BelongsTo(hit.collider, target) || hit.distance > d.magnitude - 4f;   // am Ziel oder direkt davor (Anbauteil, Schuerze)
         }
