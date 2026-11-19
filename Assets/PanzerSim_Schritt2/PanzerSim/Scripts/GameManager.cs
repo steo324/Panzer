@@ -28,6 +28,7 @@ namespace PanzerSim
         int nationTab = -1;   // Reiter in der Panzerauswahl (-1 = Nation des gewaehlten Panzers)
         bool waveMode;        // Einzelspieler: Wellen gegen KI-Panzer statt Zielpanzer
         bool jetMode;         // Einzelspieler: Testflug mit dem Jet ueber den Zielpanzern
+        bool conquestMode;    // Eroberung (Einzelspieler mit KI, beim Hosten fuer alle)
         JetController jet;
         static readonly string[] NationNames = { "Deutschland", "USA", "UdSSR", "UK" };
         GameMap map;
@@ -47,7 +48,7 @@ namespace PanzerSim
 
         public static GameManager Instance { get; private set; }
         public static TankSpec TankSpecByIndex(int i) => Tanks[Mathf.Clamp(i, 0, Tanks.Length - 1)]();
-        static int IndexOfSpec(TankSpec s) { for (int i = 0; i < Tanks.Length; i++) if (Tanks[i]().name == s.name) return i; return 0; }
+        public static int IndexOfSpec(TankSpec s) { for (int i = 0; i < Tanks.Length; i++) if (Tanks[i]().name == s.name) return i; return 0; }
 
         // ---- Mehrspieler ----
         bool netGame, connecting, autoFire;
@@ -84,6 +85,7 @@ namespace PanzerSim
             autoFire = Has("-autofire");
             ammoTestPending = Has("-ammodialog");   // Test: Munitionsfenster des gewaehlten Panzers oeffnen
             menuShot = Arg("-menushot");            // Test: Bild vom Menue (Unity-eigene Aufnahme)
+            netShot = Arg("-netshot");              // Test: im Mehrspieler nach 15/35 s Bilder, nach 40 s beenden
             if (Arg("-playername") != null) GameSettings.NameOverride = Arg("-playername");
             if (int.TryParse(Arg("-team"), out int tmo)) GameSettings.TeamOverride = Mathf.Clamp(tmo, 0, 1);
             NetSync.ServerName = Arg("-name") ?? $"Ballistik-Server ({System.Environment.MachineName})";
@@ -101,6 +103,7 @@ namespace PanzerSim
                 TankCamera.BenchCmd = Has("-benchcmd");
                 if (Has("-waves")) waveMode = true;   // Test: Wellen-Modus
                 if (Has("-jet")) jetMode = true;      // Test: Testflug
+                if (Has("-conquest")) conquestMode = true;   // Test: Eroberung
                 if (int.TryParse(Arg("-tageszeit"), out int tod)) GameSettings.TimeOfDay = Mathf.Clamp(tod, 0, 3);   // Test: Tageszeit fuer Bilder
                 TankCamera.BenchSight = Has("-benchsight");
                 TankCamera.BenchThermal = Has("-benchthermal");
@@ -157,6 +160,8 @@ namespace PanzerSim
             relayBusy = false;
             if (this == null || state != State.Menu) return;
             BuildMap(mapIndex);
+            NetSync.GameMode = conquestMode ? NetSync.ModeConquest : NetSync.ModeFree;
+            if (conquestMode) Conquest.BeginServer(map);
             bool ok = code != null ? NetSync.StartHostRelay(tankIndex, mapIndex) : NetSync.StartHost(tankIndex, mapIndex, Port);
             if (!ok) { netMessage = NetSync.LastError; ShowMenu(); return; }
             netGame = true;
@@ -214,10 +219,11 @@ namespace PanzerSim
         string ConnectTarget => viaRelay ? $"Code {ipText}" : $"{ipText}:{Port}";
 
         /// <summary>Client: Server hat die Spielrunde geschickt -> Karte bauen und los.</summary>
-        public void BeginClientGame(int mapIdx)
+        public void BeginClientGame(int mapIdx, int mode = 0)
         {
             connecting = false;
             BuildMap(Mathf.Clamp(mapIdx, 0, maps.Length - 1));
+            if (mode == NetSync.ModeConquest) Conquest.BeginClient(map);
             EnterPlaying();
             RangeLog.AddLocal($"Verbunden mit {ConnectTarget}");
         }
@@ -232,6 +238,10 @@ namespace PanzerSim
         {
             Application.targetFrameRate = 60;   // sonst rechnet der Server ohne Pause mit voller CPU-Last
             BuildMap(mapIndex);
+            // -mode eroberung (oder 1): Eroberung mit KI-Auffuellung statt freiem Spiel
+            string modeArg = null; { var a = System.Environment.GetCommandLineArgs(); int mi = System.Array.IndexOf(a, "-mode"); if (mi >= 0 && mi + 1 < a.Length) modeArg = a[mi + 1].ToLowerInvariant(); }
+            NetSync.GameMode = modeArg == "eroberung" || modeArg == "conquest" || modeArg == "1" ? NetSync.ModeConquest : NetSync.ModeFree;
+            if (NetSync.GameMode == NetSync.ModeConquest) Conquest.BeginServer(map);
             string code = null;
             if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-norelay") < 0)
             {
@@ -260,6 +270,7 @@ namespace PanzerSim
         /// <summary>Spawnpunkte nebeneinander (14 m Abstand) am Startpunkt der Karte.</summary>
         public void SpawnPoint(int i, int team, out Vector3 pos, out float yaw)
         {
+            if (Conquest.On) { Conquest.SpawnPoint(team, i, out pos, out yaw); return; }
             TeamStart(team, out Vector2 p, out yaw);
             Vector3 side = Quaternion.Euler(0f, yaw, 0f) * Vector3.right;
             int slot = i % 8;
@@ -269,7 +280,7 @@ namespace PanzerSim
         }
 
         /// <summary>Startplatz je Team: Blau am Startpunkt der Karte, Rot gegenueber (bzw. am letzten Startpunkt der Karte).</summary>
-        void TeamStart(int team, out Vector2 p, out float yaw)
+        public void TeamStart(int team, out Vector2 p, out float yaw)
         {
             yaw = map != null ? map.PlayerYaw : 0f;
             p = map != null ? map.PlayerXZ : Vector2.zero;
@@ -373,6 +384,16 @@ namespace PanzerSim
         {
             if (jetMode && !netGame) { StartJetGame(); return; }
             BuildMap(mapIndex);
+            if (conquestMode)
+            {
+                foreach (var t in targets) if (t != null) Destroy(t.gameObject);
+                targets.Clear(); WaveMode.Stop();
+                Conquest.BeginOffline(map, () => player);   // zuerst: legt die Startplaetze fest
+                SpawnPlayer();
+                EnterPlaying();
+                return;
+            }
+            Conquest.Stop();
             SpawnPlayer();
             if (waveMode) { foreach (var t in targets) if (t != null) Destroy(t.gameObject); targets.Clear(); WaveMode.Begin(map, () => player); }
             else { WaveMode.Stop(); SpawnTargets(); }
@@ -399,6 +420,7 @@ namespace PanzerSim
             if (player != null) Destroy(player.gameObject);
             TeamStart(GameSettings.Team, out Vector2 p, out float yaw0);
             var pos = new Vector3(p.x, map.GroundY(p.x, p.y) + 0.4f, p.y);
+            if (Conquest.On) Conquest.SpawnPoint(GameSettings.Team, 0, out pos, out yaw0);
             player = TankBuilder.Build(Tanks[tankIndex](), pos, Quaternion.Euler(0f, yaw0 + BenchYaw, 0f), true);
             player.team = GameSettings.Team; player.playerName = GameSettings.PlayerName;
             TankController.LocalTeam = player.team;
@@ -435,6 +457,7 @@ namespace PanzerSim
             RenderSettings.fog = false;
             RangeLog.Lines.Clear();
             WaveMode.Stop();
+            Conquest.Stop();
         }
 
         // ================= Eingabe =================
@@ -442,6 +465,17 @@ namespace PanzerSim
         {
             if (ammoTestPending && Time.realtimeSinceStartup > 4f) { ammoTestPending = false; OpenAmmoTest(); }
             if (menuShot != null && Time.realtimeSinceStartup > 6f) { ScreenCapture.CaptureScreenshot(menuShot); menuShot = null; }
+            if (netShot != null && state != State.Menu)
+            {
+                float t0 = netShotT; netShotT += Time.unscaledDeltaTime;
+                if (t0 < 15f && netShotT >= 15f) { System.IO.Directory.CreateDirectory(netShot); ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(netShot, "netz_1.png")); }
+                if (t0 < 25f && netShotT >= 25f && player != null) TeamHud.ToggleMap(player, cam);
+                if (t0 < 27f && netShotT >= 27f) ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(netShot, "netz_karte.png"));
+                if (t0 < 28f && netShotT >= 28f) TeamHud.CloseMap();
+                if (t0 < 35f && netShotT >= 35f) ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(netShot, "netz_2.png"));
+                if (t0 < 36f && netShotT >= 36f) Debug.Log("NETSHOT: Eroberung " + (Conquest.On ? Conquest.BenchText : "aus") + ", Panzer " + FindObjectsByType<TankController>(FindObjectsSortMode.None).Length);
+                if (netShotT >= 40f) Application.Quit();
+            }
             // Konto: gesperrt / Timeout mitten im Spiel -> zurueck zur Anmeldung
             if (Accounts.Required)
             {
@@ -452,7 +486,7 @@ namespace PanzerSim
             if (NetSync.IsServer && map != null)
             {
                 queryTimer -= Time.unscaledDeltaTime;
-                if (queryTimer <= 0f) { queryTimer = 1f; NetSync.UpdateQueryInfo(map.Name, Port); }
+                if (queryTimer <= 0f) { queryTimer = 1f; NetSync.UpdateQueryInfo(Conquest.On ? map.Name + " (Eroberung)" : map.Name, Port); }
                 LobbyListing.Tick();
             }
             // Dedizierter Server: Netzwerk weg (z. B. Relay-Verbindung abgerissen) -> beenden, systemd startet neu
@@ -470,7 +504,7 @@ namespace PanzerSim
                 if (statusTimer <= 0f && NetSync.NM != null)
                 {
                     statusTimer = 30f;
-                    Debug.Log($"[Server] {NetSync.NM.ConnectedClientsIds.Count} Spieler verbunden, {FindObjectsByType<NetTank>(FindObjectsSortMode.None).Length} Panzer");
+                    Debug.Log($"[Server] {NetSync.NM.ConnectedClientsIds.Count} Spieler verbunden, {FindObjectsByType<NetTank>(FindObjectsSortMode.None).Length} Panzer" + (Conquest.On ? ", Eroberung: " + Conquest.BenchText : ""));
                 }
                 return;
             }
@@ -519,6 +553,12 @@ namespace PanzerSim
             {
                 // Mehrspieler: neuer Panzer nur, wenn der eigene zerstoert ist (Server erzeugt ihn)
                 if (localNet != null && (player == null || player.destroyed)) localNet.RequestRespawn();
+            }
+            else if (Inp.Down(KeyCode.N) && Conquest.On)
+            {
+                // Eroberung: nach Rundenende neue Runde, sonst neuer Panzer am Startplatz (kostet ein Ticket, das der Abschuss schon gekostet hat)
+                if (Conquest.Winner >= 0) { Conquest.RestartOffline(); SpawnPlayer(); RangeLog.Lines.Clear(); }
+                else if ((player == null || player.destroyed) && Conquest.Tickets[GameSettings.Team] > 0) SpawnPlayer();
             }
             else if (Inp.Down(KeyCode.N) && WaveMode.On)
             {
@@ -726,10 +766,12 @@ namespace PanzerSim
             // ---- Spielmodus (Einzelspieler) ----
             GUILayout.Space(10);
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Freies Spiel", !waveMode && !jetMode ? btnSel : btn, GUILayout.Height(40))) { waveMode = false; jetMode = false; }
-            if (GUILayout.Button("Wellen gegen KI", waveMode ? btnSel : btn, GUILayout.Height(40))) { waveMode = true; jetMode = false; }
-            if (GUILayout.Button("Testflug", jetMode ? btnSel : btn, GUILayout.Height(40))) { if (!jetMode) mapIndex = 2; jetMode = true; waveMode = false; }   // Huegelland: 10 km, genug Platz zum Fliegen
+            if (GUILayout.Button("Frei", !waveMode && !jetMode && !conquestMode ? btnSel : btn, GUILayout.Height(40))) { waveMode = false; jetMode = false; conquestMode = false; }
+            if (GUILayout.Button("Wellen", waveMode ? btnSel : btn, GUILayout.Height(40))) { waveMode = true; jetMode = false; conquestMode = false; }
+            if (GUILayout.Button("Eroberung", conquestMode ? btnSel : btn, GUILayout.Height(40))) { conquestMode = true; waveMode = false; jetMode = false; }
+            if (GUILayout.Button("Testflug", jetMode ? btnSel : btn, GUILayout.Height(40))) { if (!jetMode) mapIndex = 2; jetMode = true; waveMode = false; conquestMode = false; }   // Huegelland: 10 km, genug Platz zum Fliegen
             GUILayout.EndHorizontal();
+            if (conquestMode) GUILayout.Label("Flaggen A, B, C einnehmen, 6 gegen 6 (KI fuellt auf). 0 Tickets = verloren. Gilt auch beim Hosten.", text);
             if (waveMode) GUILayout.Label("KI-Panzer greifen in Wellen an, jede Welle mehr und staerker. Zwischen den Wellen wird repariert.", text);
             if (jetMode) GUILayout.Label("Jet (Test): ueber die Zielpanzer fliegen, 5-t-Bomben werfen (rotes X = Einschlag), 20-mm-Kanone. Shift/Strg Schub, W/S, A/D, Q/E.", text);
 
@@ -917,7 +959,8 @@ namespace PanzerSim
         int[] ammoEdit, ammoEdit2;
 
         bool ammoTestPending;
-        string menuShot;
+        string menuShot, netShot;
+        float netShotT;
         void OpenAmmoTest() => OpenAmmo(Tanks[tankIndex]());
         void OpenAmmo(TankSpec s)
         {
@@ -1148,7 +1191,12 @@ namespace PanzerSim
             }
             else
             {
-                if (GUILayout.Button("Neu starten (N)", btn, GUILayout.Height(52))) { Pause(false); SpawnPlayer(); SpawnTargets(); RangeLog.Lines.Clear(); OpenSpawnSelect(); }
+                if (GUILayout.Button("Neu starten (N)", btn, GUILayout.Height(52)))
+                {
+                    Pause(false);
+                    if (Conquest.On) { Conquest.RestartOffline(); SpawnPlayer(); RangeLog.Lines.Clear(); }
+                    else { SpawnPlayer(); SpawnTargets(); RangeLog.Lines.Clear(); OpenSpawnSelect(); }
+                }
                 if (map != null && map.SpawnSelect)
                 {
                     GUILayout.Space(6);

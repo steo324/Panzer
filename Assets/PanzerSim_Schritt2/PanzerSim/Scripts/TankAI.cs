@@ -22,6 +22,14 @@ namespace PanzerSim
         int shotsAtTarget;
         float lastReload;
 
+        /// <summary>Auftrag (Eroberung/Verteidigung): Punkt, den die KI anfahren und halten soll, solange kein Gegner in Kampfentfernung ist.</summary>
+        public System.Func<TankAI, Vector3?> objective;
+        /// <summary>Radius, in dem die KI am Auftragspunkt anhaelt.</summary>
+        public float holdRadius = 18f;
+        /// <summary>Hoechste Entfernung, auf die die KI Gegner sucht (0 = ganze Karte).</summary>
+        public float searchRange;
+        public TankController Target => target;
+
         public static TankAI Attach(TankController t, float skill, float extent)
         {
             var ai = t.gameObject.AddComponent<TankAI>();
@@ -38,7 +46,13 @@ namespace PanzerSim
             if (tc == null || tc.destroyed) return;
             searchT -= dt; losT -= dt;
             if (searchT <= 0f || target == null || target.destroyed) { searchT = 1.5f; FindTarget(); }
-            if (target == null) { tc.AiControl(0f, 0f, true); return; }
+            Vector3? obj = objective != null ? objective(this) : null;
+            if (target == null)
+            {
+                if (obj.HasValue) DriveTo(dt, obj.Value, false);
+                else tc.AiControl(0f, 0f, true);
+                return;
+            }
 
             Vector3 me = tc.transform.position, tp = target.transform.position;
             Vector3 to = tp - me; to.y = 0f;
@@ -47,7 +61,8 @@ namespace PanzerSim
             if (losT <= 0f) { losT = 0.4f; bool v = LineOfSight(); if (v && !visible) reactT = Mathf.Lerp(3.5f, 1.2f, skill) * Random.Range(0.8f, 1.2f); visible = v; }
             if (visible) reactT -= dt;
 
-            Drive(dt, to, dist);
+            if (obj.HasValue && !(visible && dist < engageDist)) DriveTo(dt, obj.Value, true);
+            else Drive(dt, to, dist);
             Aim(dt, dist);
         }
 
@@ -58,6 +73,7 @@ namespace PanzerSim
             {
                 if (t == tc || t.destroyed || t.team == tc.team || t.team == TankController.TeamTarget) continue;
                 float d = (t.transform.position - tc.transform.position).sqrMagnitude;
+                if (searchRange > 0f && d > searchRange * searchRange) continue;
                 if (d < bd) { bd = d; best = t; }
             }
             if (best != target) { target = best; shotsAtTarget = 0; rangeErr = Random.Range(-1f, 1f) * Mathf.Lerp(0.14f, 0.05f, skill); }
@@ -129,6 +145,42 @@ namespace PanzerSim
             tc.AiControl(throttle, steer, false);
 
             // nicht vorwaerts gekommen?
+            if (tc.SpeedKmh < 1.5f) stuckT += dt; else stuckT = 0f;
+            if (stuckT > 3f) { stuckT = 0f; reverseT = 1.8f; avoidDir = Random.value < 0.5f ? -1f : 1f; }
+        }
+
+        /// <summary>Auftragspunkt anfahren (Hindernissen ausweichen), dort anhalten und die Front zum Ziel drehen.</summary>
+        void DriveTo(float dt, Vector3 goal, bool haveTarget)
+        {
+            Vector3 fwd = tc.transform.forward; fwd.y = 0f; fwd.Normalize();
+            if (reverseT > 0f) { reverseT -= dt; tc.AiControl(-0.8f, avoidDir, false); return; }
+            Vector3 g = goal - tc.transform.position; g.y = 0f;
+            if (g.magnitude < holdRadius)
+            {
+                stuckT = 0f;
+                if (haveTarget && target != null)
+                {
+                    Vector3 to = target.transform.position - tc.transform.position; to.y = 0f;
+                    float a = Vector3.SignedAngle(fwd, to, Vector3.up);
+                    tc.AiControl(0f, Mathf.Abs(a) > 20f ? Mathf.Sign(a) * 0.7f : 0f, Mathf.Abs(a) <= 20f);
+                }
+                else tc.AiControl(0f, 0f, true);
+                return;
+            }
+            float ang = Vector3.SignedAngle(fwd, g, Vector3.up);
+            avoidT -= dt;
+            if (avoidT <= 0f)
+            {
+                avoidT = 0.3f;
+                Vector3 o = tc.transform.position + Vector3.up * 1.4f + fwd * (tc.spec.hullLength * 0.5f);
+                if (tc.RaycastIgnoringSelf(o, fwd, 14f, out RaycastHit hit) && hit.normal.y < 0.6f)
+                { if (Mathf.Abs(avoidDir) < 0.1f) avoidDir = Random.value < 0.5f ? -1f : 1f; }
+                else avoidDir = 0f;
+            }
+            float steer = Mathf.Abs(avoidDir) > 0.1f ? avoidDir : Mathf.Clamp(ang / 35f, -1f, 1f);
+            float slow = Mathf.Clamp01((g.magnitude - holdRadius) / 40f);
+            float throttle = Mathf.Abs(avoidDir) > 0.1f ? 0.45f : Mathf.Abs(ang) > 70f ? 0.25f : Mathf.Lerp(0.35f, 0.85f, slow);
+            tc.AiControl(throttle, steer, false);
             if (tc.SpeedKmh < 1.5f) stuckT += dt; else stuckT = 0f;
             if (stuckT > 3f) { stuckT = 0f; reverseT = 1.8f; avoidDir = Random.value < 0.5f ? -1f : 1f; }
         }

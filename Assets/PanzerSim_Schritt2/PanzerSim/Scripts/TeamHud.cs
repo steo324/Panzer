@@ -296,6 +296,7 @@ namespace PanzerSim
                 GUI.color = PingCol;
                 GUI.DrawTexture(new Rect(q.x - s / 2f, q.y - s / 2f, s, s), ring);
             }
+            Conquest.DrawOnMap(toMap, r, k, dot, mm, 17f);
             // eigener Panzer: weisser Punkt + Blickrichtung des Turms
             Vector2 c = r.center;
             Vector3 fwd = me.parts.turret != null ? me.parts.turret.forward : me.transform.forward;
@@ -361,6 +362,7 @@ namespace PanzerSim
                 float s = (20f + 6f * Mathf.Sin((Time.time - p.time) * 8f)) * k;
                 GUI.color = PingCol; GUI.DrawTexture(new Rect(q.x - s / 2f, q.y - s / 2f, s, s), ring);
             }
+            Conquest.DrawOnMap(toMap, r, k, dot, mm, 24f);
             // eigener Panzer
             Vector2 me2 = toMap(mp);
             Vector3 fwd = me.parts.turret != null ? me.parts.turret.forward : me.transform.forward;

@@ -1112,7 +1112,7 @@ namespace PanzerSim
                 if (m.IsCrew && !m.Destroyed) m.ApplyDamage(3f * dt);
 
             // Computer-Besatzung loescht nach 12 s selbst (im Mehrspieler nur auf dem Server, nur bei Zielpanzern)
-            if (!isPlayer && !destroyed && fireTimer > 12f && !NetSync.IsClientOnly && (net == null || net.isTarget.Value)) Extinguish();
+            if (!isPlayer && !destroyed && fireTimer > 12f && !NetSync.IsClientOnly && (net == null || net.isTarget.Value || net.isAi.Value)) Extinguish();
         }
 
         public void Extinguish()

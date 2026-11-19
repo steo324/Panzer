@@ -15,6 +15,8 @@ namespace PanzerSim
     {
         public readonly NetworkVariable<int> tankType = new NetworkVariable<int>(0);
         public readonly NetworkVariable<bool> isTarget = new NetworkVariable<bool>(false);
+        /// <summary>KI-Panzer des Servers (Eroberung: fuellt fehlende Spieler auf).</summary>
+        public readonly NetworkVariable<bool> isAi = new NetworkVariable<bool>(false);
         public readonly NetworkVariable<int> team = new NetworkVariable<int>(TankController.TeamTarget);
         public readonly NetworkVariable<Unity.Collections.FixedString64Bytes> playerName = new NetworkVariable<Unity.Collections.FixedString64Bytes>(default);
 
@@ -36,7 +38,7 @@ namespace PanzerSim
 
         public TankController tc;
         /// <summary>Lokaler Spielerpanzer (wir fahren ihn).</summary>
-        public bool IsLocalPlayer => IsOwner && !isTarget.Value && !NetSync.Headless;
+        public bool IsLocalPlayer => IsOwner && !isTarget.Value && !isAi.Value && !NetSync.Headless;
 
         public override void OnNetworkSpawn()
         {
@@ -236,7 +238,7 @@ namespace PanzerSim
         [Rpc(SendTo.Server)]
         void RespawnRpc()
         {
-            if (isTarget.Value) return;
+            if (isTarget.Value || isAi.Value) return;
             ulong owner = OwnerClientId;
             int type = tankType.Value;
             NetworkObject.Despawn(true);

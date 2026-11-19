@@ -157,6 +157,49 @@ namespace PanzerSim
                 for (int i = RangeLog.Lines.Count - 1; i >= 0 && i > RangeLog.Lines.Count - 25; i--) Debug.Log("BENCH-WAVES Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
             }
 
+            // -benchconquest (mit -conquest): Eroberung laufen lassen, Flagge einnehmen, Karte, Rundenende
+            if (System.Array.IndexOf(args, "-benchconquest") >= 0 && pl != null)
+            {
+                System.IO.Directory.CreateDirectory(outDir ?? ".");
+                string Shot(string n) => System.IO.Path.Combine(outDir ?? ".", n);
+                for (int s = 0; s < 16; s++)
+                {
+                    pl = GameManager.Instance.BenchPlayer;
+                    if (s == 1) ScreenCapture.CaptureScreenshot(Shot("eroberung_start.png"));
+                    if (s == 2 && pl != null)
+                    {
+                        // zur naechsten Flagge fahren (hinstellen), Blick auf die Flagge
+                        var f = Conquest.Flags[GameSettings.Team == 0 ? 0 : 2];
+                        Vector3 p = f.pos + new Vector3(12f, 0f, -18f);
+                        pl.Teleport(new Vector3(p.x, GameManager.Instance.CurrentMap.GroundY(p.x, p.z) + 0.6f, p.z), 0f);
+                    }
+                    if (s == 4 && pl != null && cam != null)
+                    {
+                        var f = Conquest.Flags[GameSettings.Team == 0 ? 0 : 2];
+                        Vector3 d = f.pos + Vector3.up * 8f - Camera.main.transform.position;
+                        cam.SetView(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, 4f);
+                    }
+                    if (s == 5) ScreenCapture.CaptureScreenshot(Shot("eroberung_flagge.png"));
+                    if (s == 8 && pl != null) TeamHud.ToggleMap(pl, Camera.main);
+                    if (s == 9) { ScreenCapture.CaptureScreenshot(Shot("eroberung_karte.png")); }
+                    if (s == 10) TeamHud.CloseMap();
+                    if (s == 11 && cam != null && pl != null)
+                    {
+                        var f = Conquest.Flags[1];
+                        Vector3 d = f.pos + Vector3.up * 8f - Camera.main.transform.position;
+                        cam.SetView(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, 2f);
+                    }
+                    if (s == 12) ScreenCapture.CaptureScreenshot(Shot("eroberung_mitte.png"));
+                    if (s == 13) Conquest.BenchSetTickets(GameSettings.Team == 0 ? 60 : 0, GameSettings.Team == 0 ? 0 : 60);
+                    Debug.Log($"BENCH-CONQUEST t={s * 6}s: {Conquest.BenchText}, Spieler zerstoert {(pl != null && pl.destroyed)}");
+                    yield return new WaitForSeconds(6f);
+                }
+                ScreenCapture.CaptureScreenshot(Shot("eroberung_ende.png"));
+                yield return new WaitForSeconds(0.5f);
+                Debug.Log($"BENCH-CONQUEST Ende: {Conquest.BenchText}");
+                for (int i = RangeLog.Lines.Count - 1; i >= 0 && i > RangeLog.Lines.Count - 40; i--) Debug.Log("BENCH-CONQUEST Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
+            }
+
             // -benchwobble: Zittern von Wanne und Rohr waehrend der Fahrt messen (Abweichung vom geglaetteten Neigungswinkel)
             if (System.Array.IndexOf(args, "-noroughness") >= 0) TankController.GroundRoughness = 0f;
             if (System.Array.IndexOf(args, "-benchwobble") >= 0 && pl != null)

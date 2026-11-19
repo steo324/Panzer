@@ -63,6 +63,11 @@ namespace PanzerSim
         public static GameObject TankPrefab, SessionPrefab;
         static readonly Dictionary<ulong, int> requestedTank = new Dictionary<ulong, int>();
         public static int MapIndex;
+        // Spielmodi im Mehrspieler (NetSession.gameMode)
+        public const int ModeFree = 0, ModeConquest = 1;
+        public static readonly string[] ModeNames = { "Freies Spiel", "Eroberung" };
+        /// <summary>Modus der naechsten Runde (Host/Server setzt ihn vor dem Start).</summary>
+        public static int GameMode;
         public static string LastError = "";
 
         /// <summary>NetworkManager einmal anlegen (auch zur Laufzeit moeglich, keine Szene noetig).</summary>
@@ -204,8 +209,12 @@ namespace PanzerSim
         static void SpawnSession()
         {
             var s = Object.Instantiate(SessionPrefab);
-            s.GetComponent<NetSession>().mapIndex.Value = MapIndex;
+            var ses = s.GetComponent<NetSession>();
+            ses.mapIndex.Value = MapIndex;
+            ses.gameMode.Value = GameMode;
+            if (GameMode == ModeConquest && Conquest.On) { ses.cqFlagA.Value = Conquest.Flags[0].pos; ses.cqFlagB.Value = Conquest.Flags[1].pos; ses.cqFlagC.Value = Conquest.Flags[2].pos; }
             s.GetComponent<NetworkObject>().Spawn();
+            if (GameMode == ModeConquest) return;   // Eroberung: keine Zielpanzer (GameManager hat Conquest.BeginServer schon gestartet)
             // Zielpanzer der Karte als Server-Panzer (stehen, werden von allen beschossen)
             GameManager.Instance?.ServerSpawnTargets();
         }
@@ -227,7 +236,7 @@ namespace PanzerSim
                 NetSession.Instance?.Log($"Spieler {clientId} hat das Spiel verlassen");
                 // Panzer des Spielers entfernen
                 foreach (var nt in Object.FindObjectsByType<NetTank>(FindObjectsSortMode.None))
-                    if (!nt.isTarget.Value && nt.OwnerClientId == clientId && nt.IsSpawned) nt.NetworkObject.Despawn(true);
+                    if (!nt.isTarget.Value && !nt.isAi.Value && nt.OwnerClientId == clientId && nt.IsSpawned) nt.NetworkObject.Despawn(true);
             }
             else if (clientId == NM.LocalClientId || !NM.IsConnectedClient)
             {
@@ -258,6 +267,35 @@ namespace PanzerSim
         {
             while (System.Text.Encoding.UTF8.GetByteCount(s) > 60) s = s.Substring(0, s.Length - 1);
             return s;
+        }
+
+        /// <summary>KI-Panzer des Servers (Eroberung). Der TankController entsteht beim Spawn sofort (OnNetworkSpawn).</summary>
+        public static NetTank SpawnAiTank(int tankIndex, int team, Vector3 pos, float yaw, string name)
+        {
+            if (!IsServer) return null;
+            var go = Object.Instantiate(TankPrefab, pos, Quaternion.Euler(0f, yaw, 0f));
+            var nt = go.GetComponent<NetTank>();
+            nt.tankType.Value = tankIndex;
+            nt.isTarget.Value = false;
+            nt.isAi.Value = true;
+            nt.team.Value = team;
+            nt.playerName.Value = new Unity.Collections.FixedString64Bytes(Trunc(name));
+            go.GetComponent<NetworkObject>().Spawn(true);
+            return nt;
+        }
+
+        /// <summary>Neue Runde: alle Spieler bekommen einen neuen Panzer am Startplatz.</summary>
+        public static void RespawnAllPlayers()
+        {
+            if (!IsServer) return;
+            spawnCounter = 0;
+            foreach (var nt in Object.FindObjectsByType<NetTank>(FindObjectsSortMode.None))
+            {
+                if (!nt.IsSpawned || nt.isTarget.Value || nt.isAi.Value) continue;
+                ulong owner = nt.OwnerClientId; int type = nt.tankType.Value;
+                nt.NetworkObject.Despawn(true);
+                SpawnPlayerTank(owner, type);
+            }
         }
 
         public static void SpawnTargetTank(int tankIndex, Vector3 pos, float yaw)
