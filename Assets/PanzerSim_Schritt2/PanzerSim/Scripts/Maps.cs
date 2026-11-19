@@ -182,6 +182,7 @@ namespace PanzerSim
             BuildFarms(root);
             BuildHay(root);
             WheatField.Create(root, WheatGrows, GroundY, RowsAlongX, GrassGrows);   // Weizen auf den Aeckern, Gras auf den Wiesen
+            if (!NetSync.Headless) BuildDetails(root);
         }
 
         // Bereiche ohne Weizen (Waelder, Hoefe): x, z, Radius
@@ -526,6 +527,22 @@ namespace PanzerSim
                 }
             }
         }
+
+        /// <summary>Kleinkram: Leitpfosten und Strommasten am Weg, Zaun und Holz an den Hoefen, Steine und Buesche (keine Orte, keine Schilder).</summary>
+        void BuildDetails(Transform root)
+        {
+            var c = new MapDetails.Context
+            {
+                half = Size / 2f, seed = 1945, roads = RoadLines(), groundY = GroundY,
+                free = (x, z) => Mathf.Min(Mathf.Abs(x - RoadX(z)), Mathf.Abs(z - RoadZ(x))) > 5f && !Occupied(x, z, 0f),
+                meadow = (x, z) => FieldKind(x, z) == 0,
+                forest = (x, z) => Occupied(x, z, 0f) && !IsFarm(x, z),
+            };
+            foreach (var o in occupied) if (o.z < 40f) { c.farms.Add(new Vector2(o.x, o.y)); c.houses.Add(new Vector3(o.x + 9f, o.y + 9f, 22f)); }
+            MapDetails.Decorate(root, c);
+        }
+        bool Occupied(float x, float z, float pad) { foreach (var o in occupied) if ((x - o.x) * (x - o.x) + (z - o.y) * (z - o.y) < (o.z + pad) * (o.z + pad)) return true; return false; }
+        bool IsFarm(float x, float z) { foreach (var o in occupied) if (o.z < 40f && (x - o.x) * (x - o.x) + (z - o.y) * (z - o.y) < o.z * o.z) return true; return false; }
 
         void BuildHay(Transform root)
         {

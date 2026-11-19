@@ -140,6 +140,19 @@ namespace PanzerSim
         }
 
         // ---------------- Zeichnen ----------------
+        /// <summary>Gemeinsames Material (Shader BaumMesh: Vertexfarben, Instancing, Wind) fuer Baeume und Kleinkram (Props).</summary>
+        public static Material SharedMaterial()
+        {
+            if (mat == null)
+            {
+                var sh = Shader.Find("PanzerSim/BaumMesh");
+                if (sh == null) sh = Resources.Load<Shader>("Shaders/BaumMesh");
+                if (sh != null) { Vegetation.EnsureInit(); mat = new Material(sh) { enableInstancing = true, name = "Baeume" }; }
+                else { mat = new Material(GameMap.Mat(new Color(0.2f, 0.3f, 0.15f))) { enableInstancing = true }; Debug.LogWarning("Wald: Shader BaumMesh fehlt"); }
+            }
+            return mat;
+        }
+
         void SetupRendering()
         {
             if (meshes == null) meshes = TreeShapes.BuildAll(Kinds);

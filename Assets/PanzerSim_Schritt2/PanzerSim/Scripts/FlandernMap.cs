@@ -122,6 +122,7 @@ namespace PanzerSim
             {
                 BuildOverview();
                 WheatField.Create(root, (x, z) => SurfAt(x, z) == SWeizen && RoadE(x, z) > 3f, GroundY, RowsAlongU, GrassGrows);
+                BuildDetails(root);
             }
             Debug.Log($"[Flandern] gebaut in {sw.ElapsedMilliseconds} ms (Gelaende-Rechnung {tGen} ms), {houses.Count} Gebaeude ({tris} Dreiecke), {roads.Count} Wege, {bridges.Count} Bruecken, {craters.Count} Trichter, {trees.Count} Baeume, {spawns.Count} Startpunkte");
         }
@@ -942,6 +943,23 @@ namespace PanzerSim
                         bool edge = SurfAt(px + 12f, pz) != SWald || SurfAt(px - 12f, pz) != SWald || SurfAt(px, pz + 12f) != SWald || SurfAt(px, pz - 12f) != SWald;
                         list.Add(T(new Vector2(px, pz), Forest.MixedBroadleaf(k, edge), 0.75f + (float)r.NextDouble() * 0.45f));
                     }
+        }
+
+        // ---------------- Kleinkram und Schilder (alte Holzschilder, ohne moderne Verkehrszeichen) ----------------
+        void BuildDetails(Transform root)
+        {
+            var c = new MapDetails.Context
+            {
+                half = Half, seed = 1918, signStyle = 2, modern = false, roads = roads, houses = houses, farms = farms, groundY = GroundY,
+                free = (x, z) => { byte s = SurfAt(x, z); return s != SWasser && s != SWald && s != SWeg && s != SStadt && RoadE(x, z) > 1.5f && WaterE(x, z) > 3f; },
+                meadow = (x, z) => { byte s = SurfAt(x, z); return s == SWiese || s == SWeide; },
+                forest = (x, z) => SurfAt(x, z) == SWald,
+            };
+            c.towns.Add(new MapDetails.Town { name = "Sint-Joris", c = C, r = RR + 75f });
+            foreach (var v in villages) c.towns.Add(new MapDetails.Town { name = v.name, c = v.c, r = v.r + 20f });
+            c.destinations.Add(("Kust", new Vector2(-6000f, 12000f)));
+            c.destinations.Add(("Rijsel", new Vector2(2000f, -14000f)));
+            MapDetails.Decorate(root, c);
         }
 
         // ---------------- Startpunkte ----------------

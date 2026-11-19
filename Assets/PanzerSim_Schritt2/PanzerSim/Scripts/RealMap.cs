@@ -55,6 +55,7 @@ namespace PanzerSim
         struct Line { public string kind; public Vector2[] p; }
         readonly List<Line> lines = new List<Line>();             // Hecken, Mauern, Baumreihen
         readonly List<Vector2> singleTrees = new List<Vector2>();  // Einzelbaeume aus OpenStreetMap
+        readonly List<Roads.Road> detailRoads = new List<Roads.Road>();   // Strassen als Belagband (auch fuer Schilder und Kleinkram)
 
         // ================= Abfragen =================
         public override float GroundY(float x, float z)
@@ -104,7 +105,7 @@ namespace PanzerSim
             var trees = PlaceTrees();
             Forest.Create(root, trees);
             MakeSpawns();
-            if (!NetSync.Headless) { BuildOverview(); WheatField.Create(root, (x, z) => SurfAt(x, z) == Acker, GroundY, (x, z) => (((int)((x + 5000f) / 150f) * 7 + (int)((z + 5000f) / 150f)) & 1) == 0, GrassOk); }
+            if (!NetSync.Headless) { BuildOverview(); WheatField.Create(root, (x, z) => SurfAt(x, z) == Acker, GroundY, (x, z) => (((int)((x + 5000f) / 150f) * 7 + (int)((z + 5000f) / 150f)) & 1) == 0, GrassOk); BuildDetails(root); }
             Debug.Log($"[Echte Karte] {title}: gebaut in {sw.ElapsedMilliseconds} ms, {buildings.Count} Gebaeude, {roads.Count} Wege, {trees.Count} Baeume, Hoehen {baseH:0}..{baseH + MaxRange:0} m");
         }
 
@@ -700,7 +701,7 @@ namespace PanzerSim
         void BuildRoadMeshes(Transform root)
         {
             if (NetSync.Headless) return;
-            var list = new List<Roads.Road>();
+            var list = detailRoads; list.Clear();
             foreach (var r in roads)
             {
                 if (r.bridge || r.p.Length < 2) continue;
@@ -777,6 +778,69 @@ namespace PanzerSim
                 box.size = new Vector3(Mathf.Abs(box.size.x), Mathf.Abs(box.size.y), Mathf.Abs(box.size.z));
                 buildingBoxes.Add(new Vector4(x, z, Mathf.Max(b.extents.x, b.extents.z), b.size.y));
             }
+        }
+
+        // ---------------- Strassenschilder und Kleinkram ----------------
+        /// <summary>
+        /// Ortsschilder an den echten Ortsraendern (aus der Bebauungsdichte), Wegweiser mit Orten der Karte und den Nachbarstaedten,
+        /// Vorfahrt-, Stopp- und Tempo-Schilder, Leitpfosten, Laternen, Strommasten, Briefkaesten, Bushaltestellen, Zaeune usw.
+        /// </summary>
+        void BuildDetails(Transform root)
+        {
+            // Bebauungsdichte: Gebaeude je 50-m-Zelle; im Ort, wenn in 3 x 3 Zellen mindestens 7 Gebaeude stehen
+            const float Cd = 50f; int nd = Mathf.CeilToInt(size / Cd);
+            var cnt = new int[nd * nd];
+            foreach (var b in buildingBoxes)
+            {
+                int ix = Mathf.Clamp((int)((b.x + half) / Cd), 0, nd - 1), iz = Mathf.Clamp((int)((b.y + half) / Cd), 0, nd - 1);
+                cnt[iz * nd + ix]++;
+            }
+            var town = new bool[nd * nd];
+            for (int iz = 0; iz < nd; iz++)
+                for (int ix = 0; ix < nd; ix++)
+                {
+                    int s = 0;
+                    for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) { int x = ix + dx, z = iz + dz; if (x >= 0 && z >= 0 && x < nd && z < nd) s += cnt[z * nd + x]; }
+                    town[iz * nd + ix] = s >= 7;
+                }
+            bool InTown(float x, float z)
+            {
+                int ix = (int)((x + half) / Cd), iz = (int)((z + half) / Cd);
+                return ix >= 0 && iz >= 0 && ix < nd && iz < nd && town[iz * nd + ix];
+            }
+            var c = new MapDetails.Context
+            {
+                half = half, seed = 3232, roads = detailRoads, groundY = GroundY, inTown = InTown,
+                free = (x, z) => { byte s = SurfAt(x, z); return s == Wiese || s == Acker || s == Garten; },
+                meadow = (x, z) => SurfAt(x, z) == Wiese,
+                forest = (x, z) => SurfAt(x, z) == Wald,
+            };
+            foreach (var b in buildingBoxes) c.houses.Add(new Vector3(b.x, b.y, b.z));
+            // Ortsnamen aus OpenStreetMap; Zusatzzeile wie auf den echten Schildern (Ortsteil der Stadt bzw. Kreis)
+            foreach (var pl in places)
+            {
+                if (pl.type != "town" && pl.type != "village" && pl.type != "hamlet") continue;
+                float r = pl.type == "town" ? 2600f : pl.type == "village" ? 1500f : 800f;
+                c.towns.Add(new MapDetails.Town { name = pl.name, sub = pl.type == "town" ? "Kreis Lippe" : "Stadt Horn-Bad Meinberg", c = pl.p, r = r });
+            }
+            foreach (var pl in places) if (pl.type == "locality") c.destinations.Add((pl.name, pl.p));
+            // Nachbarstaedte ausserhalb der Karte (ungefaehre Richtung und Entfernung von Horn aus)
+            Vector2 horn = new Vector2(-318f, -916f);
+            c.destinations.Add(("Detmold", horn + new Vector2(-8500f, 8500f)));
+            c.destinations.Add(("Blomberg", horn + new Vector2(5000f, 15000f)));
+            c.destinations.Add(("Steinheim", horn + new Vector2(12000f, -3000f)));
+            c.destinations.Add(("Schlangen", horn + new Vector2(-8000f, -6000f)));
+            c.destinations.Add(("Paderborn", horn + new Vector2(-9000f, -26000f)));
+            c.destinations.Add(("Altenbeken", horn + new Vector2(-2000f, -17000f)));
+            // einzelne groessere Gebaeude ausserhalb der Orte: Hoefe (Zaun, Holz, Heuballen)
+            foreach (var b in buildingBoxes)
+            {
+                if (b.z < 9f || InTown(b.x, b.y)) continue;
+                bool near = false; foreach (var f in c.farms) if ((f - new Vector2(b.x, b.y)).sqrMagnitude < 250f * 250f) near = true;
+                if (!near) c.farms.Add(new Vector2(b.x, b.y));
+                if (c.farms.Count >= 45) break;
+            }
+            MapDetails.Decorate(root, c);
         }
 
         // ---------------- Startpunkte ----------------

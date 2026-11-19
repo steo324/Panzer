@@ -150,6 +150,7 @@ namespace PanzerSim
             {
                 BuildOverview();
                 WheatField.Create(root, (x, z) => false, GroundY, (x, z) => false, GrassGrows);
+                BuildDetails(root);
             }
             Debug.Log($"[Talland] gebaut in {sw.ElapsedMilliseconds} ms (Gelaende-Rechnung {tGen} ms), {houses.Count} Gebaeude ({tris} Dreiecke), {roads.Count} Strassen, {bridges.Count} Bruecken, {trees.Count} Baeume, {spawns.Count} Startpunkte");
         }
@@ -700,6 +701,22 @@ namespace PanzerSim
 
         Forest.TreeInfo Tree(float x, float z, byte kind, System.Random r) =>
             new Forest.TreeInfo { pos = new Vector3(x, GroundY(x, z) - 0.25f, z), yaw = (float)r.NextDouble() * 360f, scale = 0.72f + (float)r.NextDouble() * 0.55f, kind = kind };
+
+        // ---------------- Kleinkram und Schilder (Schweizer Ortstafeln: weiss auf blau) ----------------
+        void BuildDetails(Transform root)
+        {
+            var c = new MapDetails.Context
+            {
+                half = Half, seed = 4711, signStyle = 1, roads = roads, houses = houses, farms = farms, groundY = GroundY,
+                free = (x, z) => { byte s = SurfAt(x, z); return s != SWald && s != SFels && s != SWasser && s != SKies && s != SWeg && RoadE(x, z) > 1.5f && RiverE(x, z) > 5f; },
+                meadow = (x, z) => { byte s = SurfAt(x, z); return s == SWiese || s == SAlm; },
+                forest = (x, z) => SurfAt(x, z) == SWald,
+            };
+            foreach (var v in villages) c.towns.Add(new MapDetails.Town { name = v.name, sub = null, c = v.c, r = v.r + 25f });
+            c.destinations.Add(("Talausgang West", new Vector2(-9000f, Vz(-4000f))));
+            c.destinations.Add(("Passhöhe", new Vector2(Nx(4400f), 9000f)));
+            MapDetails.Decorate(root, c);
+        }
 
         // ---------------- Startpunkte ----------------
         void MakeSpawns()

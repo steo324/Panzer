@@ -143,7 +143,7 @@ namespace PanzerSim
             Roads.BuildMeshes(root, roads, GroundY);
             var trees = PlaceTrees();
             Forest.Create(root, trees);
-            if (!NetSync.Headless) { BuildOverview(); WheatField.Create(root, WheatGrows, GroundY, RowsAlongX, GrassGrows); }
+            if (!NetSync.Headless) { BuildOverview(); WheatField.Create(root, WheatGrows, GroundY, RowsAlongX, GrassGrows); BuildDetails(root); }
             int km = 0; foreach (var r in roads) km += r.p.Count * 4;
             Debug.Log($"[Huegelland] gebaut in {sw.ElapsedMilliseconds} ms (Gelaende-Rechnung {tGen} ms), {houses.Count} Gebaeude, {roads.Count} Strassen ({km / 1000} km), {trees.Count} Baeume");
         }
@@ -530,6 +530,21 @@ namespace PanzerSim
                 houses.Add(new Vector3(hp.x + o1.x, hp.y + o1.z, 8f)); houses.Add(new Vector3(hp.x + o2.x, hp.y + o2.z, 11f)); houses.Add(new Vector3(hp.x + o3.x, hp.y + o3.z, 9f));
             }
             k.Build(root, "Bauernhoefe");
+        }
+
+        // ---------------- Kleinkram und Schilder ----------------
+        void BuildDetails(Transform root)
+        {
+            var c = new MapDetails.Context
+            {
+                half = Half, seed = 2024, roads = roads, houses = houses, farms = farmSpots, groundY = GroundY,
+                free = (x, z) => { byte s = SurfAt(x, z); return s != SWald && s != SWeg && RoadAt(x, z) > 1.5f; },
+                meadow = (x, z) => SurfAt(x, z) == SWiese,
+                forest = (x, z) => SurfAt(x, z) == SWald,
+            };
+            foreach (var v in villages) c.towns.Add(new MapDetails.Town { name = v.name, sub = "Kreis Hügelland", c = v.c, r = 200f });
+            foreach (var v in hamlets) c.towns.Add(new MapDetails.Town { name = v.name, sub = null, c = v.c, r = 95f });
+            MapDetails.Decorate(root, c);
         }
 
         // ---------------- Baeume ----------------
