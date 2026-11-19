@@ -503,6 +503,8 @@ namespace PanzerSim
             DefenseMode.Stop();
             AirRaid.Stop();
             GroundThreats.Stop();
+            Smoke.Clear();
+            ArtyStrike.Reset();
         }
 
         // ================= Eingabe =================

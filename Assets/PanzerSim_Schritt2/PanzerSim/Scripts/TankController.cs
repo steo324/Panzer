@@ -272,6 +272,7 @@ namespace PanzerSim
                     }
 
                 if (Inp.Down(KeyCode.F)) Extinguish();
+                if (Inp.Down(KeyCode.K) && Cursor.lockState == CursorLockMode.Locked) Smoke.Discharge(this);   // Nebelwerfer
                 if (Inp.Down(KeyCode.H) && Gun2 != null) SwitchWeapon();
                 bool fireIn = Inp.FireDown || (AutoGun && (Inp.FireHeld || BenchHold));   // Maschinenkanone: Dauerfeuer, solange gedrueckt
                 if (fireIn && (Cursor.lockState == CursorLockMode.Locked || BenchHold)) TryFire();   // Klicks in Menues/Karte feuern nicht
@@ -295,7 +296,7 @@ namespace PanzerSim
         public void AiControl(float th, float st, bool br) { throttle = Mathf.Clamp(th, -1f, 1f); steer = Mathf.Clamp(st, -1f, 1f); brake = br; }
         public void AiFire() { if (reloadLeft <= 0f && !destroyed) TryFire(); }
         /// <summary>Alles reparieren (Wellen-Modus: nach jeder geschafften Welle).</summary>
-        public void FullRepair() { RepairAll(); RefillAmmo(); }
+        public void FullRepair() { RepairAll(); RefillAmmo(); Smoke.Refill(this); }
 
         // Auspuff: laufender Motor qualmt leicht (mehr beim Gasgeben); ausgeschaltete Panzer nicht mehr - man sieht, dass der Motor aus ist
         float exhaustAcc, lastSpeed, dustAcc;

@@ -26,6 +26,7 @@ namespace PanzerSim
         public static bool BenchArty;
         /// <summary>Test (-benchcmd): Kommandantensicht mit Fernglas.</summary>
         public static bool BenchCmd;
+        public static bool BenchArtyStrike;
         bool autoRange;                                     // nur Leistungstests; im Spiel stellt man die Entfernung selbst ein (Q/E) oder lasert (R)
         float laserTime = -10f, laserRange;                 // letzte Laser-Messung (nur Fahrzeuge mit Entfernungsmesser)
         TankController aimedTank;                           // Fahrzeug im Fadenkreuz (Feuerleitrechner misst seine Geschwindigkeit)
@@ -115,6 +116,7 @@ namespace PanzerSim
             if (cmdMode)
             {
                 // Kommandant: eigene Blickrichtung; Turm und Zielpunkt bleiben, wie sie sind
+                if (Inp.Down(KeyCode.L) || BenchArtyStrike) { BenchArtyStrike = false; ArtyStrike.Request(target, cam); }
                 if (Cursor.lockState == CursorLockMode.Locked)
                 {
                     Vector2 d = Inp.MouseDelta * sensitivity * GameSettings.MouseSens * (cmdZoom ? CmdZoomFov / 60f : 1f);
@@ -199,6 +201,8 @@ namespace PanzerSim
         float cmdYaw, cmdPitch;
         const float CmdZoomFov = 8.5f;     // Fernglas 6x30: 8,5 Grad Sehfeld
         public bool CommanderView => cmdMode;
+        /// <summary>Test: Kommandantensicht in diese Richtung (Grad, Neigung positiv = nach unten).</summary>
+        public void SetCommanderView(float yawDeg, float pitchDeg) { cmdMode = true; cmdYaw = yawDeg; cmdPitch = Mathf.Clamp(pitchDeg, -35f, 60f); }
 
         /// <summary>Augenhoehe des Kommandanten: ueber seinem Platz, Kopf aus der Luke.</summary>
         Vector3 CommanderEye()
@@ -272,7 +276,7 @@ namespace PanzerSim
             if (cmdHint == null) { cmdHint = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, richText = true }; }
             cmdHint.fontSize = Mathf.RoundToInt(15 * k);
             float hdg = Mathf.Repeat(cmdYaw, 360f);
-            string txt = $"KOMMANDANT   {hdg:000} Grad   " + (cmdZoom ? "Fernglas 6x  (Mausrad zurueck: 1x)" : "Mausrad vor: Fernglas 6x") + "   B: zurueck";
+            string txt = $"KOMMANDANT   {hdg:000} Grad   " + (cmdZoom ? "Fernglas 6x  (Mausrad zurueck: 1x)" : "Mausrad vor: Fernglas 6x") + "   L: Artillerie auf das Fadenkreuz   B: zurueck";
             Rect rr = new Rect(0, Screen.height - 46 * k, Screen.width, 30 * k);
             cmdHint.normal.textColor = new Color(0, 0, 0, 0.8f); GUI.Label(new Rect(rr.x + 1, rr.y + 1, rr.width, rr.height), txt, cmdHint);
             cmdHint.normal.textColor = new Color(1f, 0.92f, 0.7f); GUI.Label(rr, txt, cmdHint);
@@ -423,13 +427,14 @@ namespace PanzerSim
                 GUI.Box(new Rect(10, SH - h - 10, w, h), log.TrimEnd('\n'), small);
             }
 
-            if (!inSight) GUI.Box(new Rect(SW - 330, 10, 320, 166),
+            if (!inSight) GUI.Box(new Rect(SW - 330, 10, 320, 205),
                 "W/S: fahren   A/D: lenken   Leertaste: bremsen\n" +
                 "Maus: zielen   Linksklick: " + (t.Ammo.guided ? "Rakete" : t.AutoGun ? "Kanone (halten = Dauerfeuer)" : "Kanone") + (t.spec.noMg ? "" : "   Rechtsklick halten: MG") + "   M: Karte" + (t.spec.artillery ? " (+ Artillerie)" : "") + "\n" +
                 "Shift: Visier an/aus" + (t.spec.hasThermal ? "   V: Waermebild (im Visier)" : "") + (t.Gun2 != null ? "   H: " + t.Gun2.gunName + " / Hauptwaffe" : "") + "\n" +
                 "Mausrad: Zoom (Visier: nur wenn umschaltbar)   Q/E: Entfernung" + (t.spec.hasRangefinder ? "   R: lasern" : " (schaetzen)") + "\n" +
                 "1-7: Munition wechseln\n" +
                 "X: Ansicht (normal/Innenteile/Panzerung)   F: Feuer loeschen\n" +
+                "K: Nebelwerfer (" + Smoke.ChargesLeft(t) + ")   L als Kommandant (B): Artillerie\n" +
                 "B: Kommandant (Fernglas: Mausrad)   U: zur Rampe (Testgelaende)\n" +
                 "N: neue Ziele / neuer Panzer   T: aufrichten\n" +
                 "Mittlere Maustaste: Pingen (Team)   J: Besatzung steigt aus\n" +

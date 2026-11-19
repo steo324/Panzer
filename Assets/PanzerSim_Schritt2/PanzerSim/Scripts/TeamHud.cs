@@ -156,6 +156,7 @@ namespace PanzerSim
         {
             float d = Vector3.Distance(eye, c);
             if (d > 4000f) return false;
+            if (Smoke.Hides(eye, c)) return false;   // Nebel verdeckt
             foreach (var h in Physics.RaycastAll(eye, (c - eye) / d, d - 2f, ~0, QueryTriggerInteraction.Ignore))
             {
                 var owner = h.collider.GetComponentInParent<TankController>();
@@ -299,6 +300,7 @@ namespace PanzerSim
             Conquest.DrawOnMap(toMap, r, k, dot, mm, 17f);
             ModeKit.DrawZones(toMap, r, k, dot);
             AirRaid.DrawOnMap(toMap, r, k, dot);
+            ArtyStrike.DrawOnMap(toMap, r, k, dot);
             // eigener Panzer: weisser Punkt + Blickrichtung des Turms
             Vector2 c = r.center;
             Vector3 fwd = me.parts.turret != null ? me.parts.turret.forward : me.transform.forward;
@@ -367,6 +369,7 @@ namespace PanzerSim
             Conquest.DrawOnMap(toMap, r, k, dot, mm, 24f);
             ModeKit.DrawZones(toMap, r, k, dot);
             AirRaid.DrawOnMap(toMap, r, k, dot);
+            ArtyStrike.DrawOnMap(toMap, r, k, dot);
             // eigener Panzer
             Vector2 me2 = toMap(mp);
             Vector3 fwd = me.parts.turret != null ? me.parts.turret.forward : me.transform.forward;

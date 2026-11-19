@@ -21,6 +21,8 @@ namespace PanzerSim
         Vector3 aimJitter;
         int shotsAtTarget;
         float lastReload;
+        float hurtT, lastHp;
+        public static int SmokeUsed;
 
         /// <summary>Auftrag (Eroberung/Verteidigung): Punkt, den die KI anfahren und halten soll, solange kein Gegner in Kampfentfernung ist.</summary>
         public System.Func<TankAI, Vector3?> objective;
@@ -61,6 +63,15 @@ namespace PanzerSim
             if (losT <= 0f) { losT = 0.4f; bool v = LineOfSight(); if (v && !visible) reactT = Mathf.Lerp(3.5f, 1.2f, skill) * Random.Range(0.8f, 1.2f); visible = v; }
             if (visible) reactT -= dt;
 
+            // getroffen (Schaden an Besatzung/Technik): Nebel werfen und zuruecksetzen
+            hurtT -= dt;
+            if (hurtT <= 0f)
+            {
+                hurtT = 1f;
+                float hp = 0f; foreach (var m in tc.parts.modules) if (m != null) hp += m.hp;
+                if (lastHp > 0f && hp < lastHp - 5f && visible && Random.value < 0.6f && Smoke.Discharge(tc)) { reverseT = 3.5f; avoidDir = Random.value < 0.5f ? -0.4f : 0.4f; SmokeUsed++; }
+                lastHp = hp;
+            }
             if (obj.HasValue && !(visible && dist < engageDist)) DriveTo(dt, obj.Value, true);
             else Drive(dt, to, dist);
             Aim(dt, dist);
@@ -72,6 +83,7 @@ namespace PanzerSim
             foreach (var t in FindObjectsByType<TankController>(FindObjectsSortMode.None))
             {
                 if (t == tc || t.destroyed || t.team == tc.team || t.team == TankController.TeamTarget) continue;
+                if (Smoke.Hides(tc.transform.position + Vector3.up * 2.5f, t.transform.position + Vector3.up * 1.5f)) continue;   // im Nebel nicht zu sehen
                 float d = (t.transform.position - tc.transform.position).sqrMagnitude;
                 if (searchRange > 0f && d > searchRange * searchRange) continue;
                 if (d < bd) { bd = d; best = t; }
@@ -85,6 +97,7 @@ namespace PanzerSim
         {
             Vector3 from = tc.parts.muzzle != null ? tc.parts.muzzle.position : tc.transform.position + Vector3.up * 2.5f;
             Vector3 d = TargetPoint() - from;
+            if (Smoke.Hides(from, TargetPoint())) return false;   // Nebel verdeckt
             if (!tc.RaycastIgnoringSelf(from, d.normalized, d.magnitude + 2f, out RaycastHit hit)) return true;
             return BelongsTo(hit.collider, target) || hit.distance > d.magnitude - 4f;   // am Ziel oder direkt davor (Anbauteil, Schuerze)
         }

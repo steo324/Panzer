@@ -405,6 +405,66 @@ namespace PanzerSim
                 for (int i = Mathf.Min(RangeLog.Lines.Count - 1, 25); i >= 0; i--) Debug.Log("BENCH-GROUND Protokoll: " + RangeLog.Lines[i].Replace("\n", " | "));
             }
 
+            // -benchsmoke: KI-Panzer 450 m voraus sieht uns, Nebelwerfer, KI verliert die Sicht; Bilder
+            if (System.Array.IndexOf(args, "-benchsmoke") >= 0 && pl != null && cam != null)
+            {
+                System.IO.Directory.CreateDirectory(outDir ?? ".");
+                var gmap = GameManager.Instance.CurrentMap;
+                Vector3 f = pl.transform.forward; f.y = 0f; f.Normalize();
+                Vector3 ep = ModeKit.FreeSpot(gmap, new Vector2(pl.transform.position.x + f.x * 450f, pl.transform.position.z + f.z * 450f), 40f);
+                var enemy = ModeKit.SpawnAi(TankLibrary.Sherman, ep, ModeKit.Yaw(ep, pl.transform.position), pl.team == 0 ? 1 : 0, 0.5f, gmap.Extent);
+                enemy.ai.searchRange = 2000f;
+                for (float w = 0f; w < 6f; w += Time.deltaTime) { cam.SetView(pl.transform.eulerAngles.y, 2f); yield return null; }
+                Debug.Log($"BENCH-SMOKE vorher: KI {enemy.ai.DebugText}, Ziel {(enemy.ai.Target != null ? enemy.ai.Target.spec.name : "-")}");
+                bool ok = Smoke.Discharge(pl);
+                for (float w = 0f; w < 7f; w += Time.deltaTime) { cam.SetView(pl.transform.eulerAngles.y, 2f); yield return null; }
+                ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", "nebel.png"));
+                yield return new WaitForSeconds(0.5f);
+                Debug.Log($"BENCH-SMOKE nachher (Nebelwerfer {ok}, Wolken {Smoke.CloudCount}, verdeckt {Smoke.Hides(enemy.transform.position + Vector3.up * 2.5f, pl.transform.position + Vector3.up * 1.5f)}): KI {enemy.ai.DebugText}, Ziel {(enemy.ai.Target != null ? enemy.ai.Target.spec.name : "-")}, Ladungen {Smoke.ChargesLeft(pl)}");
+                // Seitenansicht der Nebelwand
+                cam.SetView(pl.transform.eulerAngles.y + 70f, 10f);
+                yield return new WaitForSeconds(1f);
+                ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", "nebel_seite.png"));
+                yield return new WaitForSeconds(0.5f);
+                Object.Destroy(enemy.gameObject);
+                yield return null;   // erst danach ist er wirklich weg (sonst findet der naechste Test ihn noch)
+            }
+
+            // -benchartystrike: Kommandantensicht auf den naechsten Zielpanzer, L (Artillerie), Einschlag abwarten, Bilder
+            if (System.Array.IndexOf(args, "-benchartystrike") >= 0 && pl != null && cam != null)
+            {
+                System.IO.Directory.CreateDirectory(outDir ?? ".");
+                TankController tgt = null; float bd = 1e9f;
+                foreach (var o in FindObjectsByType<TankController>(FindObjectsSortMode.None))
+                    if (o != null && o != pl && !o.destroyed && o.ai == null) { float d = Vector3.Distance(o.transform.position, pl.transform.position); if (d > 300f && d < bd) { bd = d; tgt = o; } }
+                if (tgt != null)
+                {
+                    TankCamera.BenchCmd = true;
+                    yield return new WaitForSeconds(0.5f);
+                    for (float w = 0f; w < 1.5f; w += Time.deltaTime)
+                    {
+                        Vector3 d = tgt.transform.position + Vector3.up * 0.5f - Camera.main.transform.position;
+                        cam.SetCommanderView(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, -Mathf.Asin(d.normalized.y) * Mathf.Rad2Deg);
+                        yield return null;
+                    }
+                    TankCamera.BenchArtyStrike = true;
+                    yield return null; yield return null;
+                    ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", "artillerie_anforderung.png"));
+                    Debug.Log($"BENCH-ARTYSTRIKE: Ziel {tgt.spec.name} {bd:0} m, angefordert {ArtyStrike.Pending}, Einschlag in {ArtyStrike.TimeToImpact:0.0} s, Punkt {ArtyStrike.Target} (Abstand zum Ziel {Vector3.Distance(ArtyStrike.Target, tgt.transform.position):0} m)");
+                    float t0 = Time.time;
+                    while (Time.time - t0 < ArtyStrike.Delay + 0.6f)
+                    {
+                        Vector3 d = tgt.transform.position + Vector3.up * 0.5f - Camera.main.transform.position;
+                        cam.SetCommanderView(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, -Mathf.Asin(d.normalized.y) * Mathf.Rad2Deg);
+                        yield return null;
+                    }
+                    ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", "artillerie_einschlag.png"));
+                    yield return new WaitForSeconds(6f);
+                    Debug.Log($"BENCH-ARTYSTRIKE: nach der Salve: Ziel zerstoert {tgt.destroyed}, Einschlaege {ArtyStrike.Impacts}, bereit in {ArtyStrike.ReadyIn:0} s, letzter Einschlag {Shell.LastHEImpact} ({Vector3.Distance(Shell.LastHEImpact, tgt.transform.position):0} m vom Ziel)");
+                    TankCamera.BenchCmd = false;
+                }
+            }
+
             // -benchwobble: Zittern von Wanne und Rohr waehrend der Fahrt messen (Abweichung vom geglaetteten Neigungswinkel)
             if (System.Array.IndexOf(args, "-noroughness") >= 0) TankController.GroundRoughness = 0f;
             if (System.Array.IndexOf(args, "-benchwobble") >= 0 && pl != null)
