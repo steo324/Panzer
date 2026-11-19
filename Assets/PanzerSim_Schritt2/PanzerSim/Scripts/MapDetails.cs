@@ -32,6 +32,7 @@ namespace PanzerSim
 
         public static void Decorate(Transform root, Context c)
         {
+            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-nodetails") >= 0) { Debug.Log("[Details] aus (-nodetails)"); return; }   // Leistungsvergleich
             var sw = System.Diagnostics.Stopwatch.StartNew();
             var rng = new System.Random(c.seed);
             var props = Props.Create(root);
@@ -138,6 +139,7 @@ namespace PanzerSim
                 {
                     if (j.kindMinor == Roads.Feldweg && j.kindMajor == Roads.Feldweg) continue;
                     if (j.kindMinor == Roads.Feldweg && rng.NextDouble() < 0.7) continue;
+                    if (inTown(j.p.x, j.p.y) && j.kindMajor != Roads.Haupt) continue;   // im Ort rechts vor links (keine Schilder)
                     Vector2 right = new Vector2(j.dirIn.y, -j.dirIn.x);
                     Vector2 q = j.p - j.dirIn * (Roads.HalfWidth[j.kindMajor] + 7f) + right * (Roads.HalfWidth[j.kindMinor] + 1.5f);
                     if (!Inside(q) || NearHouseFast(q, 0.5f)) continue;
@@ -162,7 +164,7 @@ namespace PanzerSim
             {
                 if (c.inTown == null) return (p - t.c).sqrMagnitude < t.r * t.r;
                 if ((p - t.c).sqrMagnitude > t.r * t.r || !c.inTown(p.x, p.y)) return false;
-                foreach (var o in c.towns) if (o != t && o.sign && (p - o.c).sqrMagnitude < (p - t.c).sqrMagnitude) return false;
+                foreach (var o in c.towns) if (o != t && o.sign && (p - o.c).sqrMagnitude / (o.r * o.r) < (p - t.c).sqrMagnitude / (t.r * t.r)) return false;   // relativ zur Ortsgroesse
                 return true;
             }
             foreach (var t in c.towns)
@@ -172,6 +174,7 @@ namespace PanzerSim
                 foreach (var rd in c.roads)
                 {
                     if (rd.kind == Roads.Feldweg || rd.kind == Roads.Pflaster && c.signStyle != 2) continue;
+                    if (rd.kind != Roads.Haupt && rd.p.Count < 75) continue;   // Ortsschilder nur an Durchgangsstrassen (nicht an jeder Wohnstrasse)
                     var pts = rd.p;
                     for (int i = 1; i < pts.Count - 1; i++)
                     {
@@ -394,7 +397,7 @@ namespace PanzerSim
                 float cos = Vector2.Dot(d / dist, dir);
                 if (cos < 0.75f) return;
                 float score = dist / cos;
-                if (score < bs) { bs = score; best = name; bestKm = Mathf.Max(0.5f, Mathf.Round(dist * 1.25f / 100f) / 10f); }
+                if (score < bs) { bs = score; best = name; float k = dist * 1.25f / 1000f; bestKm = k < 3f ? Mathf.Max(0.5f, Mathf.Round(k * 2f) / 2f) : Mathf.Round(k); }
             }
             foreach (var t in c.towns) Try(t.name, t.c);
             foreach (var (name, q) in c.destinations) Try(name, q);

@@ -12,10 +12,11 @@ namespace PanzerSim
     public class SignKit
     {
         public const int VorfahrtAchten = 1, Vorfahrtstrasse = 2, Stopp = 3, Tempo30 = 4, Tempo50 = 5, Tempo70 = 6, Tempo100 = 7;
-        const int W = 2048, Hh = 2048, Icon = 128;
+        const int W = 2048, Hh = 4096, Icon = 128, Split = 1400;   // unten Symbole und Ortsschilder, ab Split Wegweiser-Tafeln
         readonly Color32[] px = new Color32[W * Hh];
         readonly int style;
-        int cx = 0, cy = Icon + 4, rowH = 0;   // Packer fuer Textzellen (unter der Symbolzeile)
+        int cx = 0, cy = Icon + 4, rowH = 0;   // Packer fuer Ortsschilder (ueber der Symbolzeile)
+        int pcx = 0, pcy = Split, prow = 0;    // Packer fuer Wegweiser-Tafeln
         readonly Dictionary<string, Rect> cache = new Dictionary<string, Rect>();
         readonly List<Vector3> v = new List<Vector3>(); readonly List<Vector3> n = new List<Vector3>(); readonly List<Vector2> uv = new List<Vector2>(); readonly List<int> t = new List<int>();
         public int Signs;
@@ -35,12 +36,18 @@ namespace PanzerSim
         void Fill(int x0, int y0, int w, int h, Color32 c) { for (int y = y0; y < y0 + h; y++) for (int x = x0; x < x0 + w; x++) if (x >= 0 && y >= 0 && x < W && y < Hh) px[y * W + x] = c; }
 
         /// <summary>Freie Zelle (w x h Pixel) holen.</summary>
-        RectInt Alloc(int w, int h)
+        RectInt Alloc(int w, int h, bool plate = false)
         {
+            if (plate)
+            {
+                if (pcx + w > W) { pcx = 0; pcy += prow + 4; prow = 0; }
+                var rp = new RectInt(pcx, pcy, w, h);
+                pcx += w + 4; prow = Mathf.Max(prow, h);
+                return rp;
+            }
             if (cx + w > W) { cx = 0; cy += rowH + 4; rowH = 0; }
             var r = new RectInt(cx, cy, w, h);
             cx += w + 4; rowH = Mathf.Max(rowH, h);
-            if (cy + h > Hh) { Debug.LogWarning("Schilder: Textur voll"); r = new RectInt(0, 0, 8, 8); }
             return r;
         }
         static Rect UV(RectInt r) => new Rect((r.x + 1f) / W, (r.y + 1f) / Hh, (r.width - 2f) / W, (r.height - 2f) / Hh);
@@ -101,58 +108,76 @@ namespace PanzerSim
             return Mathf.Max(top, Mathf.Max(s1, s2) * 1.0f);
         }
 
-        /// <summary>Ortsschild-Zellen (vorne Name, hinten Ortsende).</summary>
-        (Rect front, Rect back) PlaceCells(string name, string sub)
+        /// <summary>Ortsschild-Zellen (vorne Name, hinten Ortsende). false, wenn die Textur voll ist.</summary>
+        bool PlaceCells(string name, string sub, out Rect front, out Rect back)
         {
             string key = "O|" + name + "|" + sub;
-            if (cache.TryGetValue(key, out var f) && cache.TryGetValue(key + "|b", out var b)) return (f, b);
-            const int w = 448, h = 288;
+            front = back = default;
+            if (cache.TryGetValue(key, out front) && cache.TryGetValue(key + "|b", out back)) return true;
+            const int w = 280, h = 180;
+            if (!Fits(w, h, 2)) return false;
             for (int side = 0; side < 2; side++)
             {
                 var r = Alloc(w, h);
                 Fill(r.x, r.y, w, h, Bg);
-                Frame(r, 8, Fg);
+                Frame(r, 6, Fg);
                 bool hasSub = !string.IsNullOrEmpty(sub);
-                DrawText(r.x + 24, r.y + (hasSub ? 110 : 80), w - 48, hasSub ? 120 : 130, name, Fg);
-                if (hasSub) DrawText(r.x + 40, r.y + 36, w - 80, 52, sub, Fg);
+                DrawText(r.x + 18, r.y + (hasSub ? 70 : 50), w - 36, hasSub ? 76 : 84, name, Fg);
+                if (hasSub) DrawText(r.x + 26, r.y + 24, w - 52, 32, sub, Fg);
                 if (side == 1)
                 {
                     // roter Balken von links unten nach rechts oben
                     Color32 red = new Color32(200, 25, 30, 255);
+                    float k = h / (float)w, norm = Mathf.Sqrt(1f + k * k);
                     for (int y = 0; y < h; y++)
                         for (int x = 0; x < w; x++)
                         {
-                            float d = Mathf.Abs((x - w * 0.5f) * (h / (float)w) - (y - h * 0.5f)) / Mathf.Sqrt(1f + (h / (float)w) * (h / (float)w));
-                            if (d < 16f && x > 10 && x < w - 10 && y > 10 && y < h - 10) px[(r.y + y) * W + r.x + x] = red;
+                            float d = Mathf.Abs((x - w * 0.5f) * k - (y - h * 0.5f)) / norm;
+                            if (d < 10f && x > 8 && x < w - 8 && y > 8 && y < h - 8) px[(r.y + y) * W + r.x + x] = red;
                         }
                 }
                 cache[side == 0 ? key : key + "|b"] = UV(r);
             }
-            return (cache[key], cache[key + "|b"]);
+            front = cache[key]; back = cache[key + "|b"];
+            return true;
         }
 
-        /// <summary>Wegweiser-Tafel mit Pfeil rechts (right = true) oder links.</summary>
-        Rect PlateCell(string text, bool right)
+        /// <summary>Wegweiser-Tafel mit Pfeil rechts (right = true) oder links. false, wenn die Textur voll ist.</summary>
+        bool PlateCell(string text, bool right, out Rect c)
         {
             string key = "W|" + text + "|" + right;
-            if (cache.TryGetValue(key, out var c)) return c;
-            const int w = 512, h = 96;
-            var r = Alloc(w, h);
+            if (cache.TryGetValue(key, out c)) return true;
+            const int w = 320, h = 60;
+            if (!Fits(w, h, 1, true)) return false;
+            var r = Alloc(w, h, true);
             Fill(r.x, r.y, w, h, Bg);
-            Frame(r, 5, Fg);
-            int ax = right ? r.x + w - 70 : r.x + 14;
-            // Pfeil
+            Frame(r, 4, Fg);
+            int ax = right ? r.x + w - 46 : r.x + 10;
             for (int y = 0; y < h; y++)
-                for (int x = 0; x < 56; x++)
+                for (int x = 0; x < 36; x++)
                 {
-                    float fx = right ? x : 55 - x, fy = Mathf.Abs(y - h / 2f);
-                    bool shaft = fx < 34 && fy < 9, head = fx >= 26 && fy < (56 - fx) * 1.1f;
-                    if ((shaft || head) && y > 12 && y < h - 12) px[(r.y + y) * W + ax + x] = Fg;
+                    float fx = right ? x : 35 - x, fy = Mathf.Abs(y - h / 2f);
+                    bool shaft = fx < 22 && fy < 6, head = fx >= 16 && fy < (36 - fx) * 1.1f;
+                    if ((shaft || head) && y > 8 && y < h - 8) px[(r.y + y) * W + ax + x] = Fg;
                 }
-            DrawText(right ? r.x + 18 : r.x + 82, r.y + 22, w - 100, 52, text, Fg);
+            DrawText(right ? r.x + 12 : r.x + 54, r.y + 14, w - 66, 32, text, Fg);
             c = UV(r); cache[key] = c;
-            return c;
+            return true;
         }
+
+        /// <summary>Passen noch n Zellen dieser Groesse in die Textur?</summary>
+        bool Fits(int w, int h, int n, bool plate = false)
+        {
+            int x = plate ? pcx : cx, y = plate ? pcy : cy, rh = plate ? prow : rowH, lim = plate ? Hh : Split - 4;
+            for (int i = 0; i < n; i++)
+            {
+                if (x + w > W) { x = 0; y += rh + 4; rh = 0; }
+                if (y + h > lim) { full++; return false; }
+                x += w + 4; rh = Mathf.Max(rh, h);
+            }
+            return true;
+        }
+        int full;
 
         void Frame(RectInt r, int th, Color32 c)
         {
@@ -295,9 +320,9 @@ namespace PanzerSim
         /// <summary>Ortsschild: Vorderseite (Name) zeigt in Richtung faceDir (zu den Ankommenden), Rueckseite Ortsende.</summary>
         public void Place(Vector3 ground, Vector2 faceDir, string name, string sub)
         {
+            if (NetSync.Headless) { Signs++; return; }
+            if (!PlaceCells(name, sub, out var f, out var b)) return;
             Signs++;
-            if (NetSync.Headless) return;
-            var (f, b) = PlaceCells(name, sub);
             Vector3 face = F3(faceDir.normalized);
             Vector3 right = Vector3.Cross(Vector3.up, -face);
             Post(ground - right * 0.55f, 2.4f); Post(ground + right * 0.55f, 2.4f);
@@ -319,11 +344,20 @@ namespace PanzerSim
         public void Signpost(Vector3 ground, List<(Vector2 dir, string text)> plates)
         {
             if (plates.Count == 0) return;
+            if (NetSync.Headless) { Signs++; return; }
+            // nur Tafeln, die noch in die Textur passen
+            var ok = new List<(Vector2 dir, string text, Rect a, Rect b, bool r)>();
+            foreach (var (dir0, text0) in plates)
+            {
+                Vector3 d0 = F3(dir0.normalized); Vector3 face0 = Vector3.Cross(d0, Vector3.up); Vector3 right0 = Vector3.Cross(Vector3.up, -face0);
+                bool ar = Vector3.Dot(right0, d0) > 0f;
+                if (PlateCell(text0, ar, out var ca) && PlateCell(text0, !ar, out var cb)) ok.Add((dir0, text0, ca, cb, ar));
+            }
+            if (ok.Count == 0) return;
             Signs++;
-            if (NetSync.Headless) return;
-            Post(ground, 2.2f + plates.Count * 0.42f, 0.05f);
-            float y = 2.0f + plates.Count * 0.42f;
-            foreach (var (dir, text) in plates)
+            Post(ground, 2.2f + ok.Count * 0.42f, 0.05f);
+            float y = 2.0f + ok.Count * 0.42f;
+            foreach (var (dir, text, ca, cb, ar) in ok)
             {
                 Vector3 d = F3(dir.normalized);
                 // Tafel steht laengs zur Zielrichtung; sichtbar von beiden Seiten, Pfeil zeigt jeweils zum Ziel
@@ -331,8 +365,7 @@ namespace PanzerSim
                 Vector3 c = ground + Vector3.up * y + d * 0.85f;
                 // Vorderseite: rechts = d?  rechts aus Sicht des Betrachters auf 'face'
                 Vector3 right = Vector3.Cross(Vector3.up, -face);
-                bool arrowRight = Vector3.Dot(right, d) > 0f;
-                Plate(c, face, 1.7f, 0.32f, PlateCell(text, arrowRight), PlateCell(text, !arrowRight), 0.03f);
+                Plate(c, face, 1.7f, 0.32f, ca, cb, 0.03f);
                 y -= 0.42f;
             }
         }
@@ -350,7 +383,7 @@ namespace PanzerSim
             var go = new GameObject("Schilder"); go.transform.SetParent(root, false);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var mr = go.AddComponent<MeshRenderer>(); mr.sharedMaterial = m;
-            Debug.Log($"[Schilder] {Signs} Schilder, {t.Count / 3} Dreiecke");
+            Debug.Log($"[Schilder] {Signs} Schilder, {t.Count / 3} Dreiecke, Ortsschilder bis Zeile {cy + rowH} von {Split}, Tafeln bis {pcy + prow} von {Hh}" + (full > 0 ? $", {full} weggelassen (Textur voll)" : ""));
         }
     }
 }

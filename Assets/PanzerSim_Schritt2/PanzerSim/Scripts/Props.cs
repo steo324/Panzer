@@ -15,12 +15,13 @@ namespace PanzerSim
         public enum T { Leitpfosten, Strommast, Laterne, Bank, Haltestelle, Briefkasten, Holzstapel, Heuballen, Zaunfeld, Stein, Busch, Wegkreuz, Hochsitz, Count }
         const int N = (int)T.Count;
         //                                    Leit  Mast  Lat   Bank  Halt  Brief Holz  Heu   Zaun  Stein Busch Kreuz Hochs
-        static readonly float[] DrawDist   = { 260, 1600, 600,  220,  400,  160,  380,  700,  380,  450,  550,  450,  700 };
+        static readonly float[] DrawDist   = { 260, 1200, 600,  220,  400,  160,  380,  700,  380,  450,  550,  450,  700 };
         static readonly float[] ShadowDist = { 60,  250,  150,  60,   120,  40,   120,  150,  90,   120,  120,  120,  200 };
         const float Block = 200f, SuperBlock = 1000f, Batch = 1023;
 
         class Chunk { public Bounds bounds; public readonly List<Matrix4x4>[] lists = new List<Matrix4x4>[N]; public Matrix4x4[][][] batches; public int[] present; }
-        class Super { public Bounds bounds; public readonly List<Chunk> chunks = new List<Chunk>(); }
+        class Super { public Bounds bounds; public readonly List<Chunk> chunks = new List<Chunk>(); public Matrix4x4[][][] batches; public int[] present; }
+        const float AggDist = 450f;   // weiter weg: ganzer 1-km-Block in wenigen Aufrufen, ohne Schatten
         readonly Dictionary<long, Chunk> map = new Dictionary<long, Chunk>();
         readonly List<Super> supers = new List<Super>();
         readonly int[] counts = new int[N];
@@ -68,14 +69,31 @@ namespace PanzerSim
                     int nb = (l.Count + (int)Batch - 1) / (int)Batch;
                     c.batches[k] = new Matrix4x4[nb][];
                     for (int b = 0; b < nb; b++) c.batches[k][b] = l.GetRange(b * (int)Batch, Mathf.Min((int)Batch, l.Count - b * (int)Batch)).ToArray();
-                    c.lists[k] = null;
-                }
+                    }
                 c.present = present.ToArray();
                 c.bounds.Expand(new Vector3(4f, 0f, 4f));
                 Vector3 cc = c.bounds.center;
                 long key = ((long)Mathf.FloorToInt(cc.x / SuperBlock) << 32) ^ (uint)Mathf.FloorToInt(cc.z / SuperBlock);
                 if (!sm.TryGetValue(key, out var s)) { s = new Super { bounds = c.bounds }; sm[key] = s; supers.Add(s); }
                 s.bounds.Encapsulate(c.bounds); s.chunks.Add(c);
+            }
+            // grosse Bloecke: Matrizen aller kleinen Bloecke je Art zusammenlegen
+            foreach (var s in supers)
+            {
+                var present = new List<int>();
+                s.batches = new Matrix4x4[N][][];
+                for (int k = 0; k < N; k++)
+                {
+                    var all = new List<Matrix4x4>();
+                    foreach (var c in s.chunks) if (c.lists[k] != null) all.AddRange(c.lists[k]);
+                    if (all.Count == 0) continue;
+                    present.Add(k);
+                    int nb = (all.Count + (int)Batch - 1) / (int)Batch;
+                    s.batches[k] = new Matrix4x4[nb][];
+                    for (int b = 0; b < nb; b++) s.batches[k][b] = all.GetRange(b * (int)Batch, Mathf.Min((int)Batch, all.Count - b * (int)Batch)).ToArray();
+                }
+                s.present = present.ToArray();
+                foreach (var c in s.chunks) for (int k = 0; k < N; k++) c.lists[k] = null;
             }
             if (!NetSync.Headless)
             {
@@ -96,13 +114,24 @@ namespace PanzerSim
             Vector3 cp = cam.transform.position;
             // Zoom (Visier, Fernglas): Sichtweiten mit der Vergroesserung strecken
             float zoom = Mathf.Clamp(60f / Mathf.Max(cam.fieldOfView, 1f), 1f, 8f);
-            float maxD = 1600f * zoom;
+            float maxD = 1200f * zoom;
             int drawn = 0;
             var rpS = new RenderParams(mat) { shadowCastingMode = ShadowCastingMode.On, receiveShadows = true };
             var rpN = new RenderParams(mat) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = true };
             foreach (var s in supers)
             {
                 if (s.bounds.SqrDistance(cp) > maxD * maxD || !GeometryUtility.TestPlanesAABB(planes, s.bounds)) continue;
+                float sd = Mathf.Sqrt(s.bounds.SqrDistance(cp));
+                if (sd > AggDist)
+                {
+                    var rpf = rpN; rpf.worldBounds = s.bounds;
+                    foreach (int k in s.present)
+                    {
+                        if (sd > DrawDist[k] * zoom) continue;
+                        foreach (var b in s.batches[k]) { Graphics.RenderMeshInstanced(rpf, meshes[k], 0, b); drawn += b.Length; }
+                    }
+                    continue;
+                }
                 foreach (var c in s.chunks)
                 {
                     float d2 = c.bounds.SqrDistance(cp);
