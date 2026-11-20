@@ -17,6 +17,8 @@ namespace PanzerSim
         public readonly NetworkVariable<bool> isTarget = new NetworkVariable<bool>(false);
         /// <summary>KI-Panzer des Servers (Eroberung: fuellt fehlende Spieler auf).</summary>
         public readonly NetworkVariable<bool> isAi = new NetworkVariable<bool>(false);
+        /// <summary>Tarnanstrich (der Besitzer setzt ihn, alle sehen ihn).</summary>
+        readonly NetworkVariable<int> camo = new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         public readonly NetworkVariable<int> team = new NetworkVariable<int>(TankController.TeamTarget);
         public readonly NetworkVariable<Unity.Collections.FixedString64Bytes> playerName = new NetworkVariable<Unity.Collections.FixedString64Bytes>(default);
 
@@ -51,6 +53,9 @@ namespace PanzerSim
             Debug.Log($"[Netz] Panzer gespawnt: {tc.DisplayName}, Team {tc.team}{(IsLocalPlayer ? " (eigener)" : "")}");
             if (!IsOwner) tc.rb.isKinematic = true;     // fremde Panzer folgen nur der uebertragenen Lage
             else WriteState();
+            if (IsLocalPlayer) camo.Value = Camo.For(spec);
+            Camo.Apply(tc, camo.Value);
+            camo.OnValueChanged += (a, b) => { if (tc != null) Camo.Apply(tc, b); };
             GameManager.Instance?.OnNetTankSpawned(this);
         }
 
@@ -123,7 +128,9 @@ namespace PanzerSim
             if (ammo < 0 || ammo >= AmmoLibrary.All.Length) return;
             // echte Granate (Schaden zaehlt). Absender setzen: der Panzer des Schuetzen hinkt auf dem Server etwas hinterher,
             // sonst trifft die Granate zuerst das eigene Rohr / die eigene Blende und bleibt dort stecken (kein Schaden beim Gegner)
-            Own(Shell.Fire(AmmoLibrary.All[ammo], origin, dir, false, speed));
+            var real = Shell.Fire(AmmoLibrary.All[ammo], origin, dir, false, speed);
+            Own(real);
+            if (real != null && IsLocalPlayer) real.fromPlayer = true;   // Host: eigene Granate (Statistik, Trefferkamera)
             if (!IsOwner && tc != null && !NetSync.Headless) tc.PlayFireEffects(ammo);   // Host sieht den Schuss des Clients
             FireVisualRpc(ammo, origin, dir, speed);
         }

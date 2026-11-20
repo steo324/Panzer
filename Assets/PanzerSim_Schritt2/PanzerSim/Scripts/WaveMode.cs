@@ -64,7 +64,7 @@ namespace PanzerSim
             if (pl == null) return;
             if (pl.destroyed)
             {
-                if (!over) { over = true; Best = Mathf.Max(Best, Wave - 1); TankCamera.Notice($"SPIEL VORBEI  -  Welle {Wave}, {Kills} Abschuesse  -  N: neues Spiel", true); }
+                if (!over) { over = true; Best = Mathf.Max(Best, Wave - 1); PlayerStats.OnWaveEnd(Wave - 1, Kills); TankCamera.Notice($"SPIEL VORBEI  -  Welle {Wave}, {Kills} Abschuesse  -  N: neues Spiel", true); }
                 return;
             }
             // ausgeschaltete Gegner zaehlen

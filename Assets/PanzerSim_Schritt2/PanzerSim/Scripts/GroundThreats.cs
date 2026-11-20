@@ -452,7 +452,7 @@ namespace PanzerSim
         {
             Kills++;
             RangeLog.AddLocal($"{what} ausgeschaltet{(byPlayer ? " (von dir)" : "")}");
-            if (byPlayer) TankCamera.Notice($"{what.ToUpperInvariant()} AUSGESCHALTET", true);
+            if (byPlayer) { TankCamera.Notice($"{what.ToUpperInvariant()} AUSGESCHALTET", true); PlayerStats.OnGroundKill(); }
         }
 
         /// <summary>Freie Sicht von einem Punkt auf einen Panzer (Gelaende, Haeuser, Waelder verdecken).</summary>

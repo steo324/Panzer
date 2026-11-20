@@ -293,6 +293,8 @@ namespace PanzerSim
 
         // ---- KI-Steuerung (Wellen-Modus) ----
         [HideInInspector] public TankAI ai;
+        /// <summary>Zeit des letzten Treffers durch den eigenen Spieler (Abschuss zaehlt fuer die Statistik).</summary>
+        [HideInInspector] public float lastPlayerHit = -99f;
         public void AiControl(float th, float st, bool br) { throttle = Mathf.Clamp(th, -1f, 1f); steer = Mathf.Clamp(st, -1f, 1f); brake = br; }
         public void AiFire() { if (reloadLeft <= 0f && !destroyed) TryFire(); }
         /// <summary>Alles reparieren (Wellen-Modus: nach jeder geschafften Welle).</summary>
@@ -442,6 +444,7 @@ namespace PanzerSim
 
             if (!TakeRound()) return;
             reloadLeft = spec.reloadS;   // zuerst: auch wenn danach ein Effekt scheitert, wird nachgeladen
+            if (isPlayer) PlayerStats.OnShot();
             Vector3 origin = parts.muzzle.position, dir = parts.gunPivot.forward;
             if (AutoGun)
             {
@@ -1099,6 +1102,7 @@ namespace PanzerSim
             if (destroyed) return;
             if (NetSync.ShouldBroadcast(this) && !reason.StartsWith("MUNITION")) net.SendDestroyed(reason);
             destroyed = true;
+            if (isPlayer) PlayerStats.OnDeath(); else if (Time.time - lastPlayerHit < 20f) PlayerStats.OnKill(this);   // Statistik
             destroyedReason = reason;
             if (!NetSync.IsClientOnly) RangeLog.Add($"*** {spec.name} ZERSTOERT: {reason} ***");   // Clients bekommen die Zeile vom Server
             // Nicht jedes Wrack brennt: Flammen nur, wenn Motor oder Kraftstoff schwer getroffen sind (Zustand kommt vom Server)

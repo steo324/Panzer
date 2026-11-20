@@ -292,6 +292,7 @@ namespace PanzerSim
             Kills++;
             RangeLog.AddLocal($"*** {a.Name} ABGESCHOSSEN{(byPlayer ? " (von dir)" : "")} ***");
             TankCamera.Notice($"FLUGZEUG ABGESCHOSSEN  ({Kills})", byPlayer);
+            if (byPlayer) PlayerStats.OnAirKill();
         }
 
         public static void ReportCrash(AirTarget a, Vector3 pos) { if (On) respawn.Add(35f); }

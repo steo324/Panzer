@@ -45,6 +45,7 @@ namespace PanzerSim
 
         bool ghost;   // Mehrspieler: nur Optik (der Server rechnet die echte Granate)
         public bool fromPlayer;   // eigene Granate: Trefferkamera zeigt den ersten Panzertreffer
+        bool statHit;
         TankController hitcamTank;
         readonly List<(Vector3 a, Vector3 b)> spall = new List<(Vector3 a, Vector3 b)>();   // Splitterbahnen fuer die Trefferkamera
         public TankController shooter;   // eigener Panzer: wird von der eigenen Granate nie getroffen
@@ -235,6 +236,7 @@ namespace PanzerSim
                 report.Add($"{data.name} -> {who}{plateName} ({plateMm:0} mm)\n   {r.note}. {r.penetrationMm:0} mm Durchschlag gegen " +
                            $"{r.effectiveArmorMm:0} mm effektiv, Winkel {r.impactAngleDeg:0}°, {Vector3.Distance(origin, pos):0} m");
                 if (fromPlayer && tank != null && hitcamTank == null) { hitcamTank = tank; HitCam.Begin(tank, pos, dir, r, plateName); Damage.Record = spall; }
+                if (fromPlayer && tank != null && !statHit) { statHit = true; PlayerStats.OnHit(tank, r.outcome == HitOutcome.Penetration); }   // Statistik: erster Panzertreffer der Granate
 
                 // Spreng- und Hohlladungsgranaten explodieren beim Aufschlag - eigene Wirkung statt Weiterfliegen
                 if ((data.IsHE || data.IsHEAT && r.outcome != HitOutcome.Ricochet) && !plateName.StartsWith("Kette"))

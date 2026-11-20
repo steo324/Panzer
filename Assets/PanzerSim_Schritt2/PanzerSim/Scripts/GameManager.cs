@@ -107,6 +107,8 @@ namespace PanzerSim
             if (Arg("-bench") != null)
             {
                 var b = gameObject.AddComponent<Benchmark>();
+                PlayerStats.TestMode = true;   // Tests veraendern die echte Statistik nicht
+                if (int.TryParse(Arg("-tarn"), out int tarn)) Camo.Override = tarn;   // Test: Anstrich nur fuer diesen Start
                 b.outDir = Arg("-bench");
                 b.preset = int.TryParse(Arg("-preset"), out int bp) ? Mathf.Clamp(bp, 0, 3) : -1;
                 TankController.BenchDrive = Has("-benchdrive");
@@ -159,6 +161,7 @@ namespace PanzerSim
 
         void EnterPlaying()
         {
+            PlayerStats.OnRound();
             RangeLog.Lines.Clear();
             TankController.ViewMode = 0;
             state = State.Playing;
@@ -352,6 +355,7 @@ namespace PanzerSim
         // ================= Ablauf =================
         void ShowMenu()
         {
+            PlayerStats.SaveSoon(true);
             if (netGame || NetSync.Active)
             {
                 NetSync.Stop();
@@ -387,10 +391,13 @@ namespace PanzerSim
             stage.gameObject.SetActive(true);
             if (preview != null) Destroy(preview.gameObject);
             preview = TankBuilder.Build(Tanks[tankIndex](), StagePos, Quaternion.Euler(0f, 210f, 0f), false);
+            Camo.Apply(preview, Camo.For(preview.spec));
             preview.rb.isKinematic = true;
         }
 
         public void BenchStart() => StartGame();
+        /// <summary>Test: zurueck ins Menue und Statistik/Rangliste oeffnen.</summary>
+        public void BenchOpenStats() { ShowMenu(); statsOpen = true; PlayerStats.LoadRanking(); }
         /// <summary>Leistungstest (-benchrestart): Runde verlassen und neu starten (wie Menue -> Spielen).</summary>
         public void BenchRestart() { ClearGame(); state = State.Menu; StartGame(); }
         bool benchSpawnSelect;
@@ -467,6 +474,7 @@ namespace PanzerSim
         {
             if (player != null) Destroy(player.gameObject);
             player = TankBuilder.Build(Tanks[tankIndex](), pos, Quaternion.Euler(0f, yaw, 0f), true);
+            Camo.Apply(player, Camo.For(player.spec));
             player.team = GameSettings.Team; player.playerName = GameSettings.PlayerName;
             TankController.LocalTeam = player.team;
             player.autoFire = autoFire;
@@ -517,6 +525,12 @@ namespace PanzerSim
         {
             if (ammoTestPending && Time.realtimeSinceStartup > 4f) { ammoTestPending = false; OpenAmmoTest(); }
             if (menuShot != null && Time.realtimeSinceStartup > 6f) { ScreenCapture.CaptureScreenshot(menuShot); menuShot = null; }
+            if (!NetSync.Headless)
+            {
+                // Statistik: Fahrzeit je Panzer, regelmaessig speichern
+                PlayerStats.Tick(Time.unscaledDeltaTime);
+                if (state == State.Playing && player != null && !player.destroyed) { statDrive += Time.deltaTime; if (statDrive >= 5f) { PlayerStats.Drive(player.spec.name, statDrive); statDrive = 0f; } }
+            }
             if (netShot != null && state != State.Menu)
             {
                 float t0 = netShotT; netShotT += Time.unscaledDeltaTime;
@@ -746,6 +760,7 @@ namespace PanzerSim
             if (quitAsk) DrawQuitAsk(W, H);   // "Wirklich beenden?" liegt ueber allem
             else if (Accounts.Required && !Accounts.LoggedIn && state == State.Menu) DrawLogin(W, H);   // ohne Konto kein Spiel
             else if (accountsOpen) DrawAccountList(W, H);
+            else if (statsOpen && state == State.Menu) DrawStats(W, H);
             else if (ammoOpen && state == State.Menu) DrawAmmo(W, H);
             else if (settingsOpen) DrawSettings(W, H);
             else if (state == State.Menu) DrawMenu(W, H);
@@ -804,6 +819,11 @@ namespace PanzerSim
             GUILayout.Space(10);
             var ts = Tanks[tankIndex]();
             if (!ts.noGun && GUILayout.Button($"Munition einstellen  ({Loadouts.Capacity(ts)} Granaten an Bord)", btn, GUILayout.Height(38))) OpenAmmo(ts);
+            GUILayout.BeginHorizontal();
+            int camoIdx = Camo.For(ts);
+            if (GUILayout.Button($"Tarnanstrich: <b>{Camo.Names[camoIdx]}</b>", btn, GUILayout.Height(34))) { Camo.Set(ts, (camoIdx + 1) % Camo.Names.Length); Camo.Apply(preview, Camo.For(ts)); }
+            if (GUILayout.Button("Statistik / Rangliste", btn, GUILayout.Height(34), GUILayout.Width(180))) { statsOpen = true; PlayerStats.LoadRanking(); }
+            GUILayout.EndHorizontal();
             GUILayout.Space(8);
             GUILayout.Label(TankInfo(ts), text);
             GUILayout.EndArea();
@@ -1033,6 +1053,46 @@ namespace PanzerSim
             GUILayout.EndArea();
         }
 
+        // ================= Statistik und Rangliste =================
+        Vector2 rankScroll;
+        void DrawStats(float W, float H)
+        {
+            GUI.DrawTexture(new Rect(0, 0, W, H), texShade);
+            var r = new Rect(W / 2f - 560, 110, 1120, 860);
+            GUI.Box(r, GUIContent.none, panel);
+            GUILayout.BeginArea(new Rect(r.x + 28, r.y + 22, r.width - 56, r.height - 44));
+            GUILayout.Label("STATISTIK" + (Accounts.LoggedIn ? $"  -  {Accounts.Username}" : "  (lokal, ohne Konto)"), head);
+            GUILayout.Label(PlayerStats.Summary, text);
+            if (PlayerStats.Status.Length > 0) GUILayout.Label($"<color=#f77>{PlayerStats.Status}</color>", small);
+            GUILayout.Space(16);
+            GUILayout.Label("RANGLISTE WELLEN-MODUS", head);
+            GUILayout.Label(PlayerStats.RankMessage, small);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("<b>Platz</b>", text, GUILayout.Width(80)); GUILayout.Label("<b>Spieler</b>", text, GUILayout.Width(360));
+            GUILayout.Label("<b>Welle</b>", text, GUILayout.Width(120)); GUILayout.Label("<b>Abschuesse</b>", text, GUILayout.Width(160));
+            GUILayout.EndHorizontal();
+            rankScroll = GUILayout.BeginScrollView(rankScroll, GUILayout.Height(480));
+            for (int i = 0; i < PlayerStats.Ranking.Count; i++)
+            {
+                var e = PlayerStats.Ranking[i];
+                bool me = Accounts.LoggedIn && string.Equals(e.name, Accounts.Username, System.StringComparison.OrdinalIgnoreCase);
+                string c0 = me ? "<color=#fd6>" : "", c1 = me ? "</color>" : "";
+                GUILayout.BeginHorizontal();
+                GUILayout.Label($"{c0}{i + 1}.{c1}", text, GUILayout.Width(80)); GUILayout.Label($"{c0}{e.name}{c1}", text, GUILayout.Width(360));
+                GUILayout.Label($"{c0}{e.wave}{c1}", text, GUILayout.Width(120)); GUILayout.Label($"{c0}{e.kills}{c1}", text, GUILayout.Width(160));
+                GUILayout.EndHorizontal();
+            }
+            GUILayout.EndScrollView();
+            GUILayout.FlexibleSpace();
+            GUILayout.BeginHorizontal();
+            GUI.enabled = !PlayerStats.RankBusy;
+            if (GUILayout.Button("Aktualisieren", btn, GUILayout.Height(46))) { PlayerStats.SaveSoon(true); PlayerStats.LoadRanking(); }
+            GUI.enabled = true;
+            if (GUILayout.Button("Schliessen", btnSel, GUILayout.Height(46))) statsOpen = false;
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+        }
+
         // ================= Munition einstellen =================
         bool ammoOpen;
         TankSpec ammoSpec;
@@ -1040,6 +1100,8 @@ namespace PanzerSim
 
         bool ammoTestPending;
         string menuShot, netShot;
+        float statDrive;
+        bool statsOpen;
         float netShotT;
         void OpenAmmoTest() => OpenAmmo(Tanks[tankIndex]());
         void OpenAmmo(TankSpec s)

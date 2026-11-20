@@ -566,6 +566,24 @@ namespace PanzerSim
                 else Debug.Log("BENCH-DESTROY: keine Haeuser registriert (" + Ruins.BenchText + ")");
             }
 
+            // -benchstats (mit -autofire, optional -tarn n): Bild vom Anstrich, 40 s schiessen, Statistik protokollieren, Statistik-Fenster
+            if (System.Array.IndexOf(args, "-benchstats") >= 0 && pl != null && cam != null)
+            {
+                System.IO.Directory.CreateDirectory(outDir ?? ".");
+                cam.SetView(pl.transform.eulerAngles.y + 150f, 12f);
+                yield return new WaitForSeconds(1.5f);
+                ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", "tarnanstrich.png"));
+                int statSteps = System.Array.IndexOf(args, "-waves") >= 0 ? 24 : 8;
+                for (int s = 0; s < statSteps; s++) { yield return new WaitForSeconds(5f); Debug.Log($"BENCH-STATS t={(s + 1) * 5}s: " + PlayerStats.Summary.Replace("\n", " | ").Replace("<b>", "").Replace("</b>", "")); }
+                GameManager.Instance.BenchOpenStats();
+                yield return new WaitForSecondsRealtime(3f);
+                ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(outDir ?? ".", "statistik.png"));
+                yield return new WaitForSecondsRealtime(0.5f);
+                Debug.Log("BENCH-STATS Rangliste: " + PlayerStats.RankMessage);
+                Application.Quit();
+                yield break;
+            }
+
             // -benchwobble: Zittern von Wanne und Rohr waehrend der Fahrt messen (Abweichung vom geglaetteten Neigungswinkel)
             if (System.Array.IndexOf(args, "-noroughness") >= 0) TankController.GroundRoughness = 0f;
             if (System.Array.IndexOf(args, "-benchwobble") >= 0 && pl != null)
